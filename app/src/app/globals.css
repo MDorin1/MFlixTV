@@ -36,33 +36,31 @@
 }
 
 .dark {
-  /* 旧版 lihongguotv（backup-2025）赛博影视主题（整体调深一档）：深蓝黑底 + 霓虹蓝/粉点缀 */
-  --c-page: 11 16 26;              /* #0b101a 深蓝黑页面底色 */
-  --c-surface: 20 28 41;           /* #141c29 弹窗/抽屉底色 */
-  --c-surface-raised: 20 28 41;
-  --c-card: 13 20 31;              /* #0d141f 卡片底色 */
-  --c-chip: 22 32 46;              /* #16202e 卡片/输入框底色 */
-  --c-hover: 29 42 61;             /* #1d2a3d 悬停态（chip 提亮） */
-  --c-line: 34 48 69;              /* #223045 边框（近似旧版 rgba(0,204,255,.15) 观感） */
-  --c-content: 230 242 255;        /* #e6f2ff 蓝白主文本（--text-color） */
-  --c-muted: 133 153 178;          /* #8599b2 次级文本（--text-muted） */
-  --c-faint: 122 140 166;          /* #7a8ca6 三级文本（原 #6b7f99 在抽屉底色 #141c29 上仅 4.17:1，12px 小字不达标；提亮后 4.99:1） */
-  --c-accent: 0 184 230;           /* #00b8e6 霓虹蓝主色（--primary-color 调深一档） */
-  --c-accent-hover: 51 214 255;    /* #33d6ff 霓虹蓝浅变体（--primary-light） */
-  /* 霓虹蓝底亮度过高（对白字仅 2.35:1），暗色下实心底改用深色文字 */
-  --c-on-accent: 8 19 31;
-  /* 语义状态色（暗色主题取中等明度值，保证深蓝黑底上的对比度） */
-  --c-danger: 239 68 68;           /* red-500 */
-  --c-danger-hover: 248 113 113;   /* red-400 */
-  --c-success: 34 197 94;          /* green-500 */
-  --c-warning: 245 158 11;         /* amber-500 */
-  --c-info: 59 130 246;            /* blue-500 */
-  --c-rating: 251 191 36;          /* amber-400 */
-  /* 实心状态底色（配白字）：与亮色一致取深档，避免琥珀/绿色底白字对比度不足 */
-  --c-danger-solid: 185 28 28;     /* red-700 */
-  --c-success-solid: 21 128 61;    /* green-700 */
-  --c-warning-solid: 180 83 9;     /* amber-700 */
-  --c-info-solid: 29 78 216;       /* blue-700 */
+  /* Netflix 风暗色：纯黑页面 + #141414 面板 + 红色 accent（原来那套深蓝紫已弃用） */
+  --c-page: 0 0 0;                 /* #000000 页面底色 */
+  --c-surface: 20 20 20;           /* #141414 弹窗/抽屉 */
+  --c-surface-raised: 24 24 24;    /* #181818 抬升面板 */
+  --c-card: 20 20 20;              /* #141414 卡片 */
+  --c-chip: 35 35 35;              /* #232323 输入框/标签 */
+  --c-hover: 51 51 51;             /* #333333 悬停 */
+  --c-line: 42 42 42;              /* #2a2a2a 边框 */
+  --c-content: 255 255 255;        /* #ffffff 主文本 */
+  --c-muted: 179 179 179;          /* #b3b3b3 次级文本（对黑底 9.6:1） */
+  --c-faint: 138 138 138;          /* #8a8a8a 三级文本（对黑底 5.7:1，12px 达标） */
+  --c-accent: 229 9 20;            /* #e50914 Netflix 红 */
+  --c-accent-hover: 244 45 56;     /* #f42d38 悬停更亮 */
+  --c-on-accent: 255 255 255;      /* 红底白字（按钮均为 14px+ 中等字重） */
+  /* 语义状态色：黑底上取中等明度 */
+  --c-danger: 229 9 20;
+  --c-danger-hover: 244 45 56;
+  --c-success: 70 211 105;
+  --c-warning: 245 158 11;
+  --c-info: 96 165 250;
+  --c-rating: 245 197 24;          /* #f5c518 评分星 */
+  --c-danger-solid: 200 5 20;
+  --c-success-solid: 21 128 61;
+  --c-warning-solid: 180 83 9;
+  --c-info-solid: 29 78 216;
   color-scheme: dark;
 }
 
@@ -71,9 +69,9 @@ body {
   @apply bg-page text-content antialiased;
 }
 
-/* 暗色主题：模拟旧版 .page-bg 的深蓝黑纵向渐变 */
+/* 暗色主题：Netflix 式纯黑（顶部略提亮，避免全屏死黑） */
 .dark body {
-  background: linear-gradient(180deg, rgb(11 16 26), rgb(20 28 41)) fixed;
+  background: linear-gradient(180deg, rgb(0 0 0), rgb(12 12 12)) fixed;
 }
 
 body {
@@ -138,9 +136,9 @@ body {
   color: rgb(var(--c-on-accent)) !important;
 }
 
-/* 品牌渐变字（沿用旧版 lihongguotv 的霓虹蓝→霓虹粉） */
+/* 品牌渐变字（Netflix 红渐层） */
 .brand-gradient {
-  background: linear-gradient(to right, #00ccff, #ff3c78);
+  background: linear-gradient(to right, #e50914, #ff5a63);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

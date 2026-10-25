@@ -52,15 +52,23 @@
 
 ## 截图
 
-| 首页（豆瓣推荐） | 搜索结果（跨源合并） |
+| 首页（本周 TOP 10 + 分类） | 搜索（跨源合并） |
 | --- | --- |
 | ![首页](docs/images/home.png) | ![搜索](docs/images/search.png) |
 
-| 影片详情（跨源剧集列表） | 播放器 · 选集 |
+| 影片资料页（Netflix 风，含演员） | 演员页（最热 / 最新 两种排序） |
 | --- | --- |
-| ![详情](docs/images/detail.png) | ![播放器选集](docs/images/player-episodes.png) |
+| ![资料页](docs/images/title.png) | ![演员页](docs/images/person.png) |
 
-> 短剧专区、续播与手机端播放器截图将在下次发布时更新：旧截图拍摄于 UI 更名之前，且画面含第三方影视内容，已从仓库移除。
+| 资料页 · 手机 | 播放器 · 选集 |
+| --- | --- |
+| ![资料页手机](docs/images/title-mobile.png) | ![播放器选集](docs/images/player-episodes.png) |
+
+| 影片详情（跨源剧集列表） | | |
+| --- | --- | --- |
+| ![详情](docs/images/detail.png) | | |
+
+> 短剧专区与播放器截图待补：旧截图拍摄于 UI 改版之前，且画面含第三方影视内容，已从仓库移除。
 
 ---
 

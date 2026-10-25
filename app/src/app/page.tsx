@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/header';
 import { RecommendSection } from '@/components/douban-section';
+import { RankRow } from '@/components/rank-row';
 import { DetailModal } from '@/components/detail-modal';
 import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { useAppStore, resolveSource, isInDisabledSubscription, isSourceDisabled } from '@/lib/store';
@@ -380,6 +381,9 @@ function HomeContent() {
             )}
           </section>
         )}
+
+        {/* 本周 TOP 10：Netflix 式大数字排名，点进去是资料页 */}
+        {!urlQuery && <RankRow id="douban_movie_weekly" title="本周电影 TOP 10" />}
 
         {/* 首页推荐（有搜索时隐藏） */}
         {!urlQuery && (
