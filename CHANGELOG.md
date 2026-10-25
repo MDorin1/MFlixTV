@@ -19,8 +19,15 @@
 - **点播源自动补源**（`tools/update.ps1`）：从公开 TVBox 配置抓新接口 → 探活 → 按**实测拉流速度**排序 → 只留 6 个快源
 - **短剧内核热更新**：拉上游新版源码、备份旧版、自动重打 `content_type` 补丁
 
-### 修复
+### 合规
 
+- 界面与文档去掉第三方商标指代（改用「短剧专区」「分类榜单」等中性说法），定位改为「自建影视资源聚合播放器」
+- 移除「免费 / 无广告 / 安全」等宣传性表述；免责声明扩写为独立文档 docs/合规与免责.md
+- 补齐许可：新增 LICENSES/（hongguo-web MIT 全文、Node.js MIT、FFmpeg GPL 与源码获取方式、Apache-2.0），重写 NOTICE.md（全量依赖清单、安装包内含 hongguo-web 源码的 MIT 义务、FFmpeg 的 GPL 义务）
+- 安装包与 macOS 便携包内随附 LICENSE、NOTICE.md、LICENSES/、合规与免责.md
+- About 页补源码链接（AGPL-3.0 第 13 条）与商标归属声明
+
+### 修复
 - 真人剧列表里混着 AIGC 漫剧：上游 `content_type`（1=真人 / 1004=漫剧·AI）被复刻项目丢弃，补丁透传后按字段精确过滤
 - 播放器只露出画面上半截：容器缺 `min-h-0`，改为 `flex-1 min-h-0` + `object-contain` 并锁 body 滚动
 - 移动端顶栏按钮换行：去掉换行、缩小内边距、容器横向可滚
