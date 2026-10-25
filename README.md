@@ -1,4 +1,4 @@
-# LibreTV Desktop
+# lihongguotv-desktop
 
 把开源的影视聚合站点 [LibreTV](https://github.com/LibreSpark/LibreTV) 做成**能在 Windows 上双击安装、在 macOS 上解压即用的桌面应用**，并接入了**红果短剧**专区（体裁分类 / 观看历史 / 换源续播）。
 
