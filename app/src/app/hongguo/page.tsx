@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from '@/components/header';
-import { NetflixNav } from '@/components/netflix-nav';
 import { cn } from '@/lib/utils';
 
 /**
@@ -856,9 +855,7 @@ export default function HongguoPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-2 px-4 py-4 lg:flex-row lg:items-start lg:gap-6">
-        <NetflixNav />
-        <main className="min-w-0 flex-1">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
         {/* 标题 + 搜索 */}
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -1104,8 +1101,7 @@ export default function HongguoPage() {
         {!loading && !err && items.length === 0 && (
           <p className="py-16 text-center text-sm text-faint">这个分类暂时没有内容，换个体裁或关键词试试</p>
         )}
-        </main>
-      </div>
+      </main>
 
       {/* 详情弹层 */}
       {detail && (

@@ -6,7 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/client-api';
 import { copyToClipboard } from '@/lib/clipboard';
 import { Header } from '@/components/header';
-import { NetflixNav } from '@/components/netflix-nav';
 // 播放器（artplayer + hls.js）按需加载：拆出独立 chunk，不占首屏 First Load JS
 import dynamic from 'next/dynamic';
 const LivePlayer = dynamic(() => import('@/components/live-player').then((m) => m.LivePlayer), {
@@ -221,9 +220,7 @@ function LiveContent() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header showSearch />
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-2 px-4 py-4 lg:flex-row lg:items-start lg:gap-6">
-        <NetflixNav />
-        <main className="min-w-0 flex-1">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-4">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
           {/* 主栏：播放器 + 信息条 + 节目单 */}
           <div className="min-w-0">
@@ -465,8 +462,7 @@ function LiveContent() {
             频道
           </button>
         )}
-        </main>
-      </div>
+      </main>
     </div>
   );
 }

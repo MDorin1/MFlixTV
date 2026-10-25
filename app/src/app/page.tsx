@@ -8,7 +8,6 @@ import { Header } from '@/components/header';
 import { RecommendSection } from '@/components/douban-section';
 import { RankRow } from '@/components/rank-row';
 import { ContinueWatchingRow } from '@/components/continue-watching';
-import { NetflixNav } from '@/components/netflix-nav';
 import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { useAppStore, resolveSource, isInDisabledSubscription, isSourceDisabled } from '@/lib/store';
 import { api } from '@/lib/client-api';
@@ -177,11 +176,7 @@ function HomeContent() {
     <div className="min-h-screen flex flex-col">
       <Header />
 
-      <div className="relative mx-auto flex w-full max-w-[1400px] flex-col gap-2 px-4 py-4 lg:flex-row lg:items-start lg:gap-6">
-        <NetflixNav
-          activeTab={searchParams.get('tab') === 'tv' ? 'tv' : searchParams.get('tab') === 'movie' ? 'movie' : null}
-          activeCat={searchParams.get('cat')}
-        />
+      <div className="relative mx-auto w-full max-w-6xl px-4 py-4">
         <main className="min-w-0 flex-1">
         {/* 首屏氛围渐变 */}
         {!urlQuery && (
@@ -421,8 +416,7 @@ function HomeContent() {
         </main>
       </div>
 
-      <SiteFooter />
-    </div>
+      <SiteFooter />    </div>
   );
 }
 

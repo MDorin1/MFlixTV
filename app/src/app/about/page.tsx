@@ -1,7 +1,6 @@
 'use client';
 
 import { Header } from '@/components/header';
-import { NetflixNav } from '@/components/netflix-nav';
 import { SiteFooter } from '@/components/site-footer';
 import { LanBadge } from '@/components/lan-badge';
 
@@ -19,9 +18,7 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-2 px-4 py-4 lg:flex-row lg:items-start lg:gap-6">
-        <NetflixNav />
-        <main className="min-w-0 flex-1">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
           <div className="mx-auto max-w-3xl space-y-7 pb-10 pt-2 sm:pt-6">
             <header>
               <h1 className="text-2xl font-bold text-white sm:text-3xl">关于 lihongguotv</h1>
@@ -82,8 +79,7 @@ export default function AboutPage() {
               </a>
             </Block>
           </div>
-        </main>
-      </div>
+      </main>
       <SiteFooter />
     </div>
   );
