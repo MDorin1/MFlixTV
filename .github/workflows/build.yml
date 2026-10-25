@@ -1,0 +1,76 @@
+name: build
+
+# 只做「代码本身还能构建」的校验：安装依赖 + next build。
+# 桌面安装包（Windows 安装器 / macOS 便携包）是在本地打的，见 packaging/README.md，
+# 不在这里出包 —— 安装包需要内置 Node 运行时和 ffmpeg，体积大且不宜进 CI 缓存。
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'packaging/**'
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Next.js build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: 安装依赖
+        run: npm ci --no-audit --no-fund
+
+      - name: 构建
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          # 构建期不读真实密码，随便给个占位值即可
+          PASSWORD: ci-placeholder
+        run: npm run build
+
+      - name: 冒烟检查（产物存在）
+        run: |
+          test -f .next/BUILD_ID || { echo "缺少 .next/BUILD_ID"; exit 1; }
+          ls -la .next | head -20
+
+  powershell-lint:
+    name: PowerShell 语法检查
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 解析所有 .ps1（不执行）
+        shell: pwsh
+        run: |
+          $failed = 0
+          Get-ChildItem -Recurse -Filter *.ps1 | ForEach-Object {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors -and $errors.Count -gt 0) {
+              $failed++
+              Write-Host "::error file=$($_.FullName)::$($errors[0].Message)"
+            } else {
+              Write-Host "ok  $($_.Name)"
+            }
+          }
+          if ($failed -gt 0) { exit 1 }

@@ -53,17 +53,17 @@
 | --- | --- |
 | ![首页](docs/images/home.png) | ![搜索](docs/images/search.png) |
 
-| 影片详情 | 播放器（选集 / 换源在控制条） |
+| 影片详情（跨源剧集列表） | 播放器 · 选集 |
 | --- | --- |
-| ![详情](docs/images/detail.png) | ![播放器](docs/images/player-episodes.png) |
+| ![详情](docs/images/detail.png) | ![播放器选集](docs/images/player-episodes.png) |
 
 | 红果短剧 · 漫剧榜 | 红果短剧 · 真人剧 |
 | --- | --- |
 | ![红果漫剧](docs/images/hongguo-comic.png) | ![红果真人剧](docs/images/hongguo-real.png) |
 
-| 继续观看（历史） | 手机端播放器 |
+| 续播（重进 / 换源都回到上次秒数） | 手机端播放器（竖屏短剧） |
 | --- | --- |
-| ![历史](docs/images/history.png) | ![手机](docs/images/mobile-player.png) |
+| ![续播](docs/images/history.png) | ![手机](docs/images/mobile-player.png) |
 
 ---
 
@@ -71,22 +71,22 @@
 
 ### Windows（推荐）
 
-1. 打开 [Releases](../../releases) 下载 `LibreTV-Setup-x.y.z.exe`
-2. 安装（可选桌面快捷方式），双击 **LibreTV**
-3. 浏览器自动打开 `http://localhost:8080`，默认密码 **`libretv`**
+1. 打开 [Releases](../../releases) 下载 `lihongguotv-Setup-x.y.z.exe`
+2. 安装（可选桌面快捷方式），双击 **lihongguotv**
+3. 浏览器自动打开 `http://localhost:8080`，默认密码 **`lihongguotv`**
 4. 退出：托盘图标右键 →「退出」
 
 > 未做代码签名，首次运行 Windows 会提示「未知发布者」，点「更多信息 → 仍要运行」。
 
 ### macOS
 
-1. 下载 `LibreTV-macOS-arm64.zip`（Apple 芯片）或 `x64` 版本
-2. 解压后双击 `启动LibreTV.command`
-3. 首次可能被 Gatekeeper 拦：右键 → 打开，或执行 `xattr -dr com.apple.quarantine ./LibreTV-macOS`
+1. 下载 `lihongguotv-macOS-arm64.zip`（Apple 芯片）或 `x64` 版本
+2. 解压后双击 `启动lihongguotv.command`
+3. 首次可能被 Gatekeeper 拦：右键 → 打开，或执行 `xattr -dr com.apple.quarantine ./lihongguotv-macOS`
 
 ### 改密码
 
-编辑 `app/.env`（Windows 安装版在 `%LOCALAPPDATA%\Programs\LibreTV\app\.env`）里的 `PASSWORD=`，重启应用。
+编辑 `app/.env`（Windows 安装版在 `%LOCALAPPDATA%\Programs\lihongguotv\app\.env`）里的 `PASSWORD=`，重启应用。
 
 ---
 
@@ -109,7 +109,7 @@
 **播放链路**
 
 ```
-LibreTV 页面 → /hg-api/* → 本机 hongguo-web 服务(127.0.0.1:8000)
+lihongguotv 页面 → /hg-api/* → 本机 hongguo-web 服务(127.0.0.1:8000)
                 ↓
              签名 → 取直链 → 下载 → CENC 解密 → ffmpeg 转 H.264 → 直出 mp4
 ```
@@ -195,14 +195,14 @@ PORT=8000 BIND_HOST=127.0.0.1 HG_TRANSCODE=1 node server/src/main.js
 
 ```powershell
 # 1) 组装便携目录（node/ffmpeg/app/hongguo/launcher）
-powershell -ExecutionPolicy Bypass -File packaging\build-portable.ps1 -Out D:\Build\LibreTV\stage
+powershell -ExecutionPolicy Bypass -File packaging\build-portable.ps1 -Out D:\Build\lihongguotv\stage
 
 # 2) 编译启动器（需要 .NET Framework 的 csc）
-csc /target:winexe /out:stage\LibreTV.exe /win32icon:packaging\app.ico `
+csc /target:winexe /out:stage\lihongguotv.exe /win32icon:packaging\app.ico `
     /r:System.Windows.Forms.dll /r:System.Drawing.dll packaging\Launcher.cs
 
-# 3) 用 Inno Setup 6 编译 packaging\LibreTV.iss
-ISCC.exe packaging\LibreTV.iss
+# 3) 用 Inno Setup 6 编译 packaging\lihongguotv.iss
+ISCC.exe packaging\lihongguotv.iss
 ```
 
 ### macOS
@@ -217,7 +217,7 @@ CI（[.github/workflows/build.yml](.github/workflows/build.yml)）只做 `next b
 
 ```
 .
-├── app/                     Next.js 应用（LibreTV 源码 + 红果专区 + 桌面对接）
+├── app/                     Next.js 应用（lihongguotv 源码 + 红果专区 + 桌面对接）
 │   └── src/app/hongguo/     红果短剧页面
 │   └── src/app/api/history/ 观看历史同步接口
 ├── packaging/               Windows 启动器(C#)、Inno Setup 脚本、便携目录组装脚本

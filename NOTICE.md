@@ -1,6 +1,6 @@
 # 第三方声明 / Third-Party Notices
 
-本项目（LibreTV Desktop）在以下开源项目基础上构建，遵循各自的许可协议。
+本项目（lihongguotv Desktop）在以下开源项目基础上构建，遵循各自的许可协议。
 
 ## 1. LibreSpark/LibreTV — AGPL-3.0
 

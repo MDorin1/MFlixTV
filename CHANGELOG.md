@@ -6,8 +6,9 @@
 
 ### 新增
 
+- **品牌名改为 `lihongguotv`**（原 LibreTV Desktop）：界面字标、图标（favicon / PWA / 安装包）、首页海报、安装包名、安装目录（`%LOCALAPPDATA%\Programs\lihongguotv`）、可执行文件（`lihongguotv.exe`）、存储键（`lhg_session` / `lihongguotv-theme` / `lihongguotv-*`）全部改名；上游归属与 AGPL 声明按许可要求保留
 - **Windows 安装版**：一键安装，自带 Node 22 运行时与 ffmpeg，托盘常驻，不用装任何环境
-- **macOS 便携版**（Apple 芯片）：解压双击 `启动LibreTV.command` 即用
+- **macOS 便携版**（Apple 芯片）：解压双击 `启动lihongguotv.command` 即用
 - **红果短剧专区**（`/hongguo`）：
   - 体裁三层导航：真人剧 / 漫剧 / AI短剧 → 推荐 / 热播 / 新剧
   - 按「剧 + 集」双维度记录观看进度，回到任意一集都接着上次的秒数

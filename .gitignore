@@ -1,0 +1,41 @@
+# 依赖与构建产物
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# 环境与本地配置
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# 运行时数据
+logs/
+*.log
+db.json
+.data/
+stream-cache/
+download/
+last-source-update.txt
+
+# 打包中间产物
+stage/
+installer/
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.zip
+*.tar.gz
+!packaging/app.ico
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
