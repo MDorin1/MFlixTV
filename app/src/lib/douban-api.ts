@@ -47,7 +47,9 @@ async function getJson<T>(path: string): Promise<T | null> {
     });
     if (!res.ok) return null;
     const text = await res.text();
-    if (!text.trim().startsWith('{')) return null;
+    // 多数接口回对象，推荐接口回数组，两种都要能解析
+    const head = text.trim()[0];
+    if (head !== '{' && head !== '[') return null;
     const data = JSON.parse(text) as T;
     cache.set(key, { at: Date.now(), data });
     return data;
@@ -236,4 +238,42 @@ export async function fetchPersonWorks(
     });
   }
   return { total: Number(raw?.total) || works.length, works: works.slice(0, count) };
+}
+
+/** 相似影片（豆瓣推荐接口回的是数组，结构比 subject 精简） */
+export interface SimilarTitle {
+  id: string;
+  title: string;
+  cover: string;
+  rating: string;
+  isTv: boolean;
+  subtitle: string;
+}
+
+/**
+ * 拉一部片的相似推荐。
+ * 只取前 limit 条：资料页那一行是横向滑动的，多了既没人看也浪费豆瓣的节流额度。
+ */
+export async function fetchRecommendations(id: string, limit = 12): Promise<SimilarTitle[]> {
+  interface Raw {
+    id?: string | number;
+    title?: string;
+    type?: string;
+    card_subtitle?: string;
+    pic?: { normal?: string; large?: string };
+    rating?: { value?: number };
+  }
+  const raw = await getJson<Raw[]>(`/movie/${id}/recommendations`);
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .slice(0, limit)
+    .map((item) => ({
+      id: String(item.id ?? ''),
+      title: (item.title || '').trim(),
+      cover: item.pic?.large || item.pic?.normal || '',
+      rating: typeof item.rating?.value === 'number' ? item.rating.value.toFixed(1) : '',
+      isTv: item.type === 'tv',
+      subtitle: item.card_subtitle || '',
+    }))
+    .filter((item) => item.id && item.title);
 }

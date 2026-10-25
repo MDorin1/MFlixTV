@@ -29,6 +29,14 @@ interface CastMember {
   character: string;
   avatar: string;
 }
+interface SimilarTitle {
+  id: string;
+  title: string;
+  cover: string;
+  rating: string;
+  isTv: boolean;
+  subtitle: string;
+}
 
 /** 图片走内置代理，避免豆瓣图床的盗链限制 */
 function proxied(url: string) {
@@ -42,12 +50,14 @@ export default function TitlePage() {
   const id = params?.id || '';
   const [subject, setSubject] = useState<Subject | null>(null);
   const [cast, setCast] = useState<{ directors: CastMember[]; actors: CastMember[] }>({ directors: [], actors: [] });
+  const [similar, setSimilar] = useState<SimilarTitle[]>([]);
   const [err, setErr] = useState('');
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let alive = true;
     setErr('');
+    setSimilar([]);
     fetch(`/api/douban/info?id=${encodeURIComponent(id)}`)
       .then(async (r) => {
         const d = await r.json();
@@ -58,6 +68,7 @@ export default function TitlePage() {
         if (!alive) return;
         setSubject(d.subject);
         setCast(d.cast || { directors: [], actors: [] });
+        setSimilar(Array.isArray(d.similar) ? d.similar : []);
       })
       .catch((e) => alive && setErr(e.message || '加载失败'));
     return () => {
@@ -239,6 +250,43 @@ export default function TitlePage() {
             <div id="play" className="scroll-mt-16">
               <SourcePlayPanel title={subject.title} />
             </div>
+
+            {/* 相似影片：Netflix 资料页底部的「More Like This」，看完一部顺手下一部 */}
+            {similar.length > 0 && (
+              <section className="mt-10">
+                <h2 className="mb-3 text-lg font-bold text-white">相似影片</h2>
+                <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {similar.map((s) => (
+                    <Link
+                      key={s.id}
+                      href={`/title/${s.id}`}
+                      className="w-[104px] shrink-0 sm:w-[120px]"
+                      title={s.subtitle || s.title}
+                    >
+                      <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-white/10 ring-1 ring-white/10 transition-transform duration-300 hover:scale-[1.03]">
+                        {s.cover && (
+                          <img
+                            src={proxied(s.cover)}
+                            alt={s.title}
+                            loading="lazy"
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+                        {Number(s.rating) > 0 && (
+                          <span className="absolute left-1.5 top-1.5 rounded bg-black/70 px-1 py-0.5 text-[10px] font-semibold text-amber-300">
+                            ★ {s.rating}
+                          </span>
+                        )}
+                        <div className="poster-scrim absolute inset-x-0 bottom-0 h-[55%]" />
+                        <p className="poster-title absolute inset-x-0 bottom-0 line-clamp-2 p-1.5 text-[12px] leading-tight">
+                          {s.title}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <p className="mt-8 text-[11px] leading-relaxed text-white/30">
               影片资料与图片来自豆瓣公开接口，仅用于本机展示；播放内容来自你自己配置的第三方点播源。
