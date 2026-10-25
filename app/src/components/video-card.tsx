@@ -207,7 +207,7 @@ export function AggregatedCard({
           )}
 
           {/* 底部信息渐变 */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/90 via-black/45 to-transparent" />
+          <div className="poster-scrim pointer-events-none absolute inset-x-0 bottom-0 h-[68%]" />
 
           {/* 顶部徽章 */}
           <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-1 p-2">
@@ -234,11 +234,14 @@ export function AggregatedCard({
           </div>
 
           {/* 底部标题 */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 p-2.5">
-            <h3 className="line-clamp-2 text-[13px] font-semibold leading-snug text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.9)]" title={group.name}>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 p-2.5 pb-2">
+            <h3
+              className="poster-title line-clamp-2 text-[15px] leading-[1.22]"
+              title={group.name}
+            >
               {group.name}
             </h3>
-            <p className="mt-0.5 truncate text-[11px] text-white/70">{metaLine || '—'}</p>
+            <p className="poster-sub mt-1 truncate text-[11.5px] font-medium">{metaLine || '—'}</p>
           </div>
 
           {adult && <span className="absolute right-2 bottom-14 tag bg-pink-500/85 text-white">18+</span>}
@@ -447,12 +450,15 @@ export function DoubanCard({ item, onClick }: { item: { title: string; cover: st
         ) : (
           <PosterFallback />
         )}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/85 to-transparent" />
+        <div className="poster-scrim pointer-events-none absolute inset-x-0 bottom-0 h-[55%]" />
         {item.rating && (
           <span className="absolute right-2 top-2 badge-glass text-rating">★ {item.rating}</span>
         )}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 p-2">
-          <div className="truncate text-[12px] font-medium text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.9)]" title={item.title}>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 p-2 pb-2">
+          <div
+            className="poster-title line-clamp-2 text-[14px] leading-[1.2]"
+            title={item.title}
+          >
             {item.title}
           </div>
         </div>

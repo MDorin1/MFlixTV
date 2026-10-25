@@ -176,7 +176,7 @@ function HomeContent() {
     <div className="min-h-screen flex flex-col">
       <Header />
 
-      <div className="relative mx-auto flex w-full max-w-[1400px] items-start gap-6 px-4 py-4">
+      <div className="relative mx-auto flex w-full max-w-[1400px] flex-col gap-2 px-4 py-4 lg:flex-row lg:items-start lg:gap-6">
         <NetflixNav
           activeTab={searchParams.get('tab') === 'tv' ? 'tv' : searchParams.get('tab') === 'movie' ? 'movie' : null}
           activeCat={searchParams.get('cat')}

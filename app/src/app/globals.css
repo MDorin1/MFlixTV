@@ -251,3 +251,27 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   .poster-grid > * { animation: none; }
 }
+/*
+ * 海报上的文字：封面是白底/浅底时（比如浅色剧照海报），原来的 11–13px 白字直接糊掉。
+ * 这里统一给「底部实黑渐变 + 双层阴影」，字号提到 14–15px：
+ * 白封面压不住的地方靠渐变，渐变之上再靠阴影兜一层，颜色不靠色块，保持 Netflix 那种干净感。
+ */
+.poster-scrim {
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.97) 0%,
+    rgba(0, 0, 0, 0.86) 26%,
+    rgba(0, 0, 0, 0.45) 62%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+.poster-title {
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 3px 14px rgba(0, 0, 0, 0.9), 0 0 1px rgba(0, 0, 0, 0.85);
+}
+.poster-sub {
+  color: rgba(255, 255, 255, 0.86);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 2px 8px rgba(0, 0, 0, 0.85);
+}

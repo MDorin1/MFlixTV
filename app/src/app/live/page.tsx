@@ -221,7 +221,7 @@ function LiveContent() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header showSearch />
-      <div className="mx-auto flex w-full max-w-[1400px] items-start gap-6 px-4 py-4">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-2 px-4 py-4 lg:flex-row lg:items-start lg:gap-6">
         <NetflixNav />
         <main className="min-w-0 flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">

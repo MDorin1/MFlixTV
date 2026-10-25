@@ -78,7 +78,7 @@ export function RankRow({ id = 'douban_movie_weekly', title = '本周 TOP 10' }:
                   ★ {it.rating}
                 </span>
               )}
-              <span className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1 pt-4 text-[11px] font-medium text-white">
+              <span className="poster-scrim absolute bottom-0 left-0 right-0 px-1.5 pb-1.5 pt-6 text-[12px] font-semibold leading-tight text-white">
                 <span className="line-clamp-1">{it.title}</span>
               </span>
             </div>
