@@ -79,8 +79,18 @@
 2. 解压后双击 `启动lihongguotv.command`
 3. 首次可能被 Gatekeeper 拦：右键 → 打开，或执行 `xattr -dr com.apple.quarantine ./lihongguotv-macOS`
 
-### 改密码
+### 桌面快捷方式（可选）
 
+	ools\start.ps1 幂等启动：已经在跑就只打开浏览器，没跑就依次拉起短剧服务(8000)与主站(8080)，等就绪后再开页面。
+
+`powershell
+# 建一个指向它的快捷方式（目标填这行，图标用 packaging\app.ico）
+powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File tools\start.ps1
+`
+
+日志：logs\start.log。装过安装版的话，脚本会优先直接拉起托盘程序。
+
+### 改密码
 编辑 `app/.env`（Windows 安装版在 `%LOCALAPPDATA%\Programs\lihongguotv\app\.env`）里的 `PASSWORD=`，重启应用。
 
 ---
