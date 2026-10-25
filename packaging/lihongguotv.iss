@@ -1,5 +1,5 @@
 #define MyAppName "lihongguotv"
-#define MyAppVersion "1.0.2"
+#define MyAppVersion "1.0.3"
 #define MyAppExeName "lihongguotv.exe"
 
 [Setup]
@@ -20,7 +20,9 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-CloseApplications=no
+CloseApplications=yes
+CloseApplicationsFilter=*.exe,*.dll,*.node
+RestartApplications=no
 DisableWelcomePage=no
 
 [Languages]
@@ -47,3 +49,27 @@ Filename: "taskkill.exe"; Parameters: "/IM {#MyAppExeName} /F"; Flags: runhidden
 Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\app\.data"
 Type: filesandordirs; Name: "{app}\hongguo\server\stream-cache"
+
+[Code]
+// 覆盖安装时旧版通常还开着：lihongguotv.exe 与它拉起的 node 会锁住 exe / runtime\node.exe，
+// 导致「尝试替换已存在的文件时出错」。这里在写文件之前把它们结束掉。
+function KillTreeUnderAppDir(): Boolean;
+var
+  Result2: Integer;
+begin
+  Exec('taskkill.exe', '/IM lihongguotv.exe /F /T', '', SW_HIDE, ewWaitUntilTerminated, Result2);
+  // 短剧服务与主站都是 {app}\runtime\node.exe 起的，按镜像名全杀；本机其它 node 进程不受影响
+  Exec('taskkill.exe', '/FI "IMAGENAME eq node.exe" /FI "WINDOWTITLE eq *lihongguotv*" /F', '', SW_HIDE, ewWaitUntilTerminated, Result2);
+  Result := True;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+begin
+  if CurStep = ssInstall then
+  begin
+    Exec('taskkill.exe', '/IM lihongguotv.exe /F /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(600);
+  end;
+end;

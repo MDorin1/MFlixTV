@@ -108,6 +108,16 @@ $envText = [regex]::Replace($envText, '(?m)^PROXY_SECRET=.*$', 'PROXY_SECRET=lih
 if ($envText -notmatch '(?m)^PASSWORD=') { $envText = "PASSWORD=lihongguotv`n" + $envText }
 if ($envText -notmatch '(?m)^PROXY_SECRET=') { $envText = "PROXY_SECRET=lihongguotv-desktop-secret`n" + $envText }
 [IO.File]::WriteAllText("$Out\app\.env", $envText, (New-Object Text.UTF8Encoding($false)))
+# 版本号：以仓库里的 app/package.json 为准，避免打包用的开发目录版本号漂掉
+$repoPkg = Join-Path $repo 'app\package.json'
+if (Test-Path $repoPkg) {
+  $repoVer = (Get-Content $repoPkg -Raw | ConvertFrom-Json).version
+  $outPkg = Join-Path "$Out\app" 'package.json'
+  $pkgText = [IO.File]::ReadAllText($outPkg, [Text.Encoding]::UTF8)
+  $pkgText = [regex]::Replace($pkgText, '"version":\s*"[^"]+"', ('"version": "' + $repoVer + '"'), 1)
+  [IO.File]::WriteAllText($outPkg, $pkgText, (New-Object Text.UTF8Encoding($false)))
+  Write-Host "==> app 版本号对齐为 $repoVer"
+}
 Write-Host "==> 已写入 app\.env（PASSWORD=lihongguotv）"
 
 Remove-Item "$Out\app\.next\cache" -Recurse -Force -ErrorAction SilentlyContinue
