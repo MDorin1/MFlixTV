@@ -1,6 +1,6 @@
 # hongguo-web 内核补丁：透传 `content_type`
 
-lihongguotv 的红果短剧页用 [sunnysky123/hongguo-web](https://github.com/sunnysky123/hongguo-web) 作为取流内核，它本身是独立仓库（MIT），**不随本仓库分发**。本仓库只提供一行补丁：让内核把上游的体裁标识 `content_type` 透出到 API 结果里。
+lihongguotv 的短剧专区页用 [sunnysky123/hongguo-web](https://github.com/sunnysky123/hongguo-web) 作为取流内核，它本身是独立仓库（MIT），**不随本仓库分发**。本仓库只提供一行补丁：让内核把上游的体裁标识 `content_type` 透出到 API 结果里。
 
 ## 为什么需要
 
@@ -13,7 +13,7 @@ lihongguotv 的红果短剧页用 [sunnysky123/hongguo-web](https://github.com/s
 
 hongguo-web 在解析时把这个字段丢掉了。缺了它，前端只能靠标题/封面/标签猜，结果就是「点真人剧进去 99% 都是 AIGC 漫剧」。
 
-补上之后，红果页按 `content_type` 精确筛：
+补上之后，短剧页按 `content_type` 精确筛：
 
 - 真人剧：`content_type === 1`
 - AI短剧：`content_type === 1004` 且排除官方漫剧榜里的条目

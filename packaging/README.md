@@ -7,7 +7,7 @@
 | 工具 | 用途 | 备注 |
 | --- | --- | --- |
 | Node.js 22 | 构建 Next.js + 充当内置运行时 | 便携包直接把 `node.exe` 塞进去 |
-| ffmpeg | 红果转码 | 只需要可执行文件 |
+| ffmpeg | 短剧转码 | 只需要可执行文件 |
 | .NET Framework `csc.exe` | 编译托盘启动器 | Windows 自带：`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe` |
 | Inno Setup 6 | 出 Windows 安装包 | 需要中文语言包 `ChineseSimplified.isl` |
 
@@ -30,7 +30,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build-portable.ps1 `
 1. `npm ci` + `next build`（**要 devDependencies**，别用 `--omit=dev`）
 2. 复制 `.next`（去掉 `.next\cache`，运行时用不到但占一半体积）、`node_modules`、`public`、`next.config.mjs`
 3. 生成中性 `.env`：`PASSWORD=lihongguotv`、`PROXY_SECRET=lihongguotv-desktop-secret`
-4. 复制红果内核并**自动重打 `content_type` 补丁**，删掉 `apikeys.json`（首次启动自动生成，不该带别人的设备身份）
+4. 复制短剧内核并**自动重打 `content_type` 补丁**，删掉 `apikeys.json`（首次启动自动生成，不该带别人的设备身份）
 5. 复制 `node.exe`、`ffmpeg.exe`、`tools\update.ps1`、启动器源码与图标、使用说明
 
 > 便携目录里 `next.config.mjs` 是**手写的 mjs**，不是仓库里的 `next.config.ts` —— 运行时没有 TypeScript，Next 会试图自动装 typescript 然后失败。
@@ -85,7 +85,7 @@ macOS 上不做 `.app`/`.dmg`（那需要签名与公证），发的是**解压�
 ```
 lihongguotv-macOS-arm64/
 ├── app/                  Next.js 生产产物（.next + node_modules + public + .env + next.config.mjs）
-├── hongguo/              红果内核（server/src + server/config + web，已打补丁，无 apikeys.json）
+├── hongguo/              短剧内核（server/src + server/config + web，已打补丁，无 apikeys.json）
 ├── runtime/
 │   ├── node              node 22 darwin-arm64 可执行文件
 │   └── ffmpeg/ffmpeg     ffmpeg 静态构建（arm64）
@@ -125,7 +125,7 @@ Compress-Archive -Path D:\Build\lihongguotv-mac-arm64\* -DestinationPath D:\Buil
 2. 用 `lihongguotv` 登录成功
 3. 首页有豆瓣推荐卡片（说明外网接口通）
 4. 搜索一个片名 → 有结果 → 能起播（说明点播源可用）
-5. 红果短剧 → 真人剧 / 漫剧 各进一次 → 卡片体裁不串（说明补丁生效）
-6. 红果随便一集起播（首次 10–20 秒）→ 播到 30 秒 → 退出 → 重进 → 回到 30 秒附近
+5. 短剧专区 → 真人剧 / 漫剧 各进一次 → 卡片体裁不串（说明补丁生效）
+6. 短剧随便一集起播（首次 10–20 秒）→ 播到 30 秒 → 退出 → 重进 → 回到 30 秒附近
 7. 托盘 →「检查更新」→ 日志 `logs\update.log` 有输出、服务能自动重启
 8. 退出托盘 → 进程清干净（任务管理器里没有残留 `node.exe`）

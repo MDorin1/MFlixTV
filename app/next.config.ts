@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
   // 采集站/豆瓣等上游地址在运行时由用户配置，构建期无法枚举，关闭图片优化改用 <img>
   images: { unoptimized: true },
   /**
-   * 红果短剧：本机 hongguo-web 服务（127.0.0.1:8000）同源转发到 /hg-api/*。
+   * 短剧专区：本机 hongguo-web 服务（127.0.0.1:8000）同源转发到 /hg-api/*。
    * 这样浏览器只跟 8080 打交道：不用额外开端口、不撞 CORS，局域网设备也能用。
    */
   async rewrites() {

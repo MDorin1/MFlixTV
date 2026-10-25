@@ -7,7 +7,7 @@
       powershell -NoProfile -ExecutionPolicy Bypass -File update.ps1 -Part sources
       powershell -NoProfile -ExecutionPolicy Bypass -File update.ps1 -Part all -Silent
 
-    - kernel ：拉取 hongguo-web 最新源码，替换红果内核，并重新打上 content_type 补丁
+    - kernel ：拉取 hongguo-web 最新源码，替换短剧内核，并重新打上 content_type 补丁
     - sources：内置池 + 现有配置 + 公开列表里的新源，探活后写回 app\.env
     - 两者都会在结束后按需重启对应服务；配置没变化时不重启
 #>
@@ -96,7 +96,7 @@ function Wait-Port([int]$port, [int]$timeoutSec = 40) {
 
 function Start-Hongguo {
   $main = Join-Path $hgDir 'server\src\main.js'
-  if (-not (Test-Path $main)) { Log "找不到红果入口 $main" 'WARN'; return }
+  if (-not (Test-Path $main)) { Log "找不到短剧入口 $main" 'WARN'; return }
   $oldPath = $env:PATH
   if (Test-Path $ffmpegBin) { $env:PATH = "$ffmpegBin;$env:PATH" }
   $env:PORT = '8000'
@@ -107,7 +107,7 @@ function Start-Hongguo {
   $p = Start-Process -FilePath $nodeExe -ArgumentList @($main) -WorkingDirectory $hgDir -WindowStyle Hidden -PassThru `
        -RedirectStandardOutput (Join-Path $hgDir 'hg.log') -RedirectStandardError (Join-Path $hgDir 'hg.err.log')
   $env:PATH = $oldPath
-  Log "红果服务已启动 (pid $($p.Id))"
+  Log "短剧服务已启动 (pid $($p.Id))"
 }
 
 function Start-Web {
@@ -168,7 +168,7 @@ function Update-ContentTypePatch {
 }
 
 function Invoke-KernelUpdate {
-  Log '===== 检查红果内核更新 ====='
+  Log '===== 检查短剧内核更新 ====='
   $tmp = Join-Path $env:TEMP ('hg-update-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
   New-Item -ItemType Directory -Force -Path $tmp | Out-Null
   $zip = Join-Path $tmp 'src.zip'
@@ -507,7 +507,7 @@ try {
       Stop-Port 8000
       Start-Sleep -Seconds 1
       Start-Hongguo
-      if (Wait-Port 8000 30) { Log '红果服务已就绪' } else { Log '红果服务启动超时' 'WARN' }
+      if (Wait-Port 8000 30) { Log '短剧服务已就绪' } else { Log '短剧服务启动超时' 'WARN' }
     }
   }
 
@@ -522,7 +522,7 @@ try {
   }
 
   $msg = @()
-  if ($Part -eq 'all' -or $Part -eq 'kernel') { $msg += ('红果内核：' + $(if ($kernelChanged) { '已更新' } else { '未更新（下载失败或已是新版）' })) }
+  if ($Part -eq 'all' -or $Part -eq 'kernel') { $msg += ('短剧内核：' + $(if ($kernelChanged) { '已更新' } else { '未更新（下载失败或已是新版）' })) }
   if ($Part -eq 'all' -or $Part -eq 'sources') { $msg += ('点播源：' + $(if ($sourceChanged) { '已刷新' } else { '未更新（可用源不足）' })) }
   Finish ($msg -join "`r`n") ($kernelChanged -or $sourceChanged)
 }

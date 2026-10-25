@@ -4,11 +4,11 @@ import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
   title: {
-    default: 'lihongguotv - 免费在线视频搜索与观看平台',
+    default: 'lihongguotv - 本地影视聚合播放器',
     template: '%s - lihongguotv',
   },
   description:
-    'lihongguotv 是一个免费的在线视频搜索平台，无广告、安全，提供来自多个视频源的内容搜索与观看服务，无需注册即可使用。',
+    'lihongguotv 是一个自建的影视资源聚合播放器：界面与服务都运行在本机，内容来自用户自行配置的第三方接口，本项目不提供、不存储任何影视内容。',
   manifest: '/manifest.webmanifest',
   // 图标与门户站（lihongguotv-portal）同一套：同一张 artwork 导出的多尺寸 + 根目录 favicon.ico 兜底。
   // 只声明单张 512 时，抓取端只能拿大图缩放，小尺寸下易糊、看起来「没填满」。

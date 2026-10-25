@@ -15,18 +15,18 @@ lihongguotv for macOS（Apple 芯片）
     pkill -f "next start -p 8080"
     pkill -f "hongguo/server/src/main.js"
 
-三、关于红果短剧
-  红果的转码依赖 ffmpeg，本包已内置（runtime/ffmpeg/ffmpeg）。
+三、关于短剧专区
+  短剧的转码依赖 ffmpeg，本包已内置（runtime/ffmpeg/ffmpeg）。
   macOS 上的 Safari/Chrome 一般能直接硬解 HEVC，所以默认不转码、首播更快；
   若某台机器出现「有声音没画面」，改成强制转码即可：
-    HG_TRANSCODE=1 启动 —— 修改 启动lihongguotv.command，在启动红果那行加 HG_TRANSCODE=1
+    HG_TRANSCODE=1 启动 —— 修改 启动lihongguotv.command，在启动短剧那行加 HG_TRANSCODE=1
 
 四、改密码
   编辑 app/.env 里的 PASSWORD=lihongguotv，然后重启。
 
 五、目录说明
   app/      lihongguotv 主站（Next.js）
-  hongguo/  红果短剧内核（第三方，MIT）
+  hongguo/  短剧专区内核（第三方，MIT）
   runtime/  node 与 ffmpeg
   logs/     运行日志（首次启动后生成）
 

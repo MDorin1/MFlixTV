@@ -6,7 +6,7 @@
 # 产物结构（Inno Setup 用它打包）：
 #   stage/
 #     app/             Next.js 生产产物（.next + node_modules + public + .env）
-#     hongguo/         红果内核（server/src + web）
+#     hongguo/         短剧内核（server/src + web）
 #     runtime/         node.exe + ffmpeg
 #     tools/           update.ps1
 #     Launcher.cs → lihongguotv.exe（需另编译，见 packaging\README.md）
@@ -72,8 +72,15 @@ Remove-Item "$Out\app\.next" -Recurse -Force -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -ge 8) { throw "robocopy .next 失败（exit $LASTEXITCODE）" }
 # 编译缓存占一半体积，运行时用不到
 Remove-Item "$Out\app\.next\cache" -Recurse -Force -ErrorAction SilentlyContinue
-& robocopy "$AppDir\node_modules" "$Out\app\node_modules" /E /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "robocopy node_modules 失败（exit $LASTEXITCODE）" }
+# 只装生产依赖：直接把 AppDir 的 node_modules 拷过来会带上 .pnpm 的硬链接副本
+# （体积翻倍，且含 eslint/typescript 等构建期依赖），这里用 lock 文件重装一份干净的
+Copy-Item "$AppDir\package.json" "$Out\app\package.json" -Force
+Copy-Item "$AppDir\package-lock.json" "$Out\app\package-lock.json" -Force
+Push-Location "$Out\app"
+& "$(Split-Path -Parent $NodeExe)\npm.cmd" ci --omit=dev --no-audit --no-fund 2>&1 | Select-Object -Last 3
+if ($LASTEXITCODE -ne 0) { throw "npm ci --omit=dev 失败（exit $LASTEXITCODE）" }
+Remove-Item "$Out\app\node_modules\.package-lock.json" -Force -ErrorAction SilentlyContinue
+Pop-Location
 Copy-Item "$AppDir\public" "$Out\app\public" -Recurse -Force
 Copy-Item "$AppDir\package.json" "$Out\app\package.json" -Force
 Copy-Item (Join-Path $repo 'packaging\next.config.mjs') "$Out\app\next.config.mjs" -Force
@@ -86,7 +93,7 @@ $env = [regex]::Replace($env, '(?m)^PASSWORD=.*$', 'PASSWORD=lihongguotv')
 $env = [regex]::Replace($env, '(?m)^PROXY_SECRET=.*$', 'PROXY_SECRET=lihongguotv-desktop-secret')
 [IO.File]::WriteAllText("$Out\app\.env", $env, [Text.UTF8Encoding]::new($false))
 
-# --- 2) 红果内核 ---
+# --- 2) 短剧内核 ---
 if (-not (Test-Path "$HongguoDir\server\src\main.js")) {
   throw "找不到 hongguo-web 源码：$HongguoDir（先 git clone https://github.com/sunnysky123/hongguo-web）"
 }
@@ -109,6 +116,12 @@ Copy-Item (Join-Path $repo 'packaging\Launcher.cs') "$Out\launcher\Launcher.cs" 
 Copy-Item (Join-Path $repo 'packaging\app.ico') "$Out\launcher\app.ico" -Force
 # Inno Setup 的 [Icons] 引用的是 {app}\使用说明.txt，所以这里统一成这个名字
 Copy-Item (Join-Path $repo 'packaging\使用说明-Windows.txt') "$Out\使用说明.txt" -Force
+
+# 许可与第三方声明（AGPL / MIT / GPL 义务：源码与许可文本随二进制一同提供）
+Copy-Item (Join-Path $repo 'LICENSE') "$Out\LICENSE" -Force
+Copy-Item (Join-Path $repo 'NOTICE.md') "$Out\NOTICE.md" -Force
+Copy-Item (Join-Path $repo 'LICENSES') "$Out\LICENSES" -Recurse -Force
+Copy-Item (Join-Path $repo 'docs\合规与免责.md') "$Out\合规与免责.md" -Force
 
 $size = [math]::Round(((Get-ChildItem $Out -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
 Write-Host "==> 完成，$Out （$size MB）"

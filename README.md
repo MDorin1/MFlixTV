@@ -1,6 +1,8 @@
 # lihongguotv-desktop
 
-把开源的影视聚合站点 [LibreTV](https://github.com/LibreSpark/LibreTV) 做成**能在 Windows 上双击安装、在 macOS 上解压即用的桌面应用**，并接入了**红果短剧**专区（体裁分类 / 观看历史 / 换源续播）。
+把开源的影视聚合站点 [LibreTV](https://github.com/LibreSpark/LibreTV) 做成**能在 Windows 上双击安装、在 macOS 上解压即用的桌面应用**，并接入了一个**短剧专区**（体裁分类 / 观看历史 / 换源续播）。
+
+> **定位**：个人自建的播放器外壳，用于播放自己配置的第三方接口。本项目不提供、不索引、不托管任何影视内容，也不提供任何片源；请勿用于商业用途或对外分发。
 
 > 本项目是 LibreTV 的桌面封装与二次开发分支，遵循上游 **AGPL-3.0** 许可。
 > 软件只做「聚合与播放」，**不存储、不托管、不分发任何影视内容**，所有资源来自用户自行配置的第三方接口。
@@ -12,7 +14,7 @@
 - [功能](#功能)
 - [截图](#截图)
 - [快速开始](#快速开始)
-- [红果短剧专区](#红果短剧专区)
+- [短剧专区](#短剧专区)
 - [点播源与自动补源](#点播源与自动补源)
 - [更新机制](#更新机制)
 - [从源码运行](#从源码运行)
@@ -25,13 +27,13 @@
 
 ## 功能
 
-**影视聚合**
-- 多采集站（苹果CMS）并行搜索，同名影片自动合并成一张卡片，可展开比较各源
+**影视聚合（自建索引）**
+- 多接口并行搜索（苹果CMS 协议），同名影片自动合并成一张卡片，可展开比较各来源
 - 播放内核 ArtPlayer + hls.js，广告分片过滤、跳过片头片尾、倍速、快捷键
 - 直播（M3U / IPTV），带分组、搜索、EPG 节目单
-- 首页推荐：豆瓣分类 / 影视榜单
+- 首页推荐：分类榜单 / 影视榜单（第三方公开评分数据）
 
-**红果短剧专区（本项目新增）**
+**短剧专区（本项目新增）**
 - **两层导航**：真人剧 / 漫剧 / AI短剧 → 各自的推荐 / 热播 / 新剧
 - **观看历史**：按「剧 + 集」双维度记录进度，切回任意一集都接着上次的秒数
 - **继续观看**：首页横排卡片，一键回到上次位置
@@ -43,7 +45,7 @@
 **桌面体验**
 - Windows：自带 Node 运行时与 ffmpeg，安装后双击即用，托盘常驻
 - macOS：解压后双击 `.command` 启动
-- 每天/按需检查更新：拉取红果内核新版、自动从公开列表补充可用点播源
+- 每天/按需检查更新：拉取短剧内核新版、自动从公开列表补充可用点播源
 
 ---
 
@@ -57,9 +59,9 @@
 | --- | --- |
 | ![详情](docs/images/detail.png) | ![播放器选集](docs/images/player-episodes.png) |
 
-| 红果短剧 · 漫剧榜 | 红果短剧 · 真人剧 |
+| 短剧专区 · 漫剧榜 | 短剧专区 · 真人剧 |
 | --- | --- |
-| ![红果漫剧](docs/images/hongguo-comic.png) | ![红果真人剧](docs/images/hongguo-real.png) |
+| ![短剧漫剧](docs/images/hongguo-comic.png) | ![短剧真人剧](docs/images/hongguo-real.png) |
 
 | 续播（重进 / 换源都回到上次秒数） | 手机端播放器（竖屏短剧） |
 | --- | --- |
@@ -90,9 +92,9 @@
 
 ---
 
-## 红果短剧专区
+## 短剧专区
 
-入口：顶栏「红果短剧」，或首页的入口卡片。
+入口：顶栏「短剧专区」，或首页的入口卡片。
 
 **数据来源说明**
 
@@ -109,13 +111,13 @@
 **播放链路**
 
 ```
-lihongguotv 页面 → /hg-api/* → 本机 hongguo-web 服务(127.0.0.1:8000)
+lihongguotv 页面 → /hg-api/* → 本机第三方内核 hongguo-web(127.0.0.1:8000)
                 ↓
-             签名 → 取直链 → 下载 → CENC 解密 → ffmpeg 转 H.264 → 直出 mp4
+             内核自行完成取流与格式转换 → 以 mp4 形式回到播放器
 ```
 
 - 同源转发：浏览器只跟 8080 打交道，不开额外端口、不撞 CORS
-- 首播需 10–20 秒（下载 + 解密 + 转码），之后同一集命中缓存秒开
+- 首播需 10–20 秒（取流 + 本地格式转换），之后同一集命中缓存秒开
 - 缓存上限 120 集，自动淘汰最旧的
 
 ---
@@ -133,7 +135,7 @@ lihongguotv 页面 → /hg-api/* → 本机 hongguo-web 服务(127.0.0.1:8000)
 
 **为什么是 6 个、为什么按拉流速度排**：搜索快 ≠ 播放快。实测中有的站搜索 600ms 但拉流只有 18KB/s，播起来必卡。白名单在 `tools/update.ps1` 的 `$FAST_HOSTS`。
 
-手动体检：托盘菜单 →「检查更新（红果内核 + 点播源）」；或命令行
+手动体检：托盘菜单 →「检查更新（短剧内核 + 点播源）」；或命令行
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\update.ps1 -Part sources
@@ -153,7 +155,7 @@ powershell -ExecutionPolicy Bypass -File tools\bench-sources.ps1
 
 | 参数 | 作用 |
 | --- | --- |
-| `-Part kernel` | 拉取 [hongguo-web](https://github.com/sunnysky123/hongguo-web) 最新源码，备份旧内核（`src.bak-时间戳`），重新打 `content_type` 补丁，重启红果服务 |
+| `-Part kernel` | 拉取 [hongguo-web](https://github.com/sunnysky123/hongguo-web) 最新源码，备份旧内核（`src.bak-时间戳`），重新打 `content_type` 补丁，重启短剧服务 |
 | `-Part sources` | 点播源体检 + 从公开列表补新源，写回 `.env` |
 | `-Part all` | 两者都做（默认） |
 
@@ -161,13 +163,13 @@ powershell -ExecutionPolicy Bypass -File tools\bench-sources.ps1
 - 源列表没实质变化时不写盘、不重启，避免打断观看
 - 日志：`logs/update.log`
 
-> ⚠️ 红果内核是第三方逆向项目，上游一改签名算法就会失效，只能等对方更新。这是这条路线的固有风险。
+> ⚠️ 短剧内核是第三方逆向项目，上游一改签名算法就会失效，只能等对方更新。这是这条路线的固有风险。
 
 ---
 
 ## 从源码运行
 
-需要 Node.js 20+ 与本机可用的 `ffmpeg`（红果转码用）。
+需要 Node.js 20+ 与本机可用的 `ffmpeg`（短剧转码用）。
 
 ```bash
 # 1) 主站
@@ -177,7 +179,7 @@ cp .env.example .env      # 填 PASSWORD
 npm run build
 npm start                 # http://localhost:8080
 
-# 2) 红果服务（另开一个终端）
+# 2) 短剧服务（另开一个终端）
 git clone https://github.com/sunnysky123/hongguo-web hongguo-web
 cd hongguo-web
 # 打补丁：透传 content_type
@@ -217,8 +219,8 @@ CI（[.github/workflows/build.yml](.github/workflows/build.yml)）只做 `next b
 
 ```
 .
-├── app/                     Next.js 应用（lihongguotv 源码 + 红果专区 + 桌面对接）
-│   └── src/app/hongguo/     红果短剧页面
+├── app/                     Next.js 应用（lihongguotv 源码 + 短剧专区 + 桌面对接）
+│   └── src/app/hongguo/     短剧专区页面
 │   └── src/app/api/history/ 观看历史同步接口
 ├── packaging/               Windows 启动器(C#)、Inno Setup 脚本、便携目录组装脚本
 ├── tools/                   update.ps1（热更新）、bench-sources.ps1（源测速）
@@ -232,9 +234,9 @@ CI（[.github/workflows/build.yml](.github/workflows/build.yml)）只做 `next b
 ## 已知限制
 
 1. **没有代码签名**：Windows SmartScreen 会提示未知发布者；macOS 需手动放行。
-2. **红果首播慢**：单集需下载 + 解密 + 转码，约 10–20 秒；命中缓存后秒开。
-3. **红果依赖上游逆向**：签名或接口一变就失效，要等 hongguo-web 跟进。
-4. **播放器未统一到 ArtPlayer**：红果页用原生 `<video>`（保留画中画/全屏），红果该有的倍速记忆、快捷键、手势已用原生方式补齐。
+2. **短剧首播慢**：单集需取流 + 转封装 + 转码，约 10–20 秒；命中缓存后秒开。
+3. **短剧依赖上游逆向**：签名或接口一变就失效，要等 hongguo-web 跟进。
+4. **播放器未统一到 ArtPlayer**：短剧页用原生 `<video>`（保留画中画/全屏），短剧该有的倍速记忆、快捷键、手势已用原生方式补齐。
 5. **只支持 x64（Windows）**，ARM64 Windows 未打包。
 
 ---
@@ -243,16 +245,25 @@ CI（[.github/workflows/build.yml](.github/workflows/build.yml)）只做 `next b
 
 - 本项目：**AGPL-3.0-or-later**（继承上游 LibreTV）
 - [LibreSpark/LibreTV](https://github.com/LibreSpark/LibreTV)：影视聚合站点本体，AGPL-3.0
-- [sunnysky123/hongguo-web](https://github.com/sunnysky123/hongguo-web)：红果短剧网页版内核，MIT
-- [ArtPlayer](https://github.com/zhw2590582/ArtPlayer)、[hls.js](https://github.com/video-dev/hls.js)：播放内核
-- Node.js、FFmpeg：运行时与转码（FFmpeg 二进制遵循其各自许可）
+- [sunnysky123/hongguo-web](https://github.com/sunnysky123/hongguo-web)：短剧专区网页版内核，MIT
+- [ArtPlayer](https://github.com/zhw2590582/ArtPlayer)（MIT）、[hls.js](https://github.com/video-dev/hls.js)（Apache-2.0）等：播放与转封装内核
+- Node.js（MIT）、FFmpeg（LGPL/GPL，取决于构建）：随包运行时与转码
 
-完整第三方声明见 [NOTICE.md](NOTICE.md)。版本变更见 [CHANGELOG.md](CHANGELOG.md)。
+- 第三方组件全量清单：[NOTICE.md](NOTICE.md)
+- 随包二进制的许可文本：[LICENSES/](LICENSES/)
+- 合规与免责说明：[docs/合规与免责.md](docs/合规与免责.md)
+- 版本变更：[CHANGELOG.md](CHANGELOG.md)
+
+> **AGPL-3.0 第 13 条**：通过网络使用本软件的用户有权获取对应源码。本仓库即完整源码，未做任何删减。
 
 ---
 
 ## 免责声明
 
-本项目仅供**个人学习与技术研究**使用，不提供、不存储、不分发任何影视内容。
+- 本项目仅供**个人学习与技术研究**使用，**不提供、不索引、不托管、不分发**任何影视内容，不含任何片源、账号或订阅凭据。
+- 所有内容均来自使用者自行配置的第三方接口，与本项目作者无关；接口的合法性、可用性与内容版权由使用者自行判断与承担。
+- 本项目与文中提及的任何第三方公司、平台或其商标**没有隶属、合作或授权关系**；相关名称与商标归其各自所有者，仅用于客观指代。
+- 请勿用于商业用途、付费分发、大规模公开传播，或任何规避付费/授权的内容获取行为。
+- 因使用本软件产生的一切后果由使用者自行承担；作者不对可用性、合法性或由此造成的损失作任何担保。
 
-所有影视资源均来自用户自行配置的第三方接口，与本项目无关。请遵守你所在地区的法律法规与内容服务条款，不要用于商业用途或大规模传播。因使用本软件产生的任何后果由使用者自行承担。
+完整说明见 [docs/合规与免责.md](docs/合规与免责.md)。

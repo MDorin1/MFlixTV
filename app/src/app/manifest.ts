@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'lihongguotv - 免费在线视频搜索与观看平台',
+    name: 'lihongguotv - 本地影视聚合播放器',
     short_name: 'lihongguotv',
-    description: '免费在线视频搜索与观看平台',
+    description: '本地影视聚合播放器',
     start_url: '/',
     display: 'standalone',
     background_color: '#111111',

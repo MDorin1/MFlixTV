@@ -9,7 +9,7 @@
 - **品牌名改为 `lihongguotv`**（原 LibreTV Desktop）：界面字标、图标（favicon / PWA / 安装包）、首页海报、安装包名、安装目录（`%LOCALAPPDATA%\Programs\lihongguotv`）、可执行文件（`lihongguotv.exe`）、存储键（`lhg_session` / `lihongguotv-theme` / `lihongguotv-*`）全部改名；上游归属与 AGPL 声明按许可要求保留
 - **Windows 安装版**：一键安装，自带 Node 22 运行时与 ffmpeg，托盘常驻，不用装任何环境
 - **macOS 便携版**（Apple 芯片）：解压双击 `启动lihongguotv.command` 即用
-- **红果短剧专区**（`/hongguo`）：
+- **短剧专区**（`/hongguo`）：
   - 体裁三层导航：真人剧 / 漫剧 / AI短剧 → 推荐 / 热播 / 新剧
   - 按「剧 + 集」双维度记录观看进度，回到任意一集都接着上次的秒数
   - 换源续播：同名剧换源后回到同一集，进度**只往前挪 10 秒**
@@ -17,7 +17,7 @@
   - 服务端历史同步（`/api/history`），换设备登录自动合并
 - **海报墙 UI**：竖向 2:3 卡片、圆角、选集与换源收进播放器控制条
 - **点播源自动补源**（`tools/update.ps1`）：从公开 TVBox 配置抓新接口 → 探活 → 按**实测拉流速度**排序 → 只留 6 个快源
-- **红果内核热更新**：拉上游新版源码、备份旧版、自动重打 `content_type` 补丁
+- **短剧内核热更新**：拉上游新版源码、备份旧版、自动重打 `content_type` 补丁
 
 ### 修复
 
@@ -29,6 +29,6 @@
 ### 已知限制
 
 - 无代码签名：Windows SmartScreen 提示「未知发布者」，macOS 需手动放行
-- 红果首播 10–20 秒（下载 + 解密 + 转码），命中缓存后秒开
-- 红果依赖上游逆向接口，上游一改签名就失效，得等 [hongguo-web](https://github.com/sunnysky123/hongguo-web) 跟进
+- 短剧首播 10–20 秒（取流 + 转封装 + 转码），命中缓存后秒开
+- 短剧依赖上游逆向接口，上游一改签名就失效，得等 [hongguo-web](https://github.com/sunnysky123/hongguo-web) 跟进
 - Windows 只出 x64，macOS 只出 arm64

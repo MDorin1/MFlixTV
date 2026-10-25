@@ -1,0 +1,10 @@
+Apache License, Version 2.0
+
+适用于随包分发的以下组件：
+  hls.js 1.7.3、mpegts.js 1.8.2、mux.js 6.3.0、dexie 4.x、dexie-react-hooks 1.1.7
+
+许可全文：https://www.apache.org/licenses/LICENSE-2.0
+（各组件目录内亦附有其自身的 LICENSE 文件：app/node_modules/<包名>/LICENSE）
+
+Apache-2.0 要求保留版权声明与 NOTICE 文件（若上游提供），并注明你做出的修改。
+本项目未修改上述组件源码，仅通过 npm 依赖使用。

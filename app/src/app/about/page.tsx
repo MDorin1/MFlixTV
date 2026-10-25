@@ -11,8 +11,8 @@ export default function AboutPage() {
         <section>
           <h1 className="text-xl font-bold text-content mb-3">关于 lihongguotv</h1>
           <p className="text-sm text-muted leading-relaxed">
-            lihongguotv 是一个免费的在线视频搜索与观看平台。输入片名即可在多个点播源中聚合搜索，
-            无需注册、无内嵌广告、不存储任何视频文件。所有播放内容均来自第三方公开接口。
+            lihongguotv 是一个自建的影视资源聚合播放器，界面与服务都运行在本机。
+            输入片名即可在你自己配置的多个接口中检索并播放，本项目不提供、不索引、不托管任何影视内容。
           </p>
         </section>
 
@@ -31,16 +31,29 @@ export default function AboutPage() {
         <section>
           <h2 className="text-base font-semibold text-content mb-2.5">隐私与数据</h2>
           <p className="text-sm text-muted leading-relaxed">
-            你的搜索历史、观看进度等数据仅保存在本设备浏览器中（IndexedDB），不会上传到服务器。
-            聚合搜索请求由服务端代理转发，第三方数据源不会看到你的 IP 地址。
+            你的搜索历史、观看进度等数据保存在本机（浏览器 IndexedDB 与本机服务端），不上报给项目作者，本项目不含任何遥测。
+            访问第三方接口的请求由本机服务转发；这些第三方仍会看到你本机的请求信息，这属于你与它们之间的直接关系。
           </p>
         </section>
 
         <section>
           <h2 className="text-base font-semibold text-content mb-2.5">免责声明</h2>
           <p className="text-sm text-faint leading-relaxed">
-            本项目不存储、不制作任何视频内容，仅提供第三方公开接口的聚合与播放能力。
-            请尊重版权，所有内容的合法性由对应数据源负责。
+            本项目不存储、不制作、不分发任何影视内容，仅提供本机播放能力；内容来自你自行配置的第三方接口，其合法性由你与对应来源负责。
+            文中出现的第三方名称与商标归其各自所有者，本项目与其无隶属、合作或授权关系。
+            仅供个人学习与技术研究，请勿用于商业用途或公开传播。
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-base font-semibold text-content mb-2.5">开源许可</h2>
+          <p className="text-sm text-muted leading-relaxed">
+            本项目以 AGPL-3.0 许可开源（派生自 LibreTV），完整源码与第三方许可见仓库：
+          </p>
+          <p className="text-sm mt-2">
+            <a className="text-accent hover:underline" href="https://github.com/MDorin1/lihongguotv-desktop" target="_blank" rel="noreferrer">
+              github.com/MDorin1/lihongguotv-desktop
+            </a>
           </p>
         </section>
       </main>

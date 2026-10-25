@@ -98,7 +98,7 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
 
           <nav className="flex items-center gap-1 ml-auto shrink-0">
             <HeaderLink href="/hongguo" active={pathname === '/hongguo'}>
-              <span className="brand-gradient font-medium">红果短剧</span>
+              <span className="brand-gradient font-medium">短剧专区</span>
             </HeaderLink>
             <HeaderLink href="/live" active={pathname === '/live'}>
               直播

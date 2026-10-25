@@ -11,9 +11,9 @@ NODE="./runtime/node"
 
 port_open() { /usr/bin/nc -z 127.0.0.1 "$1" >/dev/null 2>&1; }
 
-# 1) 红果服务（8000）
+# 1) 短剧服务（8000）
 if ! port_open 8000; then
-  echo "[1/2] 启动红果服务…"
+  echo "[1/2] 启动短剧服务…"
   PORT=8000 BIND_HOST=127.0.0.1 HG_OPEN_BROWSER=0 HG_CACHE_MAX_FILES=120 \
     "$NODE" hongguo/server/src/main.js > hongguo/hg.log 2>&1 &
 fi

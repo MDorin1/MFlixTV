@@ -1,0 +1,25 @@
+FFmpeg
+
+FFmpeg is licensed under the GNU Lesser General Public License (LGPL) version 2.1
+or later. However, this build may include components licensed under the GNU
+General Public License (GPL) version 3, in which case the whole FFmpeg binary
+is distributed under GPL-3.0.
+
+随本安装包提供的 FFmpeg 静态构建（Windows: ffmpeg.exe / macOS: ffmpeg）启用了部分
+GPL 组件，因此按 GPL-3.0 分发。
+
+FFmpeg 版权归 FFmpeg 项目及其贡献者所有：
+  https://ffmpeg.org/
+  https://ffmpeg.org/legal.html
+
+许可全文：
+  LGPL-2.1: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+  GPL-3.0:  https://www.gnu.org/licenses/gpl-3.0.html
+  （GPL-3.0 全文亦见本仓库根目录 LICENSE 文件）
+
+获取对应源码（GPL 义务）：
+  https://ffmpeg.org/download.html
+  https://github.com/BtbN/FFmpeg-Builds （Windows 构建与构建脚本）
+
+FFmpeg 在本项目中仅作为独立可执行程序被调用（进程间调用），用于本地视频格式转换，
+不改动其源码，也不与其静态链接。

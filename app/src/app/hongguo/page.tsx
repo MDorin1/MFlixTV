@@ -5,7 +5,7 @@ import { Header } from '@/components/header';
 import { cn } from '@/lib/utils';
 
 /**
- * 红果短剧专区
+ * 短剧专区
  *
  * 两层导航：体裁（真人剧 / 漫剧 / AI短剧）→ 榜单（推荐 / 热播 / 新剧）
  *
@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
  * - 上游这套接口只有「漫剧」的官方榜单（comic_series_*），真人剧/AI短剧的
  *   landpage 接口目前返回空，所以这两个体裁用「关键词聚合计」拿到真实片目，
  *   再按播放量/评分排序；漫剧走官方三榜。
- * - 播放：/stream?vid= 由本机服务解密并转码后直出。
+ * - 播放：/stream?vid= 由本机第三方内核转换格式后直出。
  */
 
 const API = '/hg-api';
@@ -833,10 +833,10 @@ export default function HongguoPage() {
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-content">
-              红果<span className="brand-gradient">短剧</span>
+              短剧<span className="brand-gradient">专区</span>
             </h1>
             <p className="mt-1 text-xs text-faint">
-              {activeGenre.label} · {activeGenre.hint} · 数据与解密均在本机完成
+              {activeGenre.label} · {activeGenre.hint} · 数据与格式转换均在本机完成
             </p>
           </div>
           <form
@@ -1013,7 +1013,7 @@ export default function HongguoPage() {
 
         {err && (
           <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
-            红果服务没响应：{err}
+            短剧服务没响应：{err}
             <p className="mt-1 text-xs text-faint">确认 hongguo-web 服务在 127.0.0.1:8000 运行。</p>
           </div>
         )}
@@ -1064,7 +1064,7 @@ export default function HongguoPage() {
                     </span>
                   </span>
                 </div>
-                <p className="mt-1.5 line-clamp-1 text-[11px] text-faint">{it.copyright || '红果短剧'}</p>
+                <p className="mt-1.5 line-clamp-1 text-[11px] text-faint">{it.copyright || '短剧专区'}</p>
               </button>
             ))}
           </div>
@@ -1346,7 +1346,7 @@ export default function HongguoPage() {
               }}
               onError={() => {
                 setPlayerLoading(false);
-                setPlayerErr('这一集解密失败或源已失效，换一集或稍后重试');
+                setPlayerErr('这一集转封装失败或源已失效，换一集或稍后重试');
               }}
               onEnded={() => {
                 flushProgress();
@@ -1421,9 +1421,9 @@ export default function HongguoPage() {
             {playerLoading && !playerErr && (
               <div className="pointer-events-none absolute inset-0 grid place-items-center">
                 <div className="rounded-2xl bg-black/60 px-4 py-3 text-center text-xs text-white/80 backdrop-blur">
-                  正在解密并缓冲第 {playing.index} 集…
+                  正在转换并缓冲第 {playing.index} 集…
                   <br />
-                  <span className="text-white/50">首次播放需下载、解密并转码（约 10–20 秒），之后同一集秒开</span>
+                  <span className="text-white/50">首次播放需取流、转换格式并转码（约 10–20 秒），之后同一集秒开</span>
                 </div>
               </div>
             )}

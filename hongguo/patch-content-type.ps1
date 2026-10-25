@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     hongguo-web 解析上游数据时丢弃了 content_type（1=真人短剧，1004=漫剧/AI短剧），
-    lihongguotv 红果页靠它精确区分体裁。本脚本在 client.js 的两处解析函数各插一行。
+    lihongguotv 短剧页靠它精确区分体裁。本脚本在 client.js 的两处解析函数各插一行。
 
     已有该字段则跳过；打补丁前留一份 .bak-content-type 备份。
 

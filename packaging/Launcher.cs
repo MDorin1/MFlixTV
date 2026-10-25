@@ -12,7 +12,7 @@ namespace lihongguotvLauncher
 {
     /// <summary>
     /// lihongguotv 桌面启动器：
-    ///  1) 拉起红果短剧服务（Node，127.0.0.1:8000，带 ffmpeg 转码环境）
+    ///  1) 拉起短剧专区服务（Node，127.0.0.1:8000，带 ffmpeg 转码环境）
     ///  2) 拉起 lihongguotv 主站（Node + Next，127.0.0.1:8080）
     ///  3) 等端口就绪后用默认浏览器打开
     ///  4) 常驻托盘：打开页面 / 检查更新 / 退出
@@ -64,13 +64,13 @@ namespace lihongguotvLauncher
 
             ContextMenu menu = new ContextMenu();
             menu.MenuItems.Add("打开 lihongguotv", delegate { OpenBrowser("http://localhost:8080"); });
-            menu.MenuItems.Add("打开红果短剧", delegate { OpenBrowser("http://localhost:8080/hongguo"); });
+            menu.MenuItems.Add("打开短剧专区", delegate { OpenBrowser("http://localhost:8080/hongguo"); });
             menu.MenuItems.Add("-");
             menu.MenuItems.Add("复制访问密码", delegate { CopyPassword(); });
             menu.MenuItems.Add("打开安装目录", delegate { OpenFolder(baseDir); });
             menu.MenuItems.Add("查看更新日志", delegate { OpenText(Path.Combine(baseDir, @"logs\update.log")); });
             menu.MenuItems.Add("-");
-            menu.MenuItems.Add("检查更新（红果内核 + 点播源）", delegate { RunUpdater(); });
+            menu.MenuItems.Add("检查更新（短剧内核 + 点播源）", delegate { RunUpdater(); });
             menu.MenuItems.Add("-");
             menu.MenuItems.Add("退出", delegate { Shutdown(); });
             tray.ContextMenu = menu;
@@ -127,7 +127,7 @@ namespace lihongguotvLauncher
             psi.EnvironmentVariables["PATH"] = Path.Combine(baseDir, @"runtime\ffmpeg") + ";" +
                                                Environment.GetEnvironmentVariable("PATH");
             try { hongguoProc = Process.Start(psi); }
-            catch { /* 红果服务起不来不影响主站 */ }
+            catch { /* 短剧服务起不来不影响主站 */ }
         }
 
         static void StartWeb()
@@ -204,7 +204,7 @@ namespace lihongguotvLauncher
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 Process.Start(psi);
-                tray.ShowBalloonTip(5000, "lihongguotv", "正在检查更新（红果内核 + 点播源），完成后会弹窗提示", ToolTipIcon.Info);
+                tray.ShowBalloonTip(5000, "lihongguotv", "正在检查更新（短剧内核 + 点播源），完成后会弹窗提示", ToolTipIcon.Info);
             }
             catch (Exception ex)
             {

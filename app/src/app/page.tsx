@@ -281,7 +281,7 @@ function HomeContent() {
           </div>
         </section>
 
-        {/* 红果短剧入口：短剧是独立频道，走 hongguo-web 的本地服务 */}
+        {/* 短剧专区入口：短剧是独立频道，走 hongguo-web 的本地服务 */}
         <Link
           href="/hongguo"
           className="group mb-8 flex items-center gap-4 rounded-2xl border border-line/70 bg-gradient-to-r from-chip via-surface to-chip p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-xl"
@@ -292,8 +292,8 @@ function HomeContent() {
             </svg>
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-content">红果短剧</span>
-            <span className="block truncate text-xs text-faint">短剧专区 · 推荐榜 / 热播榜 / 新剧榜 · 本机解密直连播放</span>
+            <span className="block text-sm font-semibold text-content">短剧专区</span>
+            <span className="block truncate text-xs text-faint">短剧专区 · 推荐榜 / 热播榜 / 新剧榜 · 本机转换直连播放</span>
           </span>
           <span className="shrink-0 text-sm text-accent transition-transform duration-300 group-hover:translate-x-1">进入 →</span>
         </Link>

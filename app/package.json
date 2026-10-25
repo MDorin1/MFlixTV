@@ -2,7 +2,7 @@
   "name": "lihongguotv",
   "version": "2.21.0",
   "private": true,
-  "description": "免费在线视频搜索与观看平台（Next.js 重构版）",
+  "description": "本地影视聚合播放器（Next.js 重构版）",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "next dev -p 8080",
