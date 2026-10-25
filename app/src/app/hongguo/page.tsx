@@ -254,6 +254,8 @@ export default function HongguoPage() {
   const [playing, setPlaying] = useState<{ index: number; vid: string; title: string } | null>(null);
   const [playerLoading, setPlayerLoading] = useState(true);
   const [playerErr, setPlayerErr] = useState('');
+  /** 加载已等待秒数：让"卡住"和"正在准备"看起来不一样 */
+  const [loadingSec, setLoadingSec] = useState(0);
   const [episodeSheet, setEpisodeSheet] = useState(false);
   const [history, setHistory] = useState<ShowProgress[]>([]);
   const [rate, setRate] = useState(1);
@@ -543,6 +545,16 @@ export default function HongguoPage() {
     if (v && detail && playing) persistProgress(v.currentTime, v.duration);
   };
 
+  // 加载计时：只在"加载中且没报错"时走，用来显示已等待时长
+  useEffect(() => {
+    if (!playerLoading || playerErr) {
+      setLoadingSec(0);
+      return;
+    }
+    const id = window.setInterval(() => setLoadingSec((s) => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [playerLoading, playerErr, playing?.index]);
+
   const play = (ep: Episode, title: string, startAt?: number) => {
     flushProgress();
     clearCountdown();
@@ -553,12 +565,17 @@ export default function HongguoPage() {
     setStreamNonce(0);
     setPlaying({ index: ep.index, vid: ep.vid, title });
     setEpisodeSheet(false);
-    // 预转下两集：切集时大概率已经准备好
+    // 预转后面 5 集：短剧连着看，提前备好才不会一集一等
+    // 错峰 1.2s 逐个发，避免 5 个预转同时抢带宽把当前这集挤慢
     const eps = detail?.episodes || [];
     const at = eps.findIndex((e) => e.index === ep.index);
-    for (let k = 1; k <= 2; k++) {
+    for (let k = 1; k <= 5; k++) {
       const nx = eps[at + k];
-      if (nx) void hg(`/prewarm?vid=${encodeURIComponent(nx.vid)}`).catch(() => {});
+      if (!nx) break;
+      window.setTimeout(
+        () => void hg(`/prewarm?vid=${encodeURIComponent(nx.vid)}`).catch(() => {}),
+        k * 1200
+      );
     }
   };
 
@@ -583,6 +600,16 @@ export default function HongguoPage() {
       countdownTimerRef.current = null;
     }
     setNextCountdown(null);
+  };
+
+  /** 播完直接接下一集：短剧连着看，不要倒计时打断 */
+  const playNextNow = () => {
+    const nextIndex = (playing?.index ?? 0) + 1;
+    const next = episodes.find((e) => e.index === nextIndex);
+    if (!next) return;
+    setResumeHint(`▶ 第  集`);
+    setTimeout(() => setResumeHint(''), 1500);
+    playEpisode(nextIndex, 0);
   };
 
   const startCountdown = () => {
@@ -1345,12 +1372,20 @@ export default function HongguoPage() {
                 if (v) persistProgress(v.currentTime, v.duration);
               }}
               onError={() => {
+                // 首次失败多半是服务端还在排队转码 / 连接被提前掐断，先自动重连一次
+                if (!retriedRef.current) {
+                  retriedRef.current = true;
+                  setPlayerLoading(true);
+                  setPlayerErr('');
+                  window.setTimeout(() => setStreamNonce((n) => n + 1), 1500);
+                  return;
+                }
                 setPlayerLoading(false);
-                setPlayerErr('这一集转封装失败或源已失效，换一集或稍后重试');
+                setPlayerErr('这一集没能加载出来：源可能失效，或该清晰度不可用');
               }}
               onEnded={() => {
                 flushProgress();
-                startCountdown();
+                playNextNow();
               }}
               onRateChange={() => {
                 const v = videoRef.current;
@@ -1421,9 +1456,15 @@ export default function HongguoPage() {
             {playerLoading && !playerErr && (
               <div className="pointer-events-none absolute inset-0 grid place-items-center">
                 <div className="rounded-2xl bg-black/60 px-4 py-3 text-center text-xs text-white/80 backdrop-blur">
-                  正在转换并缓冲第 {playing.index} 集…
+                  正在准备第 {playing.index} 集…（已等 {loadingSec} 秒）
                   <br />
-                  <span className="text-white/50">首次播放需取流、转换格式并转码（约 10–20 秒），之后同一集秒开</span>
+                  <span className="text-white/50">
+                    {loadingSec < 8
+                      ? '正在取流并转换格式，首播通常 10–20 秒'
+                      : loadingSec < 25
+                        ? '这一集源比较慢，再等等；后面几集已提前在准备'
+                        : '源偏慢，还在重试；可以点选集换一集'}
+                  </span>
                 </div>
               </div>
             )}
@@ -1433,6 +1474,17 @@ export default function HongguoPage() {
                   <p className="text-sm text-danger">{playerErr}</p>
                   <p className="mt-1 text-[11px] text-white/50">换个清晰度重试（1080p 兼容性最好）</p>
                   <div className="mt-2 flex justify-center gap-2">
+                    <button
+                      className="rounded-lg bg-white/15 px-3 py-1 text-xs text-white/85 hover:bg-white/25"
+                      onClick={() => {
+                        setPlayerErr('');
+                        setPlayerLoading(true);
+                        retriedRef.current = false;
+                        setStreamNonce((n) => n + 1);
+                      }}
+                    >
+                      重试
+                    </button>
                     {(['1080p', '720p', '540p'] as const).map((q) => (
                       <button
                         key={q}

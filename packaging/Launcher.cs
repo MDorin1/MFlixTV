@@ -266,9 +266,38 @@ namespace lihongguotvLauncher
             catch { /* 短剧服务起不来不影响主站 */ }
         }
 
+        /// <summary>
+        /// 运行时配置自愈：安装版必须带 app\.env，否则主站会提示「必须设置 PASSWORD」。
+        /// 文件被误删 / 装的时候漏了，都在这里补一份默认的（密码 lihongguotv）。
+        /// </summary>
+        static void EnsureEnv()
+        {
+            try
+            {
+                string appDir = Path.Combine(baseDir, "app");
+                string envPath = Path.Combine(appDir, ".env");
+                if (File.Exists(envPath))
+                {
+                    string text = File.ReadAllText(envPath);
+                    if (text.IndexOf("PASSWORD=", StringComparison.Ordinal) >= 0 &&
+                        !System.Text.RegularExpressions.Regex.IsMatch(text, @"(?m)^PASSWORD=\s*$"))
+                        return;
+                }
+                Directory.CreateDirectory(appDir);
+                string seed = "PASSWORD=lihongguotv" + Environment.NewLine +
+                              "PROXY_SECRET=lihongguotv-desktop-secret" + Environment.NewLine +
+                              "DEFAULT_RECOMMEND_SOURCE=douban" + Environment.NewLine;
+                File.WriteAllText(envPath, seed, new UTF8Encoding(false));
+                try { tray.ShowBalloonTip(4000, "lihongguotv", "已生成默认配置（密码 lihongguotv），可在 app\\.env 里修改", ToolTipIcon.Info); }
+                catch { }
+            }
+            catch { }
+        }
+
         static void StartWeb()
         {
             string appDir = Path.Combine(baseDir, "app");
+            EnsureEnv();
             string nextBin = Path.Combine(appDir, @"node_modules\next\dist\bin\next");
             if (!File.Exists(nextBin)) throw new Exception("缺少 app\\node_modules\\next，安装可能不完整");
 

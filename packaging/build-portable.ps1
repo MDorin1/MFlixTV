@@ -97,6 +97,19 @@ if ((Invoke-Native $npm @('prune','--omit=dev','--no-audit','--no-fund') 'npm-pr
 $runNext = (Get-Content 'node_modules\next\package.json' -Raw | ConvertFrom-Json).version
 Pop-Location
 
+# 运行时配置：安装版必须自带 .env，否则页面会提示「必须设置 PASSWORD」
+# （曾经漏过这一步，用户装完直接卡死）
+$envSrc = Join-Path $AppDir '.env'
+if (-not (Test-Path $envSrc)) { $envSrc = Join-Path $AppDir '.env.example' }
+if (-not (Test-Path $envSrc)) { throw "找不到 .env / .env.example，无法生成运行时配置" }
+$envText = [IO.File]::ReadAllText($envSrc, [Text.Encoding]::UTF8)
+$envText = [regex]::Replace($envText, '(?m)^PASSWORD=.*$', 'PASSWORD=lihongguotv')
+$envText = [regex]::Replace($envText, '(?m)^PROXY_SECRET=.*$', 'PROXY_SECRET=lihongguotv-desktop-secret')
+if ($envText -notmatch '(?m)^PASSWORD=') { $envText = "PASSWORD=lihongguotv`n" + $envText }
+if ($envText -notmatch '(?m)^PROXY_SECRET=') { $envText = "PROXY_SECRET=lihongguotv-desktop-secret`n" + $envText }
+[IO.File]::WriteAllText("$Out\app\.env", $envText, (New-Object Text.UTF8Encoding($false)))
+Write-Host "==> 已写入 app\.env（PASSWORD=lihongguotv）"
+
 Remove-Item "$Out\app\.next\cache" -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "==> next 版本：构建 $builtNext / 运行 $runNext"
 if ($builtNext -ne $runNext) { throw "next 版本不一致（构建 $builtNext / 运行 $runNext），安装后会 500" }
