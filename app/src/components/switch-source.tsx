@@ -181,6 +181,32 @@ export function SwitchSourceModal({
   }), [candidates, currentSourceKey, currentVodId]);
 
   /**
+   * 「最快」= 可播（有集数）且详情接口最快的那个**待切换**源。
+   * 换源的动机往往就是「这个源卡」，所以结论要直给，不能让用户自己在几行 ms 里比。
+   * 当前正在播的源不参与评选——给它打「最快」没有决策价值，反而占掉唯一的名额；
+   * 如果它本来就是最快的，用一句提示告诉用户「不用换」。
+   */
+  const { fastestKey, currentIsFastest } = useMemo(() => {
+    let best = '';
+    let bestMs = Number.POSITIVE_INFINITY;
+    let bestAnyMs = Number.POSITIVE_INFINITY;
+    let currentMs = Number.POSITIVE_INFINITY;
+    for (const c of sorted) {
+      if (!c.ok || typeof c.ms !== 'number' || !c.episodes) continue;
+      if (c.ms < bestAnyMs) bestAnyMs = c.ms;
+      if (isCurrentCandidate(c, currentSourceKey, currentVodId)) {
+        currentMs = c.ms;
+        continue;
+      }
+      if (c.ms < bestMs) {
+        bestMs = c.ms;
+        best = candidateKey(c);
+      }
+    }
+    return { fastestKey: best, currentIsFastest: currentMs <= bestAnyMs };
+  }, [sorted, currentSourceKey, currentVodId]);
+
+  /**
    * 面板展示的源：优先用户点过的那个；还没点过时先落到「第一个可切换的源」——
    * 打开面板的目的就是换源，默认停在「当前播放中」等于让用户多点一次。
    */
@@ -293,6 +319,9 @@ export function SwitchSourceModal({
                   ? '正在测试各资源速率...'
                   : `共 ${sorted.length} 个来源 · ${sorted.filter((c) => c.ok).length} 个可用`}
             </p>
+            {phase === 'done' && currentIsFastest && (
+              <p className="mt-0.5 text-xs text-success">当前源已经是这几个里最快的，不用换</p>
+            )}
             {phase === 'done' && progress.total > 0 && (
               <p className="text-xs text-faint tabular-nums mt-0.5">
                 {progress.done < progress.total
@@ -348,6 +377,11 @@ export function SwitchSourceModal({
                     >
                       <span className="max-w-[8rem] truncate font-medium">{c.source.name}</span>
                       {isCurrent && <span className="text-[10px] opacity-80">当前</span>}
+                      {!isCurrent && !currentIsFastest && key === fastestKey && (
+                        <span className="shrink-0 rounded bg-success-solid/20 px-1 text-[10px] font-medium text-success">
+                          最快
+                        </span>
+                      )}
                       {qLabel && <span className="text-[10px] tabular-nums opacity-70">{qLabel}</span>}
                       {c.ok ? (
                         <span
@@ -406,6 +440,11 @@ export function SwitchSourceModal({
                       <QualityBadge entry={qualities[qKey]} loading={probing[qKey]} onRetry={() => retry([c.result])} />
                       {isCurrent && (
                         <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-accent/15 text-accent">播放中</span>
+                      )}
+                      {!isCurrent && !currentIsFastest && key === fastestKey && (
+                        <span className="shrink-0 rounded bg-success-solid/15 px-1.5 py-0.5 text-[10px] font-medium text-success">
+                          最快可用
+                        </span>
                       )}
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-2 sm:max-w-[16rem]">
