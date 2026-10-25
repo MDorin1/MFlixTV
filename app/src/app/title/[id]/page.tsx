@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Icon } from '@/components/icon';
+import { SourcePlayPanel } from '@/components/source-play-panel';
 
 interface Subject {
   id: string;
@@ -146,15 +147,17 @@ export default function TitlePage() {
                   <span className="text-white/60">{meta}</span>
                 </div>
 
-                {/* 主按钮：播放（跳回聚合搜索，用标题找源） */}
+                {/* 主按钮：页内直接选源播放（资料与播放合并成一页，不再跳回搜索页） */}
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5 sm:justify-start">
-                  <Link
-                    href={`/?s=${encodeURIComponent(subject.title)}`}
-                    className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-white/85"
+                  <a
+                    href="#play"
+                    className="inline-flex items-center gap-2 rounded-md bg-white px-6 py-2.5 text-sm font-bold text-black transition hover:bg-white/85"
                   >
-                    <Icon name="arrowDown" className="h-4 w-4 -rotate-90" />
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+                      <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.4-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14z" />
+                    </svg>
                     播放
-                  </Link>
+                  </a>
                   <Link
                     href={`/hongguo?q=${encodeURIComponent(subject.title)}`}
                     className="inline-flex items-center gap-2 rounded-md bg-white/15 px-4 py-2.5 text-sm text-white/90 backdrop-blur transition hover:bg-white/25"
@@ -231,6 +234,11 @@ export default function TitlePage() {
                 </div>
               </section>
             )}
+
+            {/* 播放源与剧集：原来点「播放」要跳回搜索结果再弹窗，现在就在资料页里选源选集 */}
+            <div id="play" className="scroll-mt-16">
+              <SourcePlayPanel title={subject.title} />
+            </div>
 
             <p className="mt-8 text-[11px] leading-relaxed text-white/30">
               影片资料与图片来自豆瓣公开接口，仅用于本机展示；播放内容来自你自己配置的第三方点播源。

@@ -115,3 +115,25 @@ export function buildWatchUrl(params: {
   if (params.detail) sp.set('detail', params.detail);
   return `/watch?${sp.toString()}`;
 }
+
+/**
+ * 采集源简介/备注常带 HTML 片段（`<p>`、`<br>`、`&nbsp;`）。
+ * 资料页是纯文本排版，直接渲染会露出标签，这里统一转成干净文本：
+ * 保留段落（<br> / </p> 变换行），去掉其余标签，解掉常见实体，压掉多余空行。
+ */
+export function stripHtml(input: string | undefined | null): string {
+  if (!input) return '';
+  return input
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/\s*(p|div|li|tr)\s*>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}

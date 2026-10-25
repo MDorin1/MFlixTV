@@ -13,14 +13,22 @@ const TV_TAGS = ['热门', '美剧', '英剧', '韩剧', '日剧', '国产剧', 
 const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
 /** 首页推荐区：数据源由设置决定（豆瓣热门 / Bangumi 新番放送 / 影视热榜），二选一展示 */
-export function RecommendSection({ onPick }: { onPick: (title: string) => void }) {
+export function RecommendSection({
+  onPick,
+  initialTab,
+  initialCat,
+}: {
+  onPick: (title: string) => void;
+  initialTab?: 'movie' | 'tv';
+  initialCat?: string;
+}) {
   const doubanEnabled = useAppStore((s) => s.doubanEnabled);
   const recommendSource = useAppStore((s) => s.recommendSource);
 
   if (!doubanEnabled) return null;
   if (recommendSource === 'bangumi') return <BangumiView onPick={onPick} />;
   if (recommendSource === 'hot-list') return <HotListView onPick={onPick} />;
-  return <DoubanView onPick={onPick} />;
+  return <DoubanView onPick={onPick} initialTab={initialTab} initialCat={initialCat} />;
 }
 
 /**
@@ -28,9 +36,17 @@ export function RecommendSection({ onPick }: { onPick: (title: string) => void }
  * 一次性渲染全部条目：数据本就一次拉全（50 条），卡片图片又是 lazy 加载，
  * 视口外的图不会请求，因此不需要「加载更多」这类本地切片分页来打断浏览。
  */
-function DoubanView({ onPick }: { onPick: (title: string) => void }) {
-  const [type, setType] = useState<'movie' | 'tv'>('movie');
-  const [tag, setTag] = useState('热门');
+function DoubanView({
+  onPick,
+  initialTab,
+  initialCat,
+}: {
+  onPick: (title: string) => void;
+  initialTab?: 'movie' | 'tv';
+  initialCat?: string;
+}) {
+  const [type, setType] = useState<'movie' | 'tv'>(initialTab || 'movie');
+  const [tag, setTag] = useState(initialCat || '热门');
 
   const query = useQuery({
     queryKey: ['douban', type, tag],

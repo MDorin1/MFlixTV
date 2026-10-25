@@ -152,6 +152,13 @@ export function PlayerShell({
   const [hint, setHint] = useState('');
   // 起播前的品牌占位图（沿用旧版 nomedia 素材），实际开始播放后隐藏
   const [showPoster, setShowPoster] = useState(true);
+  /**
+   * 换集/换源瞬间的「上一帧」：切换时把当前画面抓成一张图盖在上面，
+   * 新分片进 buffer 再淡出。比直接露黑底 + 通用占位图体感快得多——
+   * 用户看到的是「接着上一集」，而不是「黑屏了，在等」。
+   */
+  const [switchFrame, setSwitchFrame] = useState<string | null>(null);
+  const [switchLabel, setSwitchLabel] = useState('');
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 始终持有最新 props/回调，避免重建播放器
@@ -161,7 +168,7 @@ export function PlayerShell({
     episodeKey, nextUrl, nextEpisodeKey,
     getRestorePosition, onTimeUpdate, onEnded, onPause, onQuality, onRequestSwitchSource,
     onPrevEpisode, onNextEpisode, hasPrevEpisode, hasNextEpisode,
-    panel, onPanelChange,
+    panel, onPanelChange, episodeIndex,
   });
   propsRef.current = {
     url, title, adFilter, autoplayNext, skipMark, autoSkipSegments,
@@ -169,7 +176,7 @@ export function PlayerShell({
     episodeKey, nextUrl, nextEpisodeKey,
     getRestorePosition, onTimeUpdate, onEnded, onPause, onQuality, onRequestSwitchSource,
     onPrevEpisode, onNextEpisode, hasPrevEpisode, hasNextEpisode,
-    panel, onPanelChange,
+    panel, onPanelChange, episodeIndex,
   };
 
   /** 挂载 ArtPlayer 之后拿到的浮层容器（portal 目标），全屏时依然在播放器内部 */
@@ -236,21 +243,52 @@ export function PlayerShell({
     return {
       debug: false,
       enableWorker: true,
-      backBufferLength: 90,
-      maxBufferLength: cacheEnabled ? 120 : 30,
-      maxMaxBufferLength: cacheEnabled ? 600 : 60,
-      maxBufferSize: (cacheEnabled ? 90 : 30) * 1000 * 1000,
+      // 回看缓冲不用留太长：留 90s 会一直占着已解码的帧，长剧集播到后面内存吃紧会掉帧
+      backBufferLength: 30,
+      // 前向缓冲：非缓存模式也给到 60s，源一旦抖一下不至于立刻卡住（原来只有 30s）
+      maxBufferLength: cacheEnabled ? 120 : 60,
+      maxMaxBufferLength: cacheEnabled ? 600 : 180,
+      maxBufferSize: (cacheEnabled ? 90 : 60) * 1000 * 1000,
       maxBufferHole: 0.5,
-      fragLoadingMaxRetry: 6,
-      fragLoadingRetryDelay: 1000,
+      // 起播阶段就把第一片捞下来，与 manifest 解析并行，首帧能早几百毫秒
+      startFragPrefetch: true,
+      fragLoadingMaxRetry: 8,
+      fragLoadingRetryDelay: 500,
+      fragLoadingTimeOut: 20000,
       manifestLoadingMaxRetry: 3,
-      manifestLoadingRetryDelay: 1000,
+      manifestLoadingRetryDelay: 800,
+      manifestLoadingTimeOut: 15000,
+      // 按播放器实际尺寸挑档位：手机/小窗不再硬拉 4K 分片，卡顿大头就在这里
+      capLevelToPlayerSize: true,
       startLevel: -1,
-      abrEwmaDefaultEstimate: 500_000,
+      abrEwmaDefaultEstimate: 1_200_000,
       appendErrorMaxRetry: 5,
       // 组合 loader：广告过滤（blockAd 随设置）+ 片段缓存命中（cacheEnabled）
       loader: createHlsLoader(Hls, { blockAd: p.adFilter }) as unknown as HlsConfig['loader'],
     };
+  };
+
+  /**
+   * 抓当前帧做切换遮罩。hls.js 走 MSE blob，画布不会被跨域污染，toDataURL 可用；
+   * 万一浏览器拒绝（无 MSE / 视频还没元数据）就退回原来的品牌占位图。
+   */
+  const captureFrame = (): string | null => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const video = artRef.current?.video as HTMLVideoElement | undefined;
+    if (!video || !video.videoWidth || !video.videoHeight) return null;
+    try {
+      const width = 640;
+      const height = Math.max(1, Math.round((video.videoHeight / video.videoWidth) * width));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(video, 0, 0, width, height);
+      return canvas.toDataURL('image/jpeg', 0.6);
+    } catch {
+      return null;
+    }
   };
 
   // 当前集预取（episodeKey 缺省 = 关闭，见 ensure 内部 settings.enabled 判断）
@@ -498,8 +536,12 @@ export function PlayerShell({
   };
 
   /** 换集：重置每集状态并切换到新 HLS 源（不重建 ArtPlayer）。 */
-  const loadEpisode = (targetUrl: string) => {
+  const loadEpisode = (targetUrl: string, label?: string) => {
     if (!targetUrl) return;
+    // 先抓上一帧再拆旧链路：拆除后 video 就只剩黑底了，抓不到东西
+    const frame = captureFrame();
+    setSwitchFrame(frame);
+    setSwitchLabel(label || '');
     mediaHealthyRef.current = true;
     playbackStartedRef.current = false;
     videoErrorRetryUsedRef.current = false;
@@ -708,6 +750,9 @@ export function PlayerShell({
     art.on('video:playing', () => {
       playbackStartedRef.current = true;
       setShowPoster(false);
+      // 新画面上屏了，切换遮罩（上一帧）可以撤了
+      setSwitchFrame(null);
+      setSwitchLabel('');
       // 仅在媒体真正恢复（有分片进入 buffer）后清错误遮罩：
       // 否则「视频轨挂了、音频轨先播出来」时会清掉遮罩，留下黑屏假死态
       if (mediaHealthyRef.current) setError('');
@@ -1042,7 +1087,8 @@ export function PlayerShell({
   useEffect(() => {
     // 挂载时的首次由创建 effect 的 customType 触发，跳过避免重复加载
     if (firstUrlRef.current) { firstUrlRef.current = false; return; }
-    loadEpisode(url);
+    const idx = propsRef.current.episodeIndex;
+    loadEpisode(url, typeof idx === 'number' ? `第 ${idx + 1} 集` : '正在切换');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
 
@@ -1052,7 +1098,7 @@ export function PlayerShell({
     if (firstAdFilterRef.current) { firstAdFilterRef.current = false; return; }
     if (artRef.current && hlsRef.current) {
       // 用当前实际媒体地址：代理回退生效时切广告过滤不应跳回直连形式
-      loadEpisode(currentMediaUrlRef.current || propsRef.current.url);
+      loadEpisode(currentMediaUrlRef.current || propsRef.current.url, '重新加载');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adFilter]);
@@ -1060,7 +1106,23 @@ export function PlayerShell({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" style={{ WebkitTouchCallout: 'none' }} />
-      {showPoster && !error && (
+      {showPoster && !error && switchFrame && (
+        // 换集/换源：上一帧盖在上面，画面不黑、观感上是「接着上一集」。
+        // 加载中的转圈交给 ArtPlayer 自己的中心指示器，这里只留一个小标签，
+        // 不再叠第二个 spinner，避免和播放器原生占位打架。
+        <div className="pointer-events-none absolute inset-0 overflow-hidden bg-black">
+          <img
+            src={switchFrame}
+            alt=""
+            aria-hidden
+            className="h-full w-full scale-105 object-cover opacity-55 blur-[3px]"
+          />
+          <div className="absolute bottom-20 left-4 rounded-full bg-black/65 px-3 py-1.5 text-xs text-white/85 backdrop-blur">
+            {switchLabel || '正在切换'}
+          </div>
+        </div>
+      )}
+      {showPoster && !error && !switchFrame && (
         <div
           className="absolute inset-0 bg-black pointer-events-none"
           style={{

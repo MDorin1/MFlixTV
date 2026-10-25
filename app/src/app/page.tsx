@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/header';
 import { RecommendSection } from '@/components/douban-section';
 import { RankRow } from '@/components/rank-row';
-import { DetailModal } from '@/components/detail-modal';
+import { NetflixNav } from '@/components/netflix-nav';
 import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { useAppStore, resolveSource, isInDisabledSubscription, isSourceDisabled } from '@/lib/store';
 import { api } from '@/lib/client-api';
@@ -48,7 +48,6 @@ function HomeContent() {
   const sourceHealth = useAppStore((s) => s.sourceHealth);
   const subscriptions = useAppStore((s) => s.subscriptions);
   const [input, setInput] = useState(urlQuery);
-  const [detailItem, setDetailItem] = useState<SearchResultItem | null>(null);
   /** 流式搜索中已结算的源（data 就绪前用于增量渲染） */
   const [streamedOutcomes, setStreamedOutcomes] = useState<SourceSearchOutcome[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -165,11 +164,24 @@ function HomeContent() {
   const visibleGroups = useMemo(() => groups.slice(0, visibleCount), [groups, visibleCount]);
   useEffect(() => setVisibleCount(RESULT_PAGE_SIZE), [groups]);
 
+  const openDetail = (item: SearchResultItem) => {
+    // 资料页优先用手上已有的搜索字段铺首屏，详情接口慢也不会白屏
+    const sp = new URLSearchParams({ name: item.name, sn: item.sourceName });
+    if (item.pic) sp.set('pic', item.pic);
+    if (item.sourceUrl) sp.set('su', item.sourceUrl);
+    router.push(`/detail/${encodeURIComponent(item.sourceKey)}/${encodeURIComponent(item.vodId)}?${sp.toString()}`);
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
 
-      <main className="relative flex-1 max-w-6xl w-full mx-auto px-4 py-6">
+      <div className="relative mx-auto flex w-full max-w-[1400px] items-start gap-6 px-4 py-4">
+        <NetflixNav
+          activeTab={searchParams.get('tab') === 'tv' ? 'tv' : searchParams.get('tab') === 'movie' ? 'movie' : null}
+          activeCat={searchParams.get('cat')}
+        />
+        <main className="min-w-0 flex-1">
         {/* 首屏氛围渐变 */}
         {!urlQuery && (
           <div
@@ -282,22 +294,28 @@ function HomeContent() {
           </div>
         </section>
 
-        {/* 短剧专区入口：短剧是独立频道，走 hongguo-web 的本地服务 */}
-        <Link
-          href="/hongguo"
-          className="group mb-8 flex items-center gap-4 rounded-2xl border border-line/70 bg-gradient-to-r from-chip via-surface to-chip p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-xl"
-        >
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#00ccff] to-[#ff3c78] text-white shadow-lg">
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm6 3v8l6-4-6-4z" />
-            </svg>
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-content">短剧专区</span>
-            <span className="block truncate text-xs text-faint">短剧专区 · 推荐榜 / 热播榜 / 新剧榜 · 本机转换直连播放</span>
-          </span>
-          <span className="shrink-0 text-sm text-accent transition-transform duration-300 group-hover:translate-x-1">进入 →</span>
-        </Link>
+        {/* 短剧专区入口：只在没有搜索结果时露出（搜索时首屏空间要留给结果） */}
+        {!urlQuery && (
+          <Link
+            href="/hongguo"
+            className="group mb-8 flex items-center gap-4 rounded-2xl border border-line/70 bg-gradient-to-r from-chip via-surface to-chip p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-xl"
+          >
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#00ccff] to-[#ff3c78] text-white shadow-lg">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm6 3v8l6-4-6-4z" />
+              </svg>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-content">短剧专区</span>
+              <span className="block truncate text-xs text-faint">
+                短剧专区 · 推荐榜 / 热播榜 / 新剧榜 · 本机转换直连播放
+              </span>
+            </span>
+            <span className="shrink-0 text-sm text-accent transition-transform duration-300 group-hover:translate-x-1">
+              进入 →
+            </span>
+          </Link>
+        )}
         {/* 搜索结果 */}
         {urlQuery && (
           <section aria-label="搜索结果" className="mb-10">
@@ -354,7 +372,7 @@ function HomeContent() {
                       key={group.key}
                       group={group}
                       sources={selectedSources}
-                      onOpen={(item) => setDetailItem(item)}
+                      onOpen={openDetail}
                     />
                   ))}
                 </div>
@@ -388,17 +406,18 @@ function HomeContent() {
         {/* 首页推荐（有搜索时隐藏） */}
         {!urlQuery && (
           <RecommendSection
+            initialTab={(searchParams.get('tab') === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv'}
+            initialCat={searchParams.get('cat') || undefined}
             onPick={(title) => {
               setInput(title);
               runSearch(title);
             }}
           />
         )}
-      </main>
+        </main>
+      </div>
 
       <SiteFooter />
-
-      <DetailModal item={detailItem} onClose={() => setDetailItem(null)} />
     </div>
   );
 }
