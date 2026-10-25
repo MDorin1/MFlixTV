@@ -2,6 +2,7 @@
 
 import { Header } from '@/components/header';
 import { SiteFooter } from '@/components/site-footer';
+import { LanBadge } from '@/components/lan-badge';
 
 export default function AboutPage() {
   return (
@@ -26,6 +27,16 @@ export default function AboutPage() {
             <li><code className="text-accent">Alt + ←/→</code> 上一集 / 下一集</li>
             <li>移动端长按视频可 3 倍速播放</li>
           </ul>
+        </section>
+
+        <section>
+          <h2 className="text-base font-semibold text-content mb-2.5">同一 WiFi 下其它设备</h2>
+          <p className="text-sm text-muted leading-relaxed">
+            服务跑在本机，手机 / 平板 / 电视连同一个 WiFi，用浏览器打开下面这个地址就能看（点一下复制）。服务没开着时这个地址打不开。
+          </p>
+          <div className="mt-2">
+            <LanBadge showOnMobile className="px-0 text-sm" />
+          </div>
         </section>
 
         <section>

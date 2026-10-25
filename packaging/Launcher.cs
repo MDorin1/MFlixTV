@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -25,6 +26,12 @@ namespace lihongguotvLauncher
         static Process webProc;
         static NotifyIcon tray;
         static bool shuttingDown;
+        static MenuItem statusItem;
+        static MenuItem startItem;
+        static MenuItem stopItem;
+        static MenuItem restartItem;
+        static System.Windows.Forms.Timer statusTimer;
+        static bool busy;
 
         [STAThread]
         static void Main()
@@ -45,7 +52,7 @@ namespace lihongguotvLauncher
                 Application.SetCompatibleTextRenderingDefault(false);
 
                 BuildTray();
-                ThreadPool.QueueUserWorkItem(delegate { Boot(); });
+                ThreadPool.QueueUserWorkItem(delegate { Boot(true); });
                 Application.Run();
             }
         }
@@ -63,22 +70,48 @@ namespace lihongguotvLauncher
             tray.Visible = true;
 
             ContextMenu menu = new ContextMenu();
-            menu.MenuItems.Add("打开 lihongguotv", delegate { OpenBrowser("http://localhost:8080"); });
-            menu.MenuItems.Add("打开短剧专区", delegate { OpenBrowser("http://localhost:8080/hongguo"); });
+
+            statusItem = new MenuItem("状态：检测中…");
+            statusItem.Enabled = false;
+            menu.MenuItems.Add(statusItem);
             menu.MenuItems.Add("-");
+
+            menu.MenuItems.Add("打开 lihongguotv", delegate { OpenOrStart(""); });
+            menu.MenuItems.Add("打开短剧专区", delegate { OpenOrStart("/hongguo"); });
+            menu.MenuItems.Add("-");
+
+            startItem = new MenuItem("启动服务", delegate { Queue(delegate { Boot(false); }); });
+            stopItem = new MenuItem("停止服务", delegate { Queue(delegate { StopAll(true); }); });
+            restartItem = new MenuItem("重启服务", delegate { Queue(delegate { StopAll(false); Boot(false); }); });
+            menu.MenuItems.Add(startItem);
+            menu.MenuItems.Add(stopItem);
+            menu.MenuItems.Add(restartItem);
+            menu.MenuItems.Add("-");
+
             menu.MenuItems.Add("复制访问密码", delegate { CopyPassword(); });
+            menu.MenuItems.Add("复制局域网地址", delegate { CopyLanUrl(); });
             menu.MenuItems.Add("打开安装目录", delegate { OpenFolder(baseDir); });
             menu.MenuItems.Add("查看更新日志", delegate { OpenText(Path.Combine(baseDir, @"logs\update.log")); });
             menu.MenuItems.Add("-");
             menu.MenuItems.Add("检查更新（短剧内核 + 点播源）", delegate { RunUpdater(); });
             menu.MenuItems.Add("-");
-            menu.MenuItems.Add("退出", delegate { Shutdown(); });
+            menu.MenuItems.Add("退出（并停止服务）", delegate { Shutdown(); });
+
+            menu.Popup += delegate { RefreshMenu(); };
             tray.ContextMenu = menu;
-            tray.DoubleClick += delegate { OpenBrowser("http://localhost:8080"); };
+            tray.DoubleClick += delegate { OpenOrStart(""); };
+
+            statusTimer = new System.Windows.Forms.Timer();
+            statusTimer.Interval = 4000;
+            statusTimer.Tick += delegate { RefreshStatusText(); };
+            statusTimer.Start();
         }
 
-        static void Boot()
+        /// <summary>把两个服务拉起来；openBrowser 控制是否自动开浏览器</summary>
+        static void Boot(bool openBrowser)
         {
+            if (busy) return;
+            busy = true;
             try
             {
                 SetStatus("正在启动…");
@@ -100,13 +133,116 @@ namespace lihongguotvLauncher
                 }
 
                 SetStatus("运行中");
-                OpenBrowser("http://localhost:8080");
-                tray.ShowBalloonTip(4000, "lihongguotv", "已启动：浏览器正在打开 http://localhost:8080", ToolTipIcon.Info);
+                if (openBrowser) OpenBrowser("http://localhost:8080");
+                tray.ShowBalloonTip(4000, "lihongguotv",
+                    openBrowser ? "已启动：浏览器正在打开 http://localhost:8080" : "服务已启动，可从托盘打开网页",
+                    ToolTipIcon.Info);
             }
             catch (Exception ex)
             {
                 tray.ShowBalloonTip(6000, "lihongguotv 启动失败", ex.Message, ToolTipIcon.Error);
             }
+            finally
+            {
+                busy = false;
+                RefreshStatusText();
+            }
+        }
+
+        static void Queue(ThreadStart work)
+        {
+            ThreadPool.QueueUserWorkItem(delegate { work(); });
+        }
+
+        /// <summary>打开网页：没起就先拉起再开</summary>
+        static void OpenOrStart(string subPath)
+        {
+            string url = "http://localhost:8080" + subPath;
+            if (PortOpen(8080)) { OpenBrowser(url); return; }
+            OpenBrowser(url);
+            Queue(delegate { Boot(false); });
+        }
+
+        /// <summary>停掉两个服务（自己也兜底清掉遗留的 node 进程）</summary>
+        static void StopAll(bool notify)
+        {
+            if (busy) return;
+            busy = true;
+            try
+            {
+                SetStatus("正在停止…");
+                KillProc(webProc);
+                KillProc(hongguoProc);
+                KillOrphanNodes();
+                webProc = null;
+                hongguoProc = null;
+                WaitPortClosed(8080, 8000, 8000);
+            }
+            finally
+            {
+                busy = false;
+                RefreshStatusText();
+                if (notify)
+                    tray.ShowBalloonTip(3000, "lihongguotv",
+                        PortOpen(8080) ? "还在运行（可能是别的程序占用 8080）" : "服务已停止", ToolTipIcon.Info);
+            }
+        }
+
+        /// <summary>杀掉用本包 runtime\node.exe 跑起来的遗留进程（上次异常退出等）</summary>
+        static void KillOrphanNodes()
+        {
+            try
+            {
+                string self = Path.GetFullPath(nodeExe).ToLowerInvariant();
+                foreach (Process pr in Process.GetProcessesByName("node"))
+                {
+                    try
+                    {
+                        if (pr.Id == Process.GetCurrentProcess().Id) continue;
+                        string path = null;
+                        try { path = Path.GetFullPath(pr.MainModule.FileName).ToLowerInvariant(); } catch { }
+                        if (path != null && path == self) KillProc(pr);
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        static void WaitPortClosed(int timeoutMs, params int[] ports)
+        {
+            int waited = 0;
+            while (waited < timeoutMs)
+            {
+                bool any = false;
+                foreach (int p in ports) if (PortOpen(p)) { any = true; break; }
+                if (!any) return;
+                Thread.Sleep(300);
+                waited += 300;
+            }
+        }
+
+        static void RefreshMenu()
+        {
+            bool web = PortOpen(8080);
+            bool hg = PortOpen(8000);
+            try
+            {
+                statusItem.Text = "状态：" + (web ? "主站运行中" : "主站已停止")
+                                + " · " + (hg ? "短剧运行中" : "短剧已停止");
+                startItem.Enabled = !web || !hg;
+                stopItem.Enabled = web || hg;
+                restartItem.Enabled = web || hg;
+            }
+            catch { }
+            RefreshStatusText();
+        }
+
+        static void RefreshStatusText()
+        {
+            bool web = PortOpen(8080);
+            try { tray.Text = "lihongguotv 影视站 · " + (web ? "运行中 :8080" : "已停止（右键启动）"); }
+            catch { }
         }
 
         static void StartHongguo()
@@ -263,6 +399,58 @@ namespace lihongguotvLauncher
         static void OpenFolder(string path)
         {
             try { Process.Start("explorer.exe", "\"" + path + "\""); } catch { }
+        }
+
+        /// <summary>取第一个私有网段 IPv4（192.168 / 10 / 172.16-31）</summary>
+        static string GetLanIp()
+        {
+            string fallback = null;
+            try
+            {
+                foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (ni.OperationalStatus != OperationalStatus.Up) continue;
+                    if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                    foreach (UnicastIPAddressInformation ua in ni.GetIPProperties().UnicastAddresses)
+                    {
+                        if (ua.Address.AddressFamily != AddressFamily.InterNetwork) continue;
+                        string ip = ua.Address.ToString();
+                        if (ip.StartsWith("169.254.")) continue;
+                        bool priv = ip.StartsWith("192.168.") || ip.StartsWith("10.") ||
+                                    (ip.StartsWith("172.") && Is172Private(ip));
+                        if (priv) return ip;
+                        if (fallback == null) fallback = ip;
+                    }
+                }
+            }
+            catch { }
+            return fallback;
+        }
+
+        static bool Is172Private(string ip)
+        {
+            string[] parts = ip.Split('.');
+            if (parts.Length < 2) return false;
+            int second;
+            if (!int.TryParse(parts[1], out second)) return false;
+            return second >= 16 && second <= 31;
+        }
+
+        static void CopyLanUrl()
+        {
+            string ip = GetLanIp();
+            if (ip == null)
+            {
+                tray.ShowBalloonTip(4000, "lihongguotv", "没检测到局域网地址（是不是没连 WiFi / 网线）", ToolTipIcon.Warning);
+                return;
+            }
+            string url = "http://" + ip + ":8080";
+            try
+            {
+                Clipboard.SetText(url);
+                tray.ShowBalloonTip(4000, "lihongguotv", "已复制：" + url, ToolTipIcon.Info);
+            }
+            catch { }
         }
 
         static void CopyPassword()

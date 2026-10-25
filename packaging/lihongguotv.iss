@@ -1,5 +1,5 @@
-﻿#define MyAppName "lihongguotv"
-#define MyAppVersion "1.0.0"
+#define MyAppName "lihongguotv"
+#define MyAppVersion "1.0.1"
 #define MyAppExeName "lihongguotv.exe"
 
 [Setup]

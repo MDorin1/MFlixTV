@@ -49,50 +49,57 @@ if (Test-Path $Out) {
 }
 New-Item -ItemType Directory -Force -Path "$Out\app", "$Out\hongguo", "$Out\runtime\ffmpeg", "$Out\tools", "$Out\launcher" | Out-Null
 
-# --- 1) Next.js 依赖与构建 ---
-# 注意：build 需要 devDependencies（tailwind / postcss / typescript），不能 --omit=dev
-if (-not (Test-Path "$AppDir\node_modules\next")) {
-  Write-Host "==> 安装依赖（npm ci）"
-  Push-Location $AppDir
-  npm ci --no-audit --no-fund
-  if ($LASTEXITCODE -ne 0) { throw "npm ci 失败" }
-  Pop-Location
+# --- 1) 在 stage\app 里从零构建 ---
+#
+# 关键：构建用的 next 与运行用的 next 必须是同一个版本。
+# 之前是「拷 live 的 .next + 按 lock 重装依赖」，而 lock 里 pin 的 next 版本与
+# live 里实际装的版本不一致（15.5.26 vs 15.5.28），导致运行期每个动态路由 500，
+# 浏览器表现为「该网页无法正常运作」。改为在 stage 内 npm ci → next build → prune，
+# 版本天然一致。
+$copyList = @('src','public','package.json','package-lock.json','tsconfig.json',
+              'tailwind.config.ts','postcss.config.mjs','next-env.d.ts','next.config.ts','eslint.config.mjs')
+foreach ($item in $copyList) {
+  $from = Join-Path $AppDir $item
+  if (-not (Test-Path $from)) { throw "缺少源码：$from" }
+  Copy-Item $from (Join-Path "$Out\app" $item) -Recurse -Force
 }
 
-Write-Host "==> 构建前端（next build）"
-Push-Location $AppDir
-# 用 node 直接跑 next，不依赖 npx / 全局 PATH
-& $NodeExe "$AppDir\node_modules\next\dist\bin\next" build
-if ($LASTEXITCODE -ne 0) { throw "next build 失败" }
-Pop-Location
+$npm = Join-Path (Split-Path -Parent $NodeExe) 'npm.cmd'
 
-Remove-Item "$Out\app\.next" -Recurse -Force -ErrorAction SilentlyContinue
-# 用 robocopy：node_modules 里存在超过 260 字符的路径，Copy-Item 会中途失败
-& robocopy "$AppDir\.next" "$Out\app\.next" /E /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "robocopy .next 失败（exit $LASTEXITCODE）" }
-# 编译缓存占一半体积，运行时用不到
-Remove-Item "$Out\app\.next\cache" -Recurse -Force -ErrorAction SilentlyContinue
-# 只装生产依赖：直接把 AppDir 的 node_modules 拷过来会带上 .pnpm 的硬链接副本
-# （体积翻倍，且含 eslint/typescript 等构建期依赖），这里用 lock 文件重装一份干净的
-Copy-Item "$AppDir\package.json" "$Out\app\package.json" -Force
-Copy-Item "$AppDir\package-lock.json" "$Out\app\package-lock.json" -Force
+# 跑外部命令：npm 会往 stderr 写 warn，而本脚本全局 ErrorActionPreference=Stop 时
+# PowerShell 5.1 会把 stderr 当终止性错误，所以这里临时放开，只看退出码
+function Invoke-Native {
+    param([string]$Exe, [string[]]$ArgList, [string]$Tag)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $Exe @ArgList 2>&1 | ForEach-Object { Write-Host "    $_" }
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 Push-Location "$Out\app"
-& "$(Split-Path -Parent $NodeExe)\npm.cmd" ci --omit=dev --no-audit --no-fund 2>&1 | Select-Object -Last 3
-if ($LASTEXITCODE -ne 0) { throw "npm ci --omit=dev 失败（exit $LASTEXITCODE）" }
-Remove-Item "$Out\app\node_modules\.package-lock.json" -Force -ErrorAction SilentlyContinue
-Pop-Location
-Copy-Item "$AppDir\public" "$Out\app\public" -Recurse -Force
-Copy-Item "$AppDir\package.json" "$Out\app\package.json" -Force
+Write-Host "==> npm ci（含 devDependencies，构建需要 tailwind/typescript）"
+if ((Invoke-Native $npm @('ci','--no-audit','--no-fund') 'npm-ci') -ne 0) { Pop-Location; throw "npm ci 失败" }
+
+Write-Host "==> next build"
+if ((Invoke-Native $NodeExe @('node_modules\next\dist\bin\next','build') 'next-build') -ne 0) { Pop-Location; throw "next build 失败" }
+$builtNext = (Get-Content 'node_modules\next\package.json' -Raw | ConvertFrom-Json).version
+
+# 运行时用 mjs：安装版没有 TypeScript，留 .ts 会让 Next 试图自动装 typescript 再失败
 Copy-Item (Join-Path $repo 'packaging\next.config.mjs') "$Out\app\next.config.mjs" -Force
+Remove-Item "$Out\app\next.config.ts" -Force -ErrorAction SilentlyContinue
 
-# 运行时配置：密码改成中性默认值
-$envSrc = Join-Path $AppDir '.env'
-if (-not (Test-Path $envSrc)) { Copy-Item "$AppDir\.env.example" $envSrc }
-$env = Get-Content $envSrc -Raw -Encoding UTF8
-$env = [regex]::Replace($env, '(?m)^PASSWORD=.*$', 'PASSWORD=lihongguotv')
-$env = [regex]::Replace($env, '(?m)^PROXY_SECRET=.*$', 'PROXY_SECRET=lihongguotv-desktop-secret')
-[IO.File]::WriteAllText("$Out\app\.env", $env, [Text.UTF8Encoding]::new($false))
+Write-Host "==> npm prune --omit=dev（去掉构建期依赖，版本不变）"
+if ((Invoke-Native $npm @('prune','--omit=dev','--no-audit','--no-fund') 'npm-prune') -ne 0) { Pop-Location; throw "npm prune 失败" }
+$runNext = (Get-Content 'node_modules\next\package.json' -Raw | ConvertFrom-Json).version
+Pop-Location
 
+Remove-Item "$Out\app\.next\cache" -Recurse -Force -ErrorAction SilentlyContinue
+Write-Host "==> next 版本：构建 $builtNext / 运行 $runNext"
+if ($builtNext -ne $runNext) { throw "next 版本不一致（构建 $builtNext / 运行 $runNext），安装后会 500" }
 # --- 2) 短剧内核 ---
 if (-not (Test-Path "$HongguoDir\server\src\main.js")) {
   throw "找不到 hongguo-web 源码：$HongguoDir（先 git clone https://github.com/sunnysky123/hongguo-web）"

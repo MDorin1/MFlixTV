@@ -7,6 +7,7 @@ import { ThemeToggle } from './theme';
 import { SourceManagerDrawer } from './source-manager';
 import { HistoryPanel } from './history-panel';
 import { requestShowDownloadManager } from './download-manager';
+import { LanBadge } from '@/components/lan-badge';
 import { Icon } from './icon';
 import { SearchHistoryDropdown, useSearchHistory } from './search-history';
 import { cn } from '@/lib/utils';
@@ -106,6 +107,7 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
             <HeaderLink href="/about" active={pathname === '/about'}>
               关于
             </HeaderLink>
+            <LanBadge />
             <ThemeToggle />
             <IconButton label="观看历史" onClick={() => setHistoryOpen(true)}>
               <Icon name="clock" />
