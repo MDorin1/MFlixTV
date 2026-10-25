@@ -16,7 +16,7 @@
   - 收藏、已看标记、连播倒计时、倍速记忆、继续观看横排
   - 服务端历史同步（`/api/history`），换设备登录自动合并
 - **海报墙 UI**：竖向 2:3 卡片、圆角、选集与换源收进播放器控制条
-- **点播源自动补源**（`tools/update.ps1`）：从公开 TVBox 配置抓新接口 → 探活 → 按**实测拉流速度**排序 → 只留 6 个快源
+- **点播源可用性排序**（`tools/update.ps1`）：候选接口 → 探活 → 按**实测拉流速度**排序 → 只留 6 个快源
 - **短剧内核热更新**：拉上游新版源码、备份旧版、自动重打 `content_type` 补丁
 
 ### 合规
@@ -37,5 +37,5 @@
 
 - 无代码签名：Windows SmartScreen 提示「未知发布者」，macOS 需手动放行
 - 短剧首播 10–20 秒（取流 + 转封装 + 转码），命中缓存后秒开
-- 短剧依赖上游逆向接口，上游一改签名就失效，得等 [hongguo-web](https://github.com/sunnysky123/hongguo-web) 跟进
+- 短剧依赖第三方内核，上游一改接口就失效，得等 [hongguo-web](https://github.com/sunnysky123/hongguo-web) 跟进
 - Windows 只出 x64，macOS 只出 arm64
