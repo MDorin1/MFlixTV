@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/header';
 import { RecommendSection } from '@/components/douban-section';
 import { RankRow } from '@/components/rank-row';
+import { ContinueWatchingRow } from '@/components/continue-watching';
 import { NetflixNav } from '@/components/netflix-nav';
 import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { useAppStore, resolveSource, isInDisabledSubscription, isSourceDisabled } from '@/lib/store';
@@ -399,6 +400,9 @@ function HomeContent() {
             )}
           </section>
         )}
+
+        {/* 继续观看：有观看记录才出现，点一下接着上次的进度播 */}
+        {!urlQuery && <ContinueWatchingRow />}
 
         {/* 本周 TOP 10：Netflix 式大数字排名，点进去是资料页 */}
         {!urlQuery && <RankRow id="douban_movie_weekly" title="本周电影 TOP 10" />}

@@ -20,12 +20,12 @@ describe('buildImageUrl', () => {
 describe('buildImageCandidates', () => {
   const DOUBAN = 'https://img3.doubanio.com/view/photo/m/poster.jpg';
 
-  it('direct 模式豆瓣图：直连 → 双镜像 → 内置代理', () => {
+  it('direct 模式豆瓣图：内置代理 → 双镜像 → 直连（豆瓣直连确定性 418，别浪费一次往返）', () => {
     expect(buildImageCandidates(DOUBAN, 'direct', '')).toEqual([
-      DOUBAN,
+      '/api/proxy?url=' + encodeURIComponent(DOUBAN),
       'https://img.doubanio.cmliussss.net/view/photo/m/poster.jpg',
       'https://img.doubanio.cmliussss.com/view/photo/m/poster.jpg',
-      '/api/proxy?url=' + encodeURIComponent(DOUBAN),
+      DOUBAN,
     ]);
   });
 
@@ -39,7 +39,7 @@ describe('buildImageCandidates', () => {
   it('镜像改写不命中 img\\d+ 子域时去重，不产生重复候选', () => {
     const cands = buildImageCandidates('https://doubanio.com/a.jpg', 'direct', '');
     expect(new Set(cands).size).toBe(cands.length);
-    expect(cands[0]).toBe('https://doubanio.com/a.jpg');
+    expect(cands[0]).toBe('/api/proxy?url=' + encodeURIComponent('https://doubanio.com/a.jpg'));
   });
 
   it('proxy 模式豆瓣图：内置代理 → 双镜像 → 直连（代理故障可回退）', () => {
