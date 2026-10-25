@@ -161,6 +161,8 @@ export function PlayerShell({
   const [switchLabel, setSwitchLabel] = useState('');
   /** 长按临时 2 倍速：画面角上给个明确提示，否则用户不知道速度被改了 */
   const [rateBoost, setRateBoost] = useState(false);
+  /** 选集面板里的滚动容器：打开时回到顶部，别停在上次看到的位置 */
+  const episodeListRef = useRef<HTMLDivElement>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 始终持有最新 props/回调，避免重建播放器
@@ -1218,6 +1220,21 @@ export function PlayerShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adFilter]);
 
+  // —— 选集面板打开时定位到当前集 ——
+  // 30 集的剧直接从头排会让用户每次都要往下翻；把「正在看的这一集」滚到中间，
+  // 顺便避免浏览器因为焦点跳转把容器滚到莫名其妙的位置（手机上实测会吞掉第一行）。
+  useEffect(() => {
+    if (panel !== 'episodes') return;
+    const box = episodeListRef.current;
+    if (!box) return;
+    const active = box.querySelector<HTMLElement>('[data-episode-active="true"]');
+    if (active) {
+      box.scrollTop = Math.max(0, active.offsetTop - box.clientHeight / 2 + active.clientHeight / 2);
+    } else {
+      box.scrollTop = 0;
+    }
+  }, [panel]);
+
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" style={{ WebkitTouchCallout: 'none' }} />
@@ -1316,7 +1333,7 @@ export function PlayerShell({
         panel === 'episodes' &&
         createPortal(
           <div
-            className="absolute inset-0 flex items-end justify-center bg-black/90 backdrop-blur-md sm:items-center sm:p-6"
+            className="fixed inset-0 z-[120] flex items-end justify-center bg-black/90 backdrop-blur-md sm:items-center sm:p-6"
             style={{ pointerEvents: 'auto' }}
             onClick={(e) => {
               stopPlayerGesture(e);
@@ -1345,7 +1362,10 @@ export function PlayerShell({
                   </svg>
                 </button>
               </div>
-              <div className="scrollbar-thin grid max-h-[55vh] grid-cols-[repeat(auto-fill,minmax(52px,1fr))] gap-1.5 overflow-y-auto p-3">
+              <div
+                ref={episodeListRef}
+                className="scrollbar-thin grid max-h-[62vh] grid-cols-[repeat(auto-fill,minmax(52px,1fr))] gap-1.5 overflow-y-auto p-3"
+              >
                 {Array.from({ length: episodeCount || 0 }, (_, i) => (
                   <button
                     key={i}
@@ -1356,6 +1376,7 @@ export function PlayerShell({
                         ? 'bg-accent font-semibold text-on-accent'
                         : 'bg-white/5 text-white/80 hover:bg-white/15 hover:text-white'
                     )}
+                    data-episode-active={i === episodeIndex ? 'true' : undefined}
                     onClick={() => {
                       onSelectEpisode?.(i);
                       onPanelChange?.('none');

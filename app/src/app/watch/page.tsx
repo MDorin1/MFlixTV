@@ -72,6 +72,13 @@ function WatchContent() {
   const playerFrameRef = useRef<HTMLDivElement | null>(null);
   const [sheetMaxHeight, setSheetMaxHeight] = useState<number | undefined>(undefined);
 
+  // 小屏打开播放器内面板（选集/换源）：先把播放框滚进视野，
+  // 否则面板贴着视口顶部会被吸顶栏裁掉一截（实测手机上第一行集数看不见）
+  useEffect(() => {
+    if (panel === 'none') return;
+    playerFrameRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [panel]);
+
   useEffect(() => {
     if (!skipPanelOpen) return;
     const measure = () => {
@@ -278,19 +285,19 @@ function WatchContent() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur border-b border-line">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-2 sm:gap-3">
           <BackButton />
           <HomeButton />
           <div className="min-w-0">
             <h1 className="text-sm font-medium text-content truncate">{videoTitle}</h1>
-            <p className="text-xs text-faint">
+            <p className="truncate text-xs text-faint">
               {source.name}
               {episodes.length > 0 && ` · 第 ${currentIndex + 1}/${episodes.length} 集`}
             </p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <button
-              className="btn-ghost btn-sm"
+              className="btn-ghost btn-sm whitespace-nowrap"
               onClick={() => {
                 if (!currentUrl) return;
                 enqueueDownload({
@@ -303,10 +310,15 @@ function WatchContent() {
                 // 这里先提示的话，用户随后取消保存位置会出现「已加入→已取消」的矛盾
               }}
             >
-              下载本集
+              <span className="sm:hidden">下载</span>
+              <span className="hidden sm:inline">下载本集</span>
             </button>
-            <button className="btn-ghost btn-sm" onClick={() => setPanel((p) => (p === 'source' ? 'none' : 'source'))}>
-              切换资源
+            <button
+              className="btn-ghost btn-sm whitespace-nowrap"
+              onClick={() => setPanel((p) => (p === 'source' ? 'none' : 'source'))}
+            >
+              <span className="sm:hidden">换源</span>
+              <span className="hidden sm:inline">切换资源</span>
             </button>
           </div>
         </div>
