@@ -159,6 +159,8 @@ export function PlayerShell({
    */
   const [switchFrame, setSwitchFrame] = useState<string | null>(null);
   const [switchLabel, setSwitchLabel] = useState('');
+  /** 长按临时 2 倍速：画面角上给个明确提示，否则用户不知道速度被改了 */
+  const [rateBoost, setRateBoost] = useState(false);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 始终持有最新 props/回调，避免重建播放器
@@ -233,6 +235,21 @@ export function PlayerShell({
     setHint(text);
     if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
     hintTimerRef.current = setTimeout(() => setHint(''), 2500);
+  };
+
+  /** 相对跳转（秒）：越界夹在 0 ~ 时长-0.3s，避免直接跳到结尾触发连播 */
+  const seekBySeconds = (delta: number) => {
+    const art = artRef.current;
+    if (!art) return;
+    const duration = Number(art.duration) || 0;
+    const current = Number(art.currentTime) || 0;
+    const upper = duration > 0 ? Math.max(0, duration - 0.3) : Number.MAX_SAFE_INTEGER;
+    try {
+      art.currentTime = Math.max(0, Math.min(upper, current + delta));
+    } catch {
+      return;
+    }
+    showHint(`${delta > 0 ? '快进' : '后退'} ${Math.abs(delta)} 秒`);
   };
 
   // 片段缓存开启时调大 hls.js 自身缓冲，缓冲之外的空窗由预取器补齐
@@ -573,6 +590,10 @@ export function PlayerShell({
     // 由「点按视频 toggle」收起。CONTROL_HIDE_TIME 是 static，创建后修改立即生效。
     const touchPointer = prefersTouchPointer();
     Artplayer.CONTROL_HIDE_TIME = touchPointer ? TOUCH_CONTROL_HIDE_MS : DESKTOP_CONTROL_HIDE_MS;
+    // 双击交给我们的「±10 秒」：ArtPlayer 默认双击是切全屏，会和快进一起触发
+    // （实测双击右侧 ⇒ 快进 10s 且整页进全屏），这里关掉它的默认行为。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Artplayer as any).DBCLICK_FULLSCREEN = false;
 
     // 初始化每集状态
     mediaHealthyRef.current = true;
@@ -686,6 +707,94 @@ export function PlayerShell({
       lcsLayer = host;
     }
     setLayerEl(lcsLayer);
+
+    /**
+     * 手势：双击左/右两侧 ±10 秒，长按 2 倍速。
+     *
+     * 都挂在 video 元素上（不是播放器根节点）——控制条在兄弟层里，
+     * 点播放条不会被当成「点视频」。双击还要拦掉冒泡，否则 ArtPlayer
+     * 自己的 dblclick 会顺带把页面切全屏，用户只想快进却进了全屏。
+     * 双击会被浏览器算作两次点击，ArtPlayer 因此触发两次「暂停/播放」，
+     * 所以这里记住按下前的播放状态，再用一次 play() 兜回来。
+     */
+    const gestureVideo = art.video as HTMLVideoElement | undefined;
+    let lastTapAt = 0;
+    let holdTimer: ReturnType<typeof setTimeout> | null = null;
+    let holding = false;
+    let rateBeforeHold = 1;
+    let playingBeforeTap = false;
+    /**
+     * 双击的第一拍会先被 ArtPlayer 当成「点视频切换播放」处理（暂停）。
+     * 所以要记住第一拍之前的播放状态，第二拍快进完再用它兜回来，
+     * 否则双击快进后画面会停在那里，得再点一次才继续。
+     */
+    let playingAtPairStart = false;
+
+    const clearHold = () => {
+      if (holdTimer) {
+        clearTimeout(holdTimer);
+        holdTimer = null;
+      }
+      if (holding) {
+        holding = false;
+        try {
+          if (gestureVideo) gestureVideo.playbackRate = rateBeforeHold;
+        } catch {
+          /* 忽略 */
+        }
+        setRateBoost(false);
+      }
+    };
+
+    const onGestureDown = () => {
+      if (!gestureVideo) return;
+      // 距离上一拍太远 = 这是一对新点击的第一拍，记下它之前的播放状态
+      if (Date.now() - lastTapAt >= 280) playingAtPairStart = !gestureVideo.paused;
+      playingBeforeTap = !gestureVideo.paused;
+      clearHold();
+      rateBeforeHold = gestureVideo.playbackRate || 1;
+      holdTimer = setTimeout(() => {
+        // 暂停时「长按倍速」没有意义，只在播放中生效
+        if (gestureVideo.paused || holding) return;
+        holding = true;
+        try {
+          gestureVideo.playbackRate = 2;
+        } catch {
+          /* 忽略 */
+        }
+        setRateBoost(true);
+      }, 450);
+    };
+
+    const onGestureUp = (e: PointerEvent) => {
+      if (!gestureVideo) return;
+      const wasHold = holding;
+      clearHold();
+      if (wasHold) return; // 长按结束，不当作点击
+      const now = Date.now();
+      if (now - lastTapAt < 280) {
+        lastTapAt = 0;
+        const rect = gestureVideo.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        if (x <= rect.width * 0.35) seekBySeconds(-10);
+        else if (x >= rect.width * 0.65) seekBySeconds(10);
+        setTimeout(() => {
+          const v = artRef.current?.video as HTMLVideoElement | undefined;
+          if (v && (playingAtPairStart || playingBeforeTap) && v.paused) void v.play().catch(() => {});
+        }, 150);
+        return;
+      }
+      lastTapAt = now;
+    };
+
+    // 双击别顺带切全屏
+    const stopDblclick = (e: Event) => e.stopPropagation();
+
+    gestureVideo?.addEventListener('pointerdown', onGestureDown);
+    gestureVideo?.addEventListener('pointerup', onGestureUp);
+    gestureVideo?.addEventListener('pointercancel', clearHold);
+    gestureVideo?.addEventListener('pointerleave', clearHold);
+    gestureVideo?.addEventListener('dblclick', stopDblclick, true);
 
     // 进度条区间可视化：初始渲染一次，换集 duration 变化时重绘
     renderSkipMarks();
@@ -1029,6 +1138,12 @@ export function PlayerShell({
       el?.removeEventListener('touchmove', onTouchMove);
       el?.removeEventListener('contextmenu', onContextMenu);
       art.video?.removeEventListener('resize', reportVideoHeight);
+      gestureVideo?.removeEventListener('pointerdown', onGestureDown);
+      gestureVideo?.removeEventListener('pointerup', onGestureUp);
+      gestureVideo?.removeEventListener('pointercancel', clearHold);
+      gestureVideo?.removeEventListener('pointerleave', clearHold);
+      gestureVideo?.removeEventListener('dblclick', stopDblclick, true);
+      if (holdTimer) clearTimeout(holdTimer);
       el?.removeEventListener('mousemove', showControlsOnPointerMove);
       el?.removeEventListener('mouseleave', hideControlsOnMouseLeave);
       if (controlHideTimer) clearTimeout(controlHideTimer);
@@ -1164,6 +1279,13 @@ export function PlayerShell({
           <button className="btn-ghost text-xs" onClick={() => location.reload()}>
             重新加载
           </button>
+        </div>
+      )}
+      {rateBoost && (
+        // 长按倍速期间常驻左上角：速度被临时改掉，必须让用户看得见
+        <div className="pointer-events-none absolute left-4 top-4 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-sm font-semibold text-white animate-fade-in">
+          <span className="tabular-nums">2×</span>
+          <span className="text-xs font-normal text-white/70">松开恢复</span>
         </div>
       )}
       {(hint || undoSkip) && (
