@@ -799,6 +799,51 @@ export default function HongguoPage() {
       ? `${API}/stream?vid=${encodeURIComponent(playing.vid)}&quality=${quality}&api_key=${encodeURIComponent(key)}${streamNonce > 0 ? `&r=${streamNonce}` : ""}`
       : '';
 
+  /**
+   * 短剧播放：走内核的 /hg-api/hls（2 秒 fMP4 分片，分片就绪即播）。
+   * 原来直接把整集 MP4 塞给 <video>，必须等整集下载+解密，才出现「每集都像首播」；
+   * 换成 HLS 后切集只是换一份播放列表，第一个分片命中缓存就是秒切。
+   * 浏览器不支持 MSE 时退回原来的整集直链，保证还能播。
+   */
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !playing || !key) return;
+    const hlsUrl = `${API}/hls?vid=${encodeURIComponent(playing.vid)}&quality=${quality}&api_key=${encodeURIComponent(key)}`;
+    let hls: { destroy: () => void } | null = null;
+    let cancelled = false;
+    void (async () => {
+      const mod = await import('hls.js').catch(() => null);
+      const Hls = (mod as { default?: { isSupported: () => boolean; new (cfg?: unknown): any } } | null)?.default;
+      if (cancelled) return;
+      if (Hls && Hls.isSupported()) {
+        const inst = new Hls({ maxBufferLength: 30, backBufferLength: 15 });
+        hls = inst;
+        inst.loadSource(hlsUrl);
+        inst.attachMedia(v);
+        inst.on((Hls as unknown as { Events: { ERROR: string } }).Events.ERROR, (_e: unknown, data: { fatal?: boolean }) => {
+          if (!data?.fatal) return;
+          // 分片通道出问题（ffmpeg 没找到 / 切片失败）时，自动退回原来的整集直链：
+          // 宁可慢一点，也不能让用户面对一个放不出来的播放器。
+          try {
+            inst.destroy();
+          } catch {
+            /* 忽略 */
+          }
+          hls = null;
+          v.src = `${API}/stream?vid=${encodeURIComponent(playing.vid)}&quality=${quality}&api_key=${encodeURIComponent(key)}`;
+          v.load();
+          void v.play().catch(() => {});
+        });
+      } else {
+        // 兜底：老浏览器无 MSE 时仍用整集直链
+        v.src = `${API}/stream?vid=${encodeURIComponent(playing.vid)}&quality=${quality}&api_key=${encodeURIComponent(key)}`;
+      }
+    })();
+    return () => {
+      cancelled = true;
+      hls?.destroy();
+    };
+  }, [playing?.vid, quality, key]);
   // 播放时禁止页面滚动：竖屏短剧很高，否则会撑出滚动条、只看到视频上半截
   useEffect(() => {
     if (!playing) return;
@@ -1367,7 +1412,6 @@ export default function HongguoPage() {
             <video
               ref={videoRef}
               className="absolute inset-0 h-full w-full bg-black object-contain"
-              src={streamUrl}
               controls
               autoPlay
               playsInline
