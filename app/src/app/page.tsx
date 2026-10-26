@@ -458,8 +458,12 @@ function HomeContent() {
             ) : (
               <EmptyState
                 icon="search"
-                title="没有找到匹配的结果"
-                description="请尝试其他关键词或更换点播源"
+                title={doubanTitles.length > 0 ? '采集源里没有这部片' : '没有找到匹配的结果'}
+                description={
+                  doubanTitles.length > 0
+                    ? '豆瓣有条目可以看资料——上面的「豆瓣条目」点进去有简介、演员和相似影片；想直接看，换个点播源或换个关键词再搜。'
+                    : '请尝试其他关键词或更换点播源'
+                }
                 className="!py-16"
               />
             )}

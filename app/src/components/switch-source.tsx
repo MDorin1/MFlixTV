@@ -474,6 +474,21 @@ export function SwitchSourceModal({
                           <button type="button" className="btn-primary btn-sm" disabled={!c.episodes} onClick={() => switchTo(c)}>
                             切换到此源
                           </button>
+                          {/* 看资料：不切源也能先看这部的简介/演员（同一个资料页，只是换个源） */}
+                          <a
+                            href={`/detail/${encodeURIComponent(c.source.key)}/${encodeURIComponent(c.result.vodId)}?${new URLSearchParams(
+                              {
+                                name: c.result.name || currentTitle,
+                                sn: c.source.name,
+                                ...(c.result.pic ? { pic: c.result.pic } : {}),
+                                ...(c.source.url ? { su: c.source.url } : {}),
+                              }
+                            ).toString()}`}
+                            className="btn-ghost btn-sm"
+                            onClick={onClose}
+                          >
+                            看资料
+                          </a>
                           {/* 测速失败但拿得到集数：允许点。详情接口偶发超时很常见，别把能播的源挡在外面 */}
                           {!c.ok && !!c.episodes && <span className="text-xs text-warning">测速未通过，仍可尝试</span>}
                         </>

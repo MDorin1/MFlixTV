@@ -225,6 +225,22 @@ function HistoryItem({ item }: { item: HistoryEntry }) {
           </div>
         </div>
       </Link>
+      {/* 资料入口：和整行的「继续播放」分开——想先看看简介/演员，不必先进播放器再退出来 */}
+      <Link
+        href={`/detail/${encodeURIComponent(item.sourceKey)}/${encodeURIComponent(item.vodId)}?${new URLSearchParams({
+          name: item.title,
+          sn: source?.name || '',
+          ...(item.pic ? { pic: item.pic } : {}),
+          ...(source?.url ? { su: source.url } : {}),
+        }).toString()}`}
+        className={cn(
+          'absolute bottom-2 right-2 z-10 rounded-md bg-chip/90 px-1.5 py-0.5 text-[11px] text-faint',
+          'opacity-70 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:text-accent'
+        )}
+        title="查看资料页"
+      >
+        资料
+      </Link>
       <button
         className={cn(
           'absolute right-2 top-2 p-2 rounded-full text-faint hover:text-danger',
