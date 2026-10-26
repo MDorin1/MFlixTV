@@ -98,6 +98,10 @@ function DoubanView({
             <TypeButton active={type === 'tv'} onClick={() => switchType('tv')}>
               剧集
             </TypeButton>
+            {/* 综艺：豆瓣把它挂在 tv 下的「综艺」标签，播放链路与剧集完全相同 */}
+            <TypeButton active={type === 'tv' && tag === '综艺'} onClick={() => { setType('tv'); setTag('综艺'); }}>
+              综艺
+            </TypeButton>
           </div>
         </div>
       </div>
