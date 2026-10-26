@@ -8,7 +8,7 @@ import { useAppStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import type { DoubanItem, DoubanResponse } from '@/lib/types';
 import { DoubanCard } from './video-card';
-import { VarietyBoard } from './variety-board';
+import { VarietyBoard, CategoryBoard, SHORT_CATEGORIES } from './variety-board';
 
 const MOVIE_TAGS = ['热门', '最新', '经典', '高分好评', '冷门佳片', '华语', '欧美', '韩国', '日本', '动画'];
 const TV_TAGS = ['热门', '美剧', '英剧', '韩剧', '日剧', '国产剧', '港剧', '日本动画', '综艺', '纪录片'];
@@ -89,6 +89,24 @@ function DoubanView({
   };
 
   // 综艺走「源内分类浏览」：豆瓣那份只有海报，真正能播的综艺得按源分类拉
+  if (tag === '短剧') {
+    return (
+      <section aria-label="短剧推荐">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg bg-chip p-0.5">
+              <TypeButton active={false} onClick={() => switchType('movie')}>电影</TypeButton>
+              <TypeButton active={false} onClick={() => switchType('tv')}>剧集</TypeButton>
+              <TypeButton active={false} onClick={() => { setType('tv'); setTag('综艺'); }}>综艺</TypeButton>
+              <TypeButton active onClick={() => undefined}>短剧</TypeButton>
+            </div>
+          </div>
+        </div>
+        <CategoryBoard categories={SHORT_CATEGORIES} cachePrefix="short" />
+      </section>
+    );
+  }
+
   if (tag === '综艺') {
     // 注意：切到综艺后「电影/剧集」这两个入口必须还在，否则回不去
     return (
@@ -104,6 +122,9 @@ function DoubanView({
               </TypeButton>
               <TypeButton active onClick={() => undefined}>
                 综艺
+              </TypeButton>
+              <TypeButton active={false} onClick={() => { setType('tv'); setTag('短剧'); }}>
+                短剧
               </TypeButton>
             </div>
           </div>
@@ -127,6 +148,9 @@ function DoubanView({
             {/* 综艺：豆瓣把它挂在 tv 下的「综艺」标签，播放链路与剧集完全相同 */}
             <TypeButton active={type === 'tv' && tag === '综艺'} onClick={() => { setType('tv'); setTag('综艺'); }}>
               综艺
+            </TypeButton>
+            <TypeButton active={false} onClick={() => { setType('tv'); setTag('短剧'); }}>
+              短剧
             </TypeButton>
           </div>
         </div>

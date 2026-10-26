@@ -6,11 +6,35 @@ import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { cn } from '@/lib/utils';
 import type { SearchResultItem } from '@/lib/types';
 
-const CATEGORIES = ['综艺', '大陆综艺', '港台综艺', '日韩综艺', '欧美综艺'];
+export const VARIETY_CATEGORIES = ['综艺', '大陆综艺', '港台综艺', '日韩综艺', '欧美综艺'];
+
+/** 点播源里的短剧分类（实测 豪华资源 48 个分类里的这批） */
+export const SHORT_CATEGORIES = [
+  '短剧',
+  '反转爽剧',
+  '擦边短剧',
+  'AI漫剧',
+  '古装仙侠',
+  '现代都市',
+  '穿越年代',
+  '言情总裁',
+  '重生民国',
+  '脑洞悬疑',
+];
 
 export function VarietyBoard() {
+  return <CategoryBoard categories={VARIETY_CATEGORIES} cachePrefix="variety" />;
+}
+
+export function CategoryBoard({
+  categories,
+  cachePrefix,
+}: {
+  categories: string[];
+  cachePrefix: string;
+}) {
   const router = useRouter();
-  const [category, setCategory] = useState(CATEGORIES[1]);
+  const [category, setCategory] = useState(categories[1] ?? categories[0]);
   const [items, setItems] = useState<SearchResultItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -19,7 +43,7 @@ export function VarietyBoard() {
     let alive = true;
     setLoading(true);
     setErr('');
-    const key = 'mflixtv:variety:' + category;
+    const key = 'mflixtv:' + cachePrefix + ':' + category;
     try {
       const raw = localStorage.getItem(key);
       if (raw) {
@@ -50,7 +74,7 @@ export function VarietyBoard() {
     return () => {
       alive = false;
     };
-  }, [category]);
+  }, [category, cachePrefix]);
 
   const groups = useMemo(() => aggregateResults(items), [items]);
 
@@ -64,7 +88,7 @@ export function VarietyBoard() {
   return (
     <section aria-label="综艺分类">
       <div className="mb-4 flex flex-wrap gap-1.5">
-        {CATEGORIES.map((c) => (
+        {categories.map((c) => (
           <button
             key={c}
             onClick={() => setCategory(c)}
