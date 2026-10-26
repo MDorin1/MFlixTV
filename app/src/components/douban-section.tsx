@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/client-api';
 import { useAppStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import type { DoubanItem } from '@/lib/types';
+import type { DoubanItem, DoubanResponse } from '@/lib/types';
 import { DoubanCard } from './video-card';
 
 const MOVIE_TAGS = ['热门', '最新', '经典', '高分好评', '冷门佳片', '华语', '欧美', '韩国', '日本', '动画'];
@@ -50,10 +50,33 @@ function DoubanView({
   const [type, setType] = useState<'movie' | 'tv'>(initialTab || 'movie');
   const [tag, setTag] = useState(initialCat || '热门');
 
+  // 上次的榜单先垫上（进首页不该每次白屏重排），随后 react-query 在后台刷新
+  const cacheKey = 'mflixtv:douban:' + type + ':' + tag;
+  const cached: DoubanResponse | undefined = (() => {
+    if (typeof window === 'undefined') return undefined;
+    try {
+      const raw = window.localStorage.getItem(cacheKey);
+      if (!raw) return undefined;
+      const parsed = JSON.parse(raw);
+      return parsed && Array.isArray(parsed.items) ? (parsed as DoubanResponse) : undefined;
+    } catch {
+      return undefined;
+    }
+  })();
   const query = useQuery({
     queryKey: ['douban', type, tag],
     queryFn: ({ signal }) => api.douban(type, tag, 0, 50, signal),
+    initialData: cached,
+    initialDataUpdatedAt: 0,
   });
+  useEffect(() => {
+    if (!query.data || typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(cacheKey, JSON.stringify({ items: query.data.items.slice(0, 60) }));
+    } catch {
+      /* 配额满就跳过 */
+    }
+  }, [cacheKey, query.data]);
 
   const tags = type === 'movie' ? MOVIE_TAGS : TV_TAGS;
   const items = query.data?.items ?? [];
