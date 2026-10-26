@@ -8,6 +8,7 @@ import { useAppStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import type { DoubanItem, DoubanResponse } from '@/lib/types';
 import { DoubanCard } from './video-card';
+import { VarietyBoard } from './variety-board';
 
 const MOVIE_TAGS = ['热门', '最新', '经典', '高分好评', '冷门佳片', '华语', '欧美', '韩国', '日本', '动画'];
 const TV_TAGS = ['热门', '美剧', '英剧', '韩剧', '日剧', '国产剧', '港剧', '日本动画', '综艺', '纪录片'];
@@ -86,6 +87,15 @@ function DoubanView({
     setType(t);
     setTag('热门');
   };
+
+  // 综艺走「源内分类浏览」：豆瓣那份只有海报，真正能播的综艺得按源分类拉
+  if (tag === '综艺') {
+    return (
+      <section aria-label="综艺推荐">
+        <VarietyBoard />
+      </section>
+    );
+  }
 
   return (
     <section aria-label="影视推荐">
