@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 
 /**
  * 片名检索（豆瓣条目）。
- * GET /api/douban/title-search?q=繁花
+ * GET /api/douban/title-search?q=<片名>
  * → { titles: [{ id, title, cover, rating, year, subtitle }] }
  *
  * 首页用它给搜索结果配一行「豆瓣条目」：采集源只有片名和海报，

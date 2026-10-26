@@ -305,11 +305,11 @@ interface SuggestRaw {
 /**
  * 演员名联想（模糊）。
  *
- * 豆瓣的 subject_suggest 只认「姓+名」这种完整片段（搜「刘德」不出刘德华），
+ * 豆瓣的 subject_suggest 只认「姓名」这种完整片段（只给姓氏片段时它不返回），
  * 所以这里做两层：
  *  1. 先打 suggest，命中的 celebrity 直接收下；
  *  2. 不足 3 条时，退化成「按人名搜影片 → 拉这几部片的演职员表 → 名字包含关键词的挑出来」，
- *     这一层才真正实现「模糊」：搜「刘德」能出刘德华，搜「译」能出张译。
+ *     这一层才真正实现「模糊」：搜名字的任意片段都能命中完整姓名。
  * 两层都有 10 分钟缓存 + 节流，翻来覆去搜同一个词不会把豆瓣打成 418。
  */
 export async function searchPersons(query: string, limit = 8): Promise<PersonHit[]> {
@@ -370,7 +370,7 @@ export async function searchPersons(query: string, limit = 8): Promise<PersonHit
           const cast = await fetchCast(id);
           for (const member of [...cast.directors, ...cast.actors]) {
             if (!member.id || !member.name) continue;
-            // 双向包含：搜「刘德」命中「刘德华」，搜「刘德华」也不漏
+            // 双向包含：片段与全名都能命中
             const matched = member.name.includes(q) || q.includes(member.name);
             if (!matched) continue;
             if (found.has(member.id)) continue;

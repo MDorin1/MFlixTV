@@ -5,7 +5,7 @@
 <table>
   <tr>
     <td align="center"><img src="docs/images/home.png" width="420" alt="首页"><br><sub>首页：头图 + 继续观看 + TOP 10</sub></td>
-    <td align="center"><img src="docs/images/actor-search.png" width="420" alt="演员检索"><br><sub>搜「刘德」→ 刘德华 / 刘德强</sub></td>
+    <td align="center"><img src="docs/images/actor-search.png" width="420" alt="演员检索"><br><sub>搜人名片段 → 命中演员</sub></td>
   </tr>
 </table>
 
@@ -36,7 +36,7 @@
 **检索：影片和演员一起搜**
 
 - 一条搜索框同时打三类数据：自己的点播源（并行流式返回）、豆瓣条目、豆瓣演员
-- 搜人名也能出结果：输入「刘德」→ 刘德华 / 刘德强，点进演员页看全部作品（联想命中不了时，会退化成「按人名搜影片 → 演职员表模糊匹配」，所以给名字片段也找得到）
+- 搜人名也能出结果：输入姓氏片段 → 命中对应演员，点进演员页看全部作品（联想命中不了时，会退化成「按人名搜影片 → 演职员表模糊匹配」，所以给名字片段也找得到）
 - 跨源同名影片自动合并成一张卡，展开可直接比较各来源的画质与速度
 
 **资料页：所有片名、人名都点得动**
@@ -78,7 +78,7 @@
 | --- | --- |
 | ![首页](docs/images/home.png) | ![搜索](docs/images/search.png) |
 
-| 演员检索（搜「刘德」） | 豆瓣资料页（资料 + 播放入口） |
+| 演员检索（搜人名片段） | 豆瓣资料页（资料 + 播放入口） |
 | --- | --- |
 | ![演员检索](docs/images/actor-search.png) | ![豆瓣资料页](docs/images/title.png) |
 
