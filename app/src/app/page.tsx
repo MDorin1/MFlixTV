@@ -8,6 +8,7 @@ import { Header } from '@/components/header';
 import { RecommendSection } from '@/components/douban-section';
 import { RankRow } from '@/components/rank-row';
 import { ContinueWatchingRow } from '@/components/continue-watching';
+import { HeroBillboard } from '@/components/hero-billboard';
 import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { useAppStore, resolveSource, isInDisabledSubscription, isSourceDisabled } from '@/lib/store';
 import { api } from '@/lib/client-api';
@@ -120,6 +121,19 @@ function HomeContent() {
   // 最近搜索改为搜索框下拉（聚焦展开、按输入过滤），不再常驻首屏
   const searchHistory = useSearchHistory(input);
 
+  /**
+   * 演员检索：和影片搜索并行跑。
+   * 搜「张译」时影片结果多半是空的或不相干，这一行才是用户真正要找的东西；
+   * 服务端 10 分钟缓存 + 节流，同一个词反复搜不会打到豆瓣。
+   */
+  const personQuery = useQuery({
+    queryKey: ['person-search', urlQuery],
+    queryFn: ({ signal }) => api.personSearch(urlQuery.slice(0, 30), signal),
+    enabled: Boolean(urlQuery),
+    staleTime: 600_000,
+  });
+  const persons = personQuery.data?.persons ?? [];
+
   const runSearch = (q: string) => {
     const query = q.trim().slice(0, 100);
     if (!query) {
@@ -226,7 +240,7 @@ function HomeContent() {
                 <input
                   ref={inputRef}
                   className="flex-1 min-w-0 pr-2 bg-transparent text-sm text-content placeholder:text-faint focus:outline-none"
-                  placeholder="输入影片名称..."
+                  placeholder="输入影片或演员名称…"
                   value={input}
                   maxLength={100}
                   onChange={(e) => {
@@ -290,33 +304,45 @@ function HomeContent() {
           </div>
         </section>
 
-        {/* 短剧专区入口：只在没有搜索结果时露出（搜索时首屏空间要留给结果） */}
-        {!urlQuery && (
-          <Link
-            href="/hongguo"
-            className="group mb-8 flex items-center gap-4 rounded-2xl border border-line/70 bg-gradient-to-r from-chip via-surface to-chip p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-xl"
-          >
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#00ccff] to-[#ff3c78] text-white shadow-lg">
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                <path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm6 3v8l6-4-6-4z" />
-              </svg>
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-content">短剧专区</span>
-              <span className="block truncate text-xs text-faint">
-                短剧专区 · 推荐榜 / 热播榜 / 新剧榜 · 本机转换直连播放
-              </span>
-            </span>
-            <span className="shrink-0 text-sm text-accent transition-transform duration-300 group-hover:translate-x-1">
-              进入 →
-            </span>
-          </Link>
+
+        {/* 演员：搜人名时这一行才是主结果，点进去是该演员的作品页 */}
+        {urlQuery && persons.length > 0 && (
+          <section aria-label="演员" className="mb-7">
+            <h2 className="mb-3.5 text-[17px] font-semibold text-content">
+              演员<span className="text-faint">（{persons.length}）</span>
+            </h2>
+            <div className="-mx-4 flex gap-3.5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {persons.map((p) => (
+                <Link key={p.id} href={`/person/${p.id}`} className="group/actor w-[84px] shrink-0 text-center sm:w-24">
+                  <span className="mx-auto block h-[84px] w-[84px] overflow-hidden rounded-full bg-chip ring-1 ring-line/70 transition-all duration-300 group-hover/actor:ring-accent/60 sm:h-24 sm:w-24">
+                    {p.avatar ? (
+                      <img
+                        src={`/api/proxy?url=${encodeURIComponent(p.avatar)}`}
+                        alt={p.name}
+                        loading="lazy"
+                        decoding="async"
+                        referrerPolicy="no-referrer"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover/actor:scale-105"
+                      />
+                    ) : (
+                      <span className="grid h-full w-full place-items-center text-lg text-faint">{p.name.slice(0, 1)}</span>
+                    )}
+                  </span>
+                  <span className="mt-1.5 line-clamp-1 block text-[12.5px] font-medium text-content">{p.name}</span>
+                  {p.latinName && (
+                    <span className="line-clamp-1 block text-[10px] text-faint">{p.latinName}</span>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </section>
         )}
+
         {/* 搜索结果 */}
         {urlQuery && (
           <section aria-label="搜索结果" className="mb-10">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm text-muted">
+              <h2 className="text-[17px] font-semibold text-content">
                 “<span className="text-content">{urlQuery}</span>” 的搜索结果
                 {isSearching ? (
                   <span className="text-faint">
@@ -396,12 +422,37 @@ function HomeContent() {
           </section>
         )}
 
+        {/* 头图：Netflix 式本周推荐，复用推荐区的同一份数据，不多发请求 */}
+        {!urlQuery && <HeroBillboard />}
+
         {/* 继续观看：有观看记录才出现，点一下接着上次的进度播 */}
         {!urlQuery && <ContinueWatchingRow />}
 
         {/* 本周 TOP 10：Netflix 式大数字排名，点进去是资料页 */}
         {!urlQuery && <RankRow id="douban_movie_weekly" title="本周电影 TOP 10" />}
 
+        {/* 短剧专区入口：只在没有搜索结果时露出（搜索时首屏空间要留给结果） */}
+        {!urlQuery && (
+          <Link
+            href="/hongguo"
+            className="group mb-8 flex items-center gap-4 rounded-2xl border border-line/70 bg-gradient-to-r from-chip via-surface to-chip p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-xl"
+          >
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#00ccff] to-[#ff3c78] text-white shadow-lg">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm6 3v8l6-4-6-4z" />
+              </svg>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-content">短剧专区</span>
+              <span className="block truncate text-xs text-faint">
+                短剧专区 · 推荐榜 / 热播榜 / 新剧榜 · 本机转换直连播放
+              </span>
+            </span>
+            <span className="shrink-0 text-sm text-accent transition-transform duration-300 group-hover:translate-x-1">
+              进入 →
+            </span>
+          </Link>
+        )}
         {/* 首页推荐（有搜索时隐藏） */}
         {!urlQuery && (
           <RecommendSection

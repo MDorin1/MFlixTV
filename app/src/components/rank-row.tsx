@@ -42,8 +42,8 @@ export function RankRow({ id = 'douban_movie_weekly', title = '本周 TOP 10' }:
   return (
     <section aria-label={title} className="mb-8">
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-base font-semibold text-content">{title}</h2>
-        <span className="text-[11px] text-faint">按豆瓣周榜</span>
+        <h2 className="row-title text-content">{title}</h2>
+        <span className="text-[13px] text-faint">按豆瓣周榜</span>
       </div>
 
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:gap-4 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

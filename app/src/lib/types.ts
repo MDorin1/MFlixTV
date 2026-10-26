@@ -238,3 +238,13 @@ export interface SourceListPayload {
   /** 解析统计（格式、跳过与截断），老数据可能缺失 */
   stats?: SubscriptionParseStats;
 }
+
+/** 演员检索命中项（服务端 /api/douban/person-search 返回） */
+export interface PersonSearchHit {
+  id: string;
+  name: string;
+  latinName: string;
+  avatar: string;
+  /** suggest=豆瓣联想直出；cast=按人名搜影片后从演职员表模糊匹配 */
+  via: 'suggest' | 'cast';
+}

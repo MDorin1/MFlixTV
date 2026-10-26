@@ -277,3 +277,120 @@ export async function fetchRecommendations(id: string, limit = 12): Promise<Simi
     }))
     .filter((item) => item.id && item.title);
 }
+/* ============================ 演员检索 ============================ */
+
+const SUGGEST_URL = 'https://movie.douban.com/j/subject_suggest';
+/** suggest 接口的独立节流：和 rexxar 那套分开算，免得两边互相卡住 */
+let lastSuggest = 0;
+const SUGGEST_GAP_MS = 800;
+const suggestCache = new Map<string, { at: number; data: PersonHit[] }>();
+
+export interface PersonHit {
+  id: string;
+  name: string;
+  latinName: string;
+  avatar: string;
+  /** 命中方式：suggest 直出，还是从影片演职员表里模糊匹配出来的 */
+  via: 'suggest' | 'cast';
+}
+
+interface SuggestRaw {
+  id?: string;
+  title?: string;
+  sub_title?: string;
+  img?: string;
+  type?: string;
+}
+
+/**
+ * 演员名联想（模糊）。
+ *
+ * 豆瓣的 subject_suggest 只认「姓+名」这种完整片段（搜「刘德」不出刘德华），
+ * 所以这里做两层：
+ *  1. 先打 suggest，命中的 celebrity 直接收下；
+ *  2. 不足 3 条时，退化成「按人名搜影片 → 拉这几部片的演职员表 → 名字包含关键词的挑出来」，
+ *     这一层才真正实现「模糊」：搜「刘德」能出刘德华，搜「译」能出张译。
+ * 两层都有 10 分钟缓存 + 节流，翻来覆去搜同一个词不会把豆瓣打成 418。
+ */
+export async function searchPersons(query: string, limit = 8): Promise<PersonHit[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const hit = suggestCache.get(q);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.data;
+
+  const found = new Map<string, PersonHit>();
+
+  // 1) suggest
+  await sleep(Math.max(0, SUGGEST_GAP_MS - (Date.now() - lastSuggest)));
+  lastSuggest = Date.now();
+  try {
+    const res = await fetch(`${SUGGEST_URL}?q=${encodeURIComponent(q)}`, {
+      headers: {
+        'User-Agent': UA,
+        Referer: 'https://movie.douban.com/',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) {
+      const raw = (await res.json()) as SuggestRaw[];
+      for (const item of Array.isArray(raw) ? raw : []) {
+        if (item.type !== 'celebrity' || !item.id || !item.title) continue;
+        found.set(String(item.id), {
+          id: String(item.id),
+          name: item.title,
+          latinName: item.sub_title || '',
+          avatar: item.img || '',
+          via: 'suggest',
+        });
+      }
+    }
+  } catch {
+    /* 拉不到就走第二层 */
+  }
+
+  // 2) 模糊兜底：按人名搜影片 → 演职员表里挑名字包含关键词的人。
+  //    只在 suggest 一条都没给时才走——suggest 命中说明用户输的就是完整人名，
+  //    再补三层请求只是白等（实测会让 1.4s 变成 2.5s）。
+  if (found.size === 0) {
+    try {
+      const movieRes = await getJson<{ items?: { target?: { id?: string | number; title?: string } }[] }>(
+        `/search/movie?q=${encodeURIComponent(q)}&start=0&count=10`
+      );
+      const items = movieRes?.items || [];
+      // 搜的就是片名（首条命中标题与关键词一致）：说明用户想找影片而不是演员，别再翻演职员表
+      const topTitle = (items[0]?.target?.title || '').trim();
+      const looksLikeFilm = topTitle === q;
+      if (!looksLikeFilm) {
+        const ids = items
+          .map((i) => String(i.target?.id ?? ''))
+          .filter((id) => /^\d+$/.test(id))
+          .slice(0, 3);
+        for (const id of ids) {
+          const cast = await fetchCast(id);
+          for (const member of [...cast.directors, ...cast.actors]) {
+            if (!member.id || !member.name) continue;
+            // 双向包含：搜「刘德」命中「刘德华」，搜「刘德华」也不漏
+            const matched = member.name.includes(q) || q.includes(member.name);
+            if (!matched) continue;
+            if (found.has(member.id)) continue;
+            found.set(member.id, {
+              id: member.id,
+              name: member.name,
+              latinName: member.latinName || '',
+              avatar: member.avatar || '',
+              via: 'cast',
+            });
+          }
+          if (found.size >= limit) break;
+        }
+      }
+    } catch {
+      /* 兜底失败就只给第一层的结果 */
+    }
+  }
+
+  const data = [...found.values()].slice(0, limit);
+  suggestCache.set(q, { at: Date.now(), data });
+  return data;
+}

@@ -64,7 +64,7 @@ export function ContinueWatchingRow({ className }: { className?: string }) {
 
   return (
     <section className={cn('mb-8', className)} aria-label="继续观看">
-      <h2 className="mb-3 text-lg font-bold text-content">继续观看</h2>
+      <h2 className="row-title mb-3.5 text-content">继续观看</h2>
       <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((it) => {
           const ratio = it.duration > 0 ? Math.min(1, Math.max(0, it.playbackPosition / it.duration)) : 0;

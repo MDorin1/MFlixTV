@@ -1,6 +1,6 @@
 'use client';
 
-import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload, QualityProbeItem, QualityProbeResult } from './types';
+import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload, QualityProbeItem, QualityProbeResult, PersonSearchHit } from './types';
 
 /**
  * 客户端 API 封装。401 时触发全局事件打开登录框，
@@ -203,6 +203,13 @@ export const api = {
 
   /** Bangumi 每日放送（免 key），首页推荐的另一数据源 */
   bangumiCalendar: (signal?: AbortSignal) => request<BangumiCalendarResponse>('/api/bangumi/calendar', { signal }),
+
+  /**
+   * 演员模糊检索：首页搜索时与影片结果并排展示。
+   * 服务端先打豆瓣联想，不足再退化到「按人名搜影片 → 演职员表模糊匹配」，10 分钟缓存。
+   */
+  personSearch: (q: string, signal?: AbortSignal) =>
+    request<{ persons: PersonSearchHit[] }>(`/api/douban/person-search?q=${encodeURIComponent(q)}`, { signal }),
 
   /** 影视热榜（60s API 免 key）：豆瓣周榜五个类目 + 百度热播剧 */
   hotList: (id: string, signal?: AbortSignal) => {

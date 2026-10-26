@@ -75,24 +75,44 @@ body {
 }
 
 /*
- * 字体：Netflix 用的是自有的 Netflix Sans（拿不到），这里按它的观感做近似栈：
- * 先 Helvetica Neue / Segoe UI（都是中性无衬线，x 高度接近），中文落到苹方/微软雅黑；
- * 标题收紧字距 + 700 字重，正文 15px/1.5 —— 这是 Netflix 界面的基本节奏。
+ * 字体：Netflix 用自有 Netflix Sans，这里按它的观感做近似栈。
+ * 你要「圆润」——中文没有现成的圆体可内置（思源/雅黑都不是圆的），所以靠三件事凑：
+ * 字号整体上调（15→16）、字距略放宽、字重收在 500–700（不用 800/900 的死硬感）；
+ * 西文优先挑系统里最圆的那几支（Segoe UI Variable / SF Pro Rounded / Nunito）。
  */
 body {
-  font-family: 'Netflix Sans', 'Helvetica Neue', Helvetica, 'Segoe UI', Roboto, Arial,
-    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
-  letter-spacing: 0;
+  font-family: 'Segoe UI Variable Display', 'SF Pro Rounded', 'Nunito', 'Helvetica Neue', 'Segoe UI',
+    Roboto, Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1,
 h2,
 h3 {
-  letter-spacing: -0.015em;
+  letter-spacing: -0.005em;
+  font-weight: 650;
+}
+
+/* 一屏里每一行的标题：Netflix 的 row title 就是这个量级（20–22px、粗但不黑） */
+.row-title {
+  font-size: 22px;
+  line-height: 1.25;
   font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 640px) {
+  /* 手机上整体收 1px，22px 的行标题在 390 宽里会顶得慌 */
+  body {
+    font-size: 15px;
+  }
+  .row-title {
+    font-size: 19px;
+  }
 }
 
 @layer components {
@@ -100,7 +120,8 @@ h3 {
     @apply bg-card border border-line rounded-2xl overflow-hidden transition-all duration-200;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+    /* 按钮：Netflix 的按钮是「小圆角 + 粗字」，圆角 8px、字重 600、给足左右内边距 */
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
     /* 统一焦点环：键盘用户可见，与 .input 同一规格 */
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40;
   }
@@ -111,7 +132,7 @@ h3 {
     @apply btn bg-chip text-muted hover:bg-hover hover:text-content border border-line;
   }
   .input {
-    @apply bg-chip border border-line rounded-xl px-3 py-2 text-sm text-content placeholder:text-faint;
+    @apply bg-chip border border-line rounded-lg px-3.5 py-2 text-[15px] text-content placeholder:text-faint;
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:border-accent;
   }
   .tag {
@@ -119,7 +140,7 @@ h3 {
   }
   /* 小尺寸按钮：定义在 .btn-* 之后，确保尺寸覆盖生效（与 .btn-primary / .btn-ghost 组合使用） */
   .btn-sm {
-    @apply btn px-2.5 py-1 text-xs;
+    @apply btn px-3 py-1.5 text-[13px] font-medium rounded-md;
   }
   /* 胶囊控件（筛选、分类标签）：统一内边距与圆角 */
   .chip {
