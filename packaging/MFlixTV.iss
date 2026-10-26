@@ -42,6 +42,10 @@ Name: "{group}\使用说明"; Filename: "{app}\使用说明.txt"
 Name: "{autodesktop}\MFlixTV"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""MFlixTV-LAN-8080"""; Flags: runhidden
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""MFlixTV-LAN-8080"" dir=in action=allow protocol=TCP localport=8080 profile=private,domain"; Flags: runhidden; StatusMsg: "配置局域网访问..."
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""MFlixTV-LAN-8000"""; Flags: runhidden
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""MFlixTV-LAN-8000"" dir=in action=allow protocol=TCP localport=8000 profile=private,domain"; Flags: runhidden
 Filename: "{app}\{#MyAppExeName}"; Description: "立即启动 MFlixTV"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
