@@ -74,6 +74,8 @@
 
 ## 截图
 
+> 所有截图里的片名、演员名与海报画面均已打码处理，仅用于展示界面与版式。
+
 | 首页（头图 + 继续观看 + TOP 10） | 搜索结果（豆瓣条目 + 演员 + 大卡网格） |
 | --- | --- |
 | ![首页](docs/images/home.png) | ![搜索](docs/images/search.png) |
@@ -82,18 +84,13 @@
 | --- | --- |
 | ![演员检索](docs/images/actor-search.png) | ![豆瓣资料页](docs/images/title.png) |
 
-| 采集源资料页（导演 / 主演可点） | 相似影片 |
+| 采集源资料页（导演 / 主演可点） | 演员页（代表作 + 筛选） |
 | --- | --- |
-| ![采集源资料页](docs/images/detail-source.png) | ![相似影片](docs/images/similar.png) |
+| ![采集源资料页](docs/images/detail-source.png) | ![演员页](docs/images/person.png) |
 
-| 播放器（双击 ±10 秒 / 长按 2×） | 换源面板（标最快 + 看资料） |
-| --- | --- |
-| ![播放器](docs/images/watch.png) | ![换源面板](docs/images/switch-source.png) |
-
-| 演员页（作品网格） | 手机首页 |
-| --- | --- |
-| ![演员页](docs/images/person.png) | ![手机首页](docs/images/home-mobile.png) |
-
+| 手机首页 |
+| --- |
+| ![手机首页](docs/images/home-mobile.png) |
 
 ## 快速开始
 

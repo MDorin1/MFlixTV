@@ -598,22 +598,15 @@ export default function HongguoPage() {
     const at = eps.findIndex((e) => e.index === fromIndex);
     if (at < 0) return;
     void (async () => {
-      for (let k = 1; k <= 4; k++) {
+      for (let k = 1; k <= 5; k++) {
         const nx = eps[at + k];
         if (!nx || ctrl.signal.aborted) break;
         void hg(`/prewarm?vid=${encodeURIComponent(nx.vid)}`).catch(() => {});
-        await new Promise((r) => window.setTimeout(r, 600));
+        await new Promise((r) => window.setTimeout(r, 300));
         if (ctrl.signal.aborted) break;
-        try {
-          await fetch(streamUrlFor(nx.vid), {
-            headers: { Range: 'bytes=0-1572863' },
-            signal: ctrl.signal,
-            // Chromium 认识 priority，优先度调低，别顶掉当前这集的取流
-            priority: 'low',
-          } as RequestInit).then((r) => r.arrayBuffer());
-        } catch {
-          /* 预热失败不影响正常播放 */
-        }
+        // 只发内核侧预热：实测浏览器侧再抢一遍 Range 会跟当前这集的取流抢带宽，
+        // 反而把「正在播」的那集拖到超时（表现为「这一集没能加载出来」）。
+
       }
     })();
   };
