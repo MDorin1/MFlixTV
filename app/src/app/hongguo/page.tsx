@@ -610,7 +610,8 @@ export default function HongguoPage() {
    * 换集/退出时 abort 掉，避免旧剧的预热继续占着连接。
    */
   const warmUpcoming = (fromIndex: number) => {
-    warmAbortRef.current?.abort();
+    // 不再取消上一次的排程：换集时把旧循环 abort 掉，会导致「下一集预热发了一半就断了」，
+    // 从第二次切集起队列永远是空的，于是每集都要等。内核那边已经按 vid 去重，重复发不会重复下载。
     if (!key) return;
     const ctrl = new AbortController();
     warmAbortRef.current = ctrl;
