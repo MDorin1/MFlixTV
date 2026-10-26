@@ -15,7 +15,7 @@ export class ApiError extends Error {
   }
 }
 
-const UNAUTHORIZED_EVENT = 'lihongguotv:unauthorized';
+const UNAUTHORIZED_EVENT = 'mflixtv:unauthorized';
 
 /** 单条测活结果（/api/live/probe，JSON 与 NDJSON 流共用同一结构） */
 export interface LiveProbeResult {
@@ -240,7 +240,7 @@ export const api = {
       body: JSON.stringify({ url }),
     }),
 
-  /** 拉取远程数据源订阅（自动识别 lihongguotv-SourceList JSON 与 TVBOX 配置 JSON） */
+  /** 拉取远程数据源订阅（自动识别 MFlixTV-SourceList JSON 与 TVBOX 配置 JSON） */
   fetchSourceList: (url: string) => {
     const sp = new URLSearchParams({ url });
     return request<SourceListPayload>(`/api/source-list?${sp.toString()}`);

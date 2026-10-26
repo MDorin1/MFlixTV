@@ -27,9 +27,9 @@ import { Switch } from './settings-shared';
 const MAX_CONCURRENT_DOWNLOADS = 3;
 /** 进度落库节流间隔：整集动辄上千分片，逐片「写库 + 全量查询 + setState」会把长任务页面拖垮 */
 const PROGRESS_PERSIST_INTERVAL_MS = 1000;
-const ADD_TASK_EVENT = 'lihongguotv:add-download';
-const SHOW_MANAGER_EVENT = 'lihongguotv:show-download-manager';
-export const DOWNLOADS_UPDATED_EVENT = 'lihongguotv:downloads-updated';
+const ADD_TASK_EVENT = 'mflixtv:add-download';
+const SHOW_MANAGER_EVENT = 'mflixtv:show-download-manager';
+export const DOWNLOADS_UPDATED_EVENT = 'mflixtv:downloads-updated';
 
 export interface AddDownloadPayload {
   url: string;

@@ -31,7 +31,7 @@ export function getEnvLiveSources(): LiveSourceConfig[] {
     });
     return list;
   } catch (err) {
-    console.warn('[lihongguotv] DEFAULT_LIVE_SOURCES 解析失败，已忽略：', err instanceof Error ? err.message : err);
+    console.warn('[MFlixTV] DEFAULT_LIVE_SOURCES 解析失败，已忽略：', err instanceof Error ? err.message : err);
     return [];
   }
 }

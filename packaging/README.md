@@ -19,7 +19,7 @@
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File packaging\build-portable.ps1 `
-  -Out D:\Build\lihongguotv\stage `
+  -Out D:\Build\MFlixTV\stage `
   -NodeExe D:\Tools\nodejs\node.exe `
   -FfmpegBin D:\Tools\ffmpeg\bin `
   -HongguoDir ..\hongguo-web
@@ -29,7 +29,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build-portable.ps1 `
 
 1. `npm ci` + `next build`（**要 devDependencies**，别用 `--omit=dev`）
 2. 复制 `.next`（去掉 `.next\cache`，运行时用不到但占一半体积）、`node_modules`、`public`、`next.config.mjs`
-3. 生成中性 `.env`：`PASSWORD=lihongguotv`、`PROXY_SECRET=lihongguotv-desktop-secret`
+3. 生成中性 `.env`：`PASSWORD=MFlixTV`、`PROXY_SECRET=MFlixTV-secret`
 4. 复制短剧内核并**自动重打 `content_type` 补丁**，删掉 `apikeys.json`（首次启动自动生成，不该带别人的设备身份）
 5. 复制 `node.exe`、`ffmpeg.exe`、`tools\update.ps1`、启动器源码与图标、使用说明
 
@@ -38,7 +38,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build-portable.ps1 `
 ### 2) 编译托盘启动器
 
 ```powershell
-csc /target:winexe /out:D:\Build\lihongguotv\stage\lihongguotv.exe `
+csc /target:winexe /out:D:\Build\MFlixTV\stage\MFlixTV.exe `
     /win32icon:packaging\app.ico `
     /r:System.Windows.Forms.dll /r:System.Drawing.dll `
     packaging\Launcher.cs
@@ -49,20 +49,20 @@ csc /target:winexe /out:D:\Build\lihongguotv\stage\lihongguotv.exe `
 ### 3) 出安装包
 
 ```powershell
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\lihongguotv.iss
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\MFlixTV.iss
 ```
 
-产物：`dist\lihongguotv-Setup-<版本>.exe`。`lihongguotv.iss` 里 `Source: "stage\*"` 是相对 `packaging\` 解析的，所以要么把 stage 放在 `packaging\stage`，要么改 `OutputDir` / `Source` —— 当前仓库默认在 `packaging\` 同级运行，`stage` 路径写死在 iss 里，最省事的做法是：
+产物：`dist\MFlixTV-Setup-<版本>.exe`。`MFlixTV.iss` 里 `Source: "stage\*"` 是相对 `packaging\` 解析的，所以要么把 stage 放在 `packaging\stage`，要么改 `OutputDir` / `Source` —— 当前仓库默认在 `packaging\` 同级运行，`stage` 路径写死在 iss 里，最省事的做法是：
 
 ```powershell
-# 在 D:\Build\lihongguotv 下，stage 与 packaging 同级
-cd D:\Build\lihongguotv
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\lihongguotv.iss
+# 在 D:\Build\MFlixTV 下，stage 与 packaging 同级
+cd D:\Build\MFlixTV
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\MFlixTV.iss
 ```
 
 ### 版本号
 
-改两处：`packaging/lihongguotv.iss` 的 `MyAppVersion`、`app/package.json` 的 `version`。安装包文件名跟着 iss 走。
+改两处：`packaging/MFlixTV.iss` 的 `MyAppVersion`、`app/package.json` 的 `version`。安装包文件名跟着 iss 走。
 
 ### 别打进安装包的东西
 
@@ -83,13 +83,13 @@ macOS 上不做 `.app`/`.dmg`（那需要签名与公证），发的是**解压�
 ### 目录结构
 
 ```
-lihongguotv-macOS-arm64/
+MFlixTV-macOS-arm64/
 ├── app/                  Next.js 生产产物（.next + node_modules + public + .env + next.config.mjs）
 ├── hongguo/              短剧内核（server/src + server/config + web，已打补丁，无 apikeys.json）
 ├── runtime/
 │   ├── node              node 22 darwin-arm64 可执行文件
 │   └── ffmpeg/ffmpeg     ffmpeg 静态构建（arm64）
-├── 启动lihongguotv.command    启动脚本
+├── 启动MFlixTV.command    启动脚本
 └── 使用说明.txt
 ```
 
@@ -100,11 +100,11 @@ lihongguotv-macOS-arm64/
    - ffmpeg：任一 macOS arm64 静态构建（arm64 原生，别用 x64 的转译版）
    - 两个文件都要**保留可执行位**：在 macOS 上 `chmod +x runtime/node runtime/ffmpeg/ffmpeg`
 2. **复制 Windows 同名产物**：`app/`、`hongguo/` 的目录结构与 Windows 便携目录一致，直接把 `stage` 里的这两块拷过来，再换成 mac 的 `runtime/`
-3. **放启动脚本与说明**：`packaging/启动lihongguotv.command`、`packaging/使用说明-macOS.txt`（改名成 `使用说明.txt`）
+3. **放启动脚本与说明**：`packaging/启动MFlixTV.command`、`packaging/使用说明-macOS.txt`（改名成 `使用说明.txt`）
 4. **压 zip**
 
 ```powershell
-Compress-Archive -Path D:\Build\lihongguotv-mac-arm64\* -DestinationPath D:\Build\dist\lihongguotv-macOS-arm64.zip -CompressionLevel Optimal
+Compress-Archive -Path D:\Build\MFlixTV-mac-arm64\* -DestinationPath D:\Build\dist\MFlixTV-macOS-arm64.zip -CompressionLevel Optimal
 ```
 
 > **两个坑**
@@ -113,7 +113,7 @@ Compress-Archive -Path D:\Build\lihongguotv-mac-arm64\* -DestinationPath D:\Buil
 
 ### 关于架构
 
-当前只出 arm64（Apple 芯片）。x64 版把运行时换成 `darwin-x64` 的两个二进制、目录名改成 `lihongguotv-macOS-x64` 即可，`启动lihongguotv.command` 不用改。
+当前只出 arm64（Apple 芯片）。x64 版把运行时换成 `darwin-x64` 的两个二进制、目录名改成 `MFlixTV-macOS-x64` 即可，`启动MFlixTV.command` 不用改。
 
 ---
 
@@ -122,7 +122,7 @@ Compress-Archive -Path D:\Build\lihongguotv-mac-arm64\* -DestinationPath D:\Buil
 装完先过一遍，别只看「能打开」：
 
 1. 双击图标 → 托盘出现图标 → 浏览器自动开 `http://localhost:8080`
-2. 用 `lihongguotv` 登录成功
+2. 用 `MFlixTV` 登录成功
 3. 首页有豆瓣推荐卡片（说明外网接口通）
 4. 搜索一个片名 → 有结果 → 能起播（说明点播源可用）
 5. 短剧专区 → 真人剧 / 漫剧 各进一次 → 卡片体裁不串（说明补丁生效）

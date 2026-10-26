@@ -3,7 +3,7 @@
 # 用法：powershell -ExecutionPolicy Bypass -File tools\bench-sources.ps1 [-Password 你的密码]
 param(
   [string]$Base = 'http://127.0.0.1:8080',
-  [string]$Password = 'lihongguotv'
+  [string]$Password = 'MFlixTV'
 )
 $ErrorActionPreference = 'SilentlyContinue'
 $base = $Base

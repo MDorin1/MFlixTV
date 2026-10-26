@@ -1,4 +1,4 @@
-# lihongguotv-desktop
+# MFlixTV
 
 把开源的影视聚合站点 [LibreTV](https://github.com/LibreSpark/LibreTV) 做成**能在 Windows 上双击安装、在 macOS 上解压即用的桌面应用**：Netflix 风格的首页与资料页、**影片和演员一起搜的检索**、换集换源不黑屏的播放器，外加一个**短剧专区**（体裁分类 / 观看历史 / 换源续播）。
 
@@ -99,18 +99,18 @@
 
 ### Windows（推荐）
 
-1. 打开 [Releases](../../releases) 下载 `lihongguotv-Setup-x.y.z.exe`
-2. 安装（可选桌面快捷方式），双击 **lihongguotv**
-3. 浏览器自动打开 `http://localhost:8080`，默认密码 **`lihongguotv`**
+1. 打开 [Releases](../../releases) 下载 `MFlixTV-Setup-x.y.z.exe`
+2. 安装（可选桌面快捷方式），双击 **MFlixTV**
+3. 浏览器自动打开 `http://localhost:8080`，默认密码 **`MFlixTV`**
 4. 退出：托盘图标右键 →「退出」
 
 > 未做代码签名，首次运行 Windows 会提示「未知发布者」，点「更多信息 → 仍要运行」。
 
 ### macOS
 
-1. 下载 `lihongguotv-macOS-arm64.zip`（Apple 芯片）或 `x64` 版本
-2. 解压后双击 `启动lihongguotv.command`
-3. 首次可能被 Gatekeeper 拦：右键 → 打开，或执行 `xattr -dr com.apple.quarantine ./lihongguotv-macOS`
+1. 下载 `MFlixTV-macOS-arm64.zip`（Apple 芯片）或 `x64` 版本
+2. 解压后双击 `启动MFlixTV.command`
+3. 首次可能被 Gatekeeper 拦：右键 → 打开，或执行 `xattr -dr com.apple.quarantine ./MFlixTV-macOS`
 
 ### 桌面快捷方式（可选）
 
@@ -132,7 +132,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File tools\st
 **手机连同一 WiFi 打不开电脑上的地址**：多半是 Windows 防火墙拦了 8080，第一次会弹窗，选「允许访问」。
 
 ### 改密码
-编辑 `app/.env`（Windows 安装版在 `%LOCALAPPDATA%\Programs\lihongguotv\app\.env`）里的 `PASSWORD=`，重启应用。
+编辑 `app/.env`（Windows 安装版在 `%LOCALAPPDATA%\Programs\MFlixTV\app\.env`）里的 `PASSWORD=`，重启应用。
 
 ---
 
@@ -155,7 +155,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File tools\st
 **播放链路**
 
 ```
-lihongguotv 页面 → /hg-api/* → 本机第三方内核 hongguo-web(127.0.0.1:8000)
+MFlixTV 页面 → /hg-api/* → 本机第三方内核 hongguo-web(127.0.0.1:8000)
                 ↓
              内核自行完成取流与格式转换 → 以 mp4 形式回到播放器
 ```
@@ -241,14 +241,14 @@ PORT=8000 BIND_HOST=127.0.0.1 HG_TRANSCODE=1 node server/src/main.js
 
 ```powershell
 # 1) 组装便携目录（node/ffmpeg/app/hongguo/launcher）
-powershell -ExecutionPolicy Bypass -File packaging\build-portable.ps1 -Out D:\Build\lihongguotv\stage
+powershell -ExecutionPolicy Bypass -File packaging\build-portable.ps1 -Out D:\Build\MFlixTV\stage
 
 # 2) 编译启动器（需要 .NET Framework 的 csc）
-csc /target:winexe /out:stage\lihongguotv.exe /win32icon:packaging\app.ico `
+csc /target:winexe /out:stage\MFlixTV.exe /win32icon:packaging\app.ico `
     /r:System.Windows.Forms.dll /r:System.Drawing.dll packaging\Launcher.cs
 
-# 3) 用 Inno Setup 6 编译 packaging\lihongguotv.iss
-ISCC.exe packaging\lihongguotv.iss
+# 3) 用 Inno Setup 6 编译 packaging\MFlixTV.iss
+ISCC.exe packaging\MFlixTV.iss
 ```
 
 ### macOS
@@ -263,7 +263,7 @@ CI（[.github/workflows/build.yml](.github/workflows/build.yml)）只做 `next b
 
 ```
 .
-├── app/                     Next.js 应用（lihongguotv 源码 + 短剧专区 + 桌面对接）
+├── app/                     Next.js 应用（MFlixTV 源码 + 短剧专区 + 桌面对接）
 │   └── src/app/hongguo/     短剧专区页面
 │   └── src/app/api/history/ 观看历史同步接口
 ├── packaging/               Windows 启动器(C#)、Inno Setup 脚本、便携目录组装脚本

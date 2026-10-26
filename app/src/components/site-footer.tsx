@@ -98,7 +98,7 @@ export function SiteFooter() {
           rel="noopener noreferrer"
           className="group relative inline-block cursor-help hover:text-accent"
         >
-          lihongguotv{version ? ` v${version}` : ''}
+          MFlixTV{version ? ` v${version}` : ''}
           {version && <UpdateTip update={upstreamUpdate} />}
         </a>
         {' · '}

@@ -18,7 +18,7 @@ import { documentBaseURI } from './m3u8';
  * 不带基址的 `new URL()` 会原样放过——必须锚到文档基址才与绝对形式收敛为同一个 key。
  */
 
-export const VIDEO_CACHE_NAME = 'lihongguotv-video-v1';
+export const VIDEO_CACHE_NAME = 'MFlixTV-video-v1';
 const META_FLUSH_DEBOUNCE_MS = 30_000;
 
 export interface CacheSettings {
@@ -38,7 +38,7 @@ export const DEFAULT_CACHE_SETTINGS: CacheSettings = {
   maxTotalBytes: 2 * 1024 * 1024 * 1024,
 };
 
-const SETTINGS_KEY = 'lihongguotv-video-cache-settings';
+const SETTINGS_KEY = 'MFlixTV-video-cache-settings';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);

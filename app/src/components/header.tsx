@@ -40,9 +40,9 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
     <>
       <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur border-b border-line">
         <div className="max-w-[1240px] mx-auto px-4 sm:px-6 h-16 flex items-center gap-3">
-          <Link href="/" aria-label="lihongguotv 首页" className="flex items-center shrink-0">
+          <Link href="/" aria-label="MFlixTV 首页" className="flex items-center shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icons/icon-512.png" alt="lihongguotv" className="w-8 h-8 rounded-lg" />
+            <img src="/icons/icon-512.png" alt="MFlixTV" className="w-8 h-8 rounded-lg" />
           </Link>
 
           {showSearch && (
@@ -99,7 +99,7 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
 
           <nav className="flex items-center gap-0.5 sm:gap-1 ml-auto shrink-0">
             <HeaderLink href="/hongguo" active={pathname === '/hongguo'}>
-              <span className="brand-gradient font-medium">短剧专区</span>
+              <span className="brand-gradient font-medium">MFlixTV短剧</span>
             </HeaderLink>
             <HeaderLink href="/live" active={pathname === '/live'}>
               直播

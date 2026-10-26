@@ -1,14 +1,14 @@
-lihongguotv for macOS（Apple 芯片）
+MFlixTV for macOS（Apple 芯片）
 =================================
 
 一、怎么启动
-  双击「启动lihongguotv.command」。
+  双击「启动MFlixTV.command」。
   · 若提示「无法打开，因为来自身份不明的开发者」：右键 → 打开 → 仍要打开
   · 若提示没有执行权限：打开「终端」，cd 到本目录，执行
-        chmod +x 启动lihongguotv.command
-    然后再次双击；或者直接执行  bash 启动lihongguotv.command
+        chmod +x 启动MFlixTV.command
+    然后再次双击；或者直接执行  bash 启动MFlixTV.command
 
-  启动后浏览器会自动打开 http://localhost:8080 ，默认密码 lihongguotv
+  启动后浏览器会自动打开 http://localhost:8080 ，默认密码 MFlixTV
 
 二、怎么停止
   终端执行：
@@ -19,13 +19,13 @@ lihongguotv for macOS（Apple 芯片）
   短剧的转码依赖 ffmpeg，本包已内置（runtime/ffmpeg/ffmpeg）。
   macOS 上的 Safari/Chrome 一般能直接硬解 HEVC，所以默认不转码、首播更快；
   若某台机器出现「有声音没画面」，改成强制转码即可：
-    HG_TRANSCODE=1 启动 —— 修改 启动lihongguotv.command，在启动短剧那行加 HG_TRANSCODE=1
+    HG_TRANSCODE=1 启动 —— 修改 启动MFlixTV.command，在启动短剧那行加 HG_TRANSCODE=1
 
 四、改密码
-  编辑 app/.env 里的 PASSWORD=lihongguotv，然后重启。
+  编辑 app/.env 里的 PASSWORD=MFlixTV，然后重启。
 
 五、目录说明
-  app/      lihongguotv 主站（Next.js）
+  app/      MFlixTV 主站（Next.js）
   hongguo/  短剧专区内核（第三方，MIT）
   runtime/  node 与 ffmpeg
   logs/     运行日志（首次启动后生成）

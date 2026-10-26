@@ -9,12 +9,12 @@ using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace lihongguotvLauncher
+namespace MFlixTVLauncher
 {
     /// <summary>
-    /// lihongguotv 桌面启动器：
+    /// MFlixTV 桌面启动器：
     ///  1) 拉起短剧专区服务（Node，127.0.0.1:8000，带 ffmpeg 转码环境）
-    ///  2) 拉起 lihongguotv 主站（Node + Next，127.0.0.1:8080）
+    ///  2) 拉起 MFlixTV 主站（Node + Next，127.0.0.1:8080）
     ///  3) 等端口就绪后用默认浏览器打开
     ///  4) 常驻托盘：打开页面 / 检查更新 / 退出
     /// </summary>
@@ -37,7 +37,7 @@ namespace lihongguotvLauncher
         static void Main()
         {
             bool created;
-            using (Mutex mutex = new Mutex(true, "lihongguotv.Desktop.SingleInstance", out created))
+            using (Mutex mutex = new Mutex(true, "MFlixTV.Desktop.SingleInstance", out created))
             {
                 if (!created)
                 {
@@ -66,7 +66,7 @@ namespace lihongguotvLauncher
                 tray.Icon = File.Exists(ico) ? new Icon(ico) : SystemIcons.Application;
             }
             catch { tray.Icon = SystemIcons.Application; }
-            tray.Text = "lihongguotv 影视站";
+            tray.Text = "MFlixTV 影视站";
             tray.Visible = true;
 
             ContextMenu menu = new ContextMenu();
@@ -76,7 +76,7 @@ namespace lihongguotvLauncher
             menu.MenuItems.Add(statusItem);
             menu.MenuItems.Add("-");
 
-            menu.MenuItems.Add("打开 lihongguotv", delegate { OpenOrStart(""); });
+            menu.MenuItems.Add("打开 MFlixTV", delegate { OpenOrStart(""); });
             menu.MenuItems.Add("打开短剧专区", delegate { OpenOrStart("/hongguo"); });
             menu.MenuItems.Add("-");
 
@@ -127,20 +127,20 @@ namespace lihongguotvLauncher
                     StartWeb();
                     if (!WaitPort(8080, 45000))
                     {
-                        tray.ShowBalloonTip(5000, "lihongguotv", "主站启动超时，请查看 logs\\web.log", ToolTipIcon.Error);
+                        tray.ShowBalloonTip(5000, "MFlixTV", "主站启动超时，请查看 logs\\web.log", ToolTipIcon.Error);
                         return;
                     }
                 }
 
                 SetStatus("运行中");
                 if (openBrowser) OpenBrowser("http://localhost:8080");
-                tray.ShowBalloonTip(4000, "lihongguotv",
+                tray.ShowBalloonTip(4000, "MFlixTV",
                     openBrowser ? "已启动：浏览器正在打开 http://localhost:8080" : "服务已启动，可从托盘打开网页",
                     ToolTipIcon.Info);
             }
             catch (Exception ex)
             {
-                tray.ShowBalloonTip(6000, "lihongguotv 启动失败", ex.Message, ToolTipIcon.Error);
+                tray.ShowBalloonTip(6000, "MFlixTV 启动失败", ex.Message, ToolTipIcon.Error);
             }
             finally
             {
@@ -183,7 +183,7 @@ namespace lihongguotvLauncher
                 busy = false;
                 RefreshStatusText();
                 if (notify)
-                    tray.ShowBalloonTip(3000, "lihongguotv",
+                    tray.ShowBalloonTip(3000, "MFlixTV",
                         PortOpen(8080) ? "还在运行（可能是别的程序占用 8080）" : "服务已停止", ToolTipIcon.Info);
             }
         }
@@ -241,7 +241,7 @@ namespace lihongguotvLauncher
         static void RefreshStatusText()
         {
             bool web = PortOpen(8080);
-            try { tray.Text = "lihongguotv 影视站 · " + (web ? "运行中 :8080" : "已停止（右键启动）"); }
+            try { tray.Text = "MFlixTV 影视站 · " + (web ? "运行中 :8080" : "已停止（右键启动）"); }
             catch { }
         }
 
@@ -268,7 +268,7 @@ namespace lihongguotvLauncher
 
         /// <summary>
         /// 运行时配置自愈：安装版必须带 app\.env，否则主站会提示「必须设置 PASSWORD」。
-        /// 文件被误删 / 装的时候漏了，都在这里补一份默认的（密码 lihongguotv）。
+        /// 文件被误删 / 装的时候漏了，都在这里补一份默认的（密码 MFlixTV）。
         /// </summary>
         static void EnsureEnv()
         {
@@ -284,11 +284,11 @@ namespace lihongguotvLauncher
                         return;
                 }
                 Directory.CreateDirectory(appDir);
-                string seed = "PASSWORD=lihongguotv" + Environment.NewLine +
-                              "PROXY_SECRET=lihongguotv-desktop-secret" + Environment.NewLine +
+                string seed = "PASSWORD=MFlixTV" + Environment.NewLine +
+                              "PROXY_SECRET=MFlixTV-secret" + Environment.NewLine +
                               "DEFAULT_RECOMMEND_SOURCE=douban" + Environment.NewLine;
                 File.WriteAllText(envPath, seed, new UTF8Encoding(false));
-                try { tray.ShowBalloonTip(4000, "lihongguotv", "已生成默认配置（密码 lihongguotv），可在 app\\.env 里修改", ToolTipIcon.Info); }
+                try { tray.ShowBalloonTip(4000, "MFlixTV", "已生成默认配置（密码 MFlixTV），可在 app\\.env 里修改", ToolTipIcon.Info); }
                 catch { }
             }
             catch { }
@@ -348,7 +348,7 @@ namespace lihongguotvLauncher
                 psi.CreateNoWindow = true;
                 Process.Start(psi);
                 File.WriteAllText(stamp, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-                tray.ShowBalloonTip(4000, "lihongguotv", "正在后台检查点播源（每天一次），完成后会提示", ToolTipIcon.Info);
+                tray.ShowBalloonTip(4000, "MFlixTV", "正在后台检查点播源（每天一次），完成后会提示", ToolTipIcon.Info);
             }
             catch { /* 自动更新失败不影响使用 */ }
         }
@@ -361,7 +361,7 @@ namespace lihongguotvLauncher
                 string script = Path.Combine(baseDir, @"tools\update.ps1");
                 if (!File.Exists(script))
                 {
-                    tray.ShowBalloonTip(4000, "lihongguotv", "找不到更新脚本 tools\\update.ps1", ToolTipIcon.Warning);
+                    tray.ShowBalloonTip(4000, "MFlixTV", "找不到更新脚本 tools\\update.ps1", ToolTipIcon.Warning);
                     return;
                 }
                 ProcessStartInfo psi = new ProcessStartInfo("powershell.exe",
@@ -369,11 +369,11 @@ namespace lihongguotvLauncher
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 Process.Start(psi);
-                tray.ShowBalloonTip(5000, "lihongguotv", "正在检查更新（短剧内核 + 点播源），完成后会弹窗提示", ToolTipIcon.Info);
+                tray.ShowBalloonTip(5000, "MFlixTV", "正在检查更新（短剧内核 + 点播源），完成后会弹窗提示", ToolTipIcon.Info);
             }
             catch (Exception ex)
             {
-                tray.ShowBalloonTip(5000, "lihongguotv", "更新启动失败：" + ex.Message, ToolTipIcon.Error);
+                tray.ShowBalloonTip(5000, "MFlixTV", "更新启动失败：" + ex.Message, ToolTipIcon.Error);
             }
         }
 
@@ -382,7 +382,7 @@ namespace lihongguotvLauncher
             try
             {
                 if (File.Exists(path)) Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-                else tray.ShowBalloonTip(3000, "lihongguotv", "还没有更新记录", ToolTipIcon.Info);
+                else tray.ShowBalloonTip(3000, "MFlixTV", "还没有更新记录", ToolTipIcon.Info);
             }
             catch { }
         }
@@ -416,7 +416,7 @@ namespace lihongguotvLauncher
 
         static void SetStatus(string text)
         {
-            try { tray.Text = "lihongguotv 影视站 · " + text; } catch { }
+            try { tray.Text = "MFlixTV 影视站 · " + text; } catch { }
         }
 
         static void OpenBrowser(string url)
@@ -470,14 +470,14 @@ namespace lihongguotvLauncher
             string ip = GetLanIp();
             if (ip == null)
             {
-                tray.ShowBalloonTip(4000, "lihongguotv", "没检测到局域网地址（是不是没连 WiFi / 网线）", ToolTipIcon.Warning);
+                tray.ShowBalloonTip(4000, "MFlixTV", "没检测到局域网地址（是不是没连 WiFi / 网线）", ToolTipIcon.Warning);
                 return;
             }
             string url = "http://" + ip + ":8080";
             try
             {
                 Clipboard.SetText(url);
-                tray.ShowBalloonTip(4000, "lihongguotv", "已复制：" + url, ToolTipIcon.Info);
+                tray.ShowBalloonTip(4000, "MFlixTV", "已复制：" + url, ToolTipIcon.Info);
             }
             catch { }
         }
@@ -488,7 +488,7 @@ namespace lihongguotvLauncher
             try
             {
                 Clipboard.SetText(pw);
-                tray.ShowBalloonTip(3000, "lihongguotv", "访问密码已复制：" + pw, ToolTipIcon.Info);
+                tray.ShowBalloonTip(3000, "MFlixTV", "访问密码已复制：" + pw, ToolTipIcon.Info);
             }
             catch { }
         }

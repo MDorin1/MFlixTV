@@ -4,13 +4,13 @@ import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
   title: {
-    default: 'lihongguotv - 本地影视聚合播放器',
-    template: '%s - lihongguotv',
+    default: 'MFlixTV - 本地影视聚合播放器',
+    template: '%s - MFlixTV',
   },
   description:
-    'lihongguotv 是一个自建的影视资源聚合播放器：界面与服务都运行在本机，内容来自用户自行配置的第三方接口，本项目不提供、不存储任何影视内容。',
+    'MFlixTV 是一个自建的影视资源聚合播放器：界面与服务都运行在本机，内容来自用户自行配置的第三方接口，本项目不提供、不存储任何影视内容。',
   manifest: '/manifest.webmanifest',
-  // 图标与门户站（lihongguotv-portal）同一套：同一张 artwork 导出的多尺寸 + 根目录 favicon.ico 兜底。
+  // 图标与门户站（MFlixTV-portal）同一套：同一张 artwork 导出的多尺寸 + 根目录 favicon.ico 兜底。
   // 只声明单张 512 时，抓取端只能拿大图缩放，小尺寸下易糊、看起来「没填满」。
   icons: {
     icon: [
@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('lihongguotv-theme')||'dark';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})()",
+              "(function(){try{var t=localStorage.getItem('mflixtv-theme')||'dark';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})()",
           }}
         />
       </head>

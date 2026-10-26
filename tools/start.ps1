@@ -5,7 +5,7 @@
 .DESCRIPTION
     幂等：已经在跑就只打开浏览器，不会重复启动。
     会自动识别三种部署形态：
-      1) 安装版      %LOCALAPPDATA%\Programs\lihongguotv\lihongguotv.exe
+      1) 安装版      %LOCALAPPDATA%\Programs\MFlixTV\MFlixTV.exe
       2) 便携版      当前目录下有 runtime\node.exe + app\node_modules
       3) 开发目录    本仓库的同级目录里的 LibreTV 应用 + hongguo-web 内核 + D:\Tools\nodejs
 
@@ -55,7 +55,7 @@ function Wait-Http([string]$url, [int]$seconds) {
 Say '=== 启动请求 ==='
 
 # ---------- 1) 安装版直接交给托盘程序 ----------
-$installed = Join-Path $env:LOCALAPPDATA 'Programs\lihongguotv\lihongguotv.exe'
+$installed = Join-Path $env:LOCALAPPDATA 'Programs\MFlixTV\MFlixTV.exe'
 if (Test-Path $installed) {
     Say "使用安装版：$installed"
     if (-not (Test-Port $WebPort)) {
@@ -82,7 +82,7 @@ if (-not $node) {
 }
 if (-not $node) {
     Say '[x] 找不到 node 运行时（试过 runtime\node.exe、D:\Tools\nodejs\node.exe、PATH）'
-    [void][System.Windows.Forms.MessageBox]::Show('找不到 Node 运行时，无法启动。请看 logs\start.log', 'lihongguotv')
+    [void][System.Windows.Forms.MessageBox]::Show('找不到 Node 运行时，无法启动。请看 logs\start.log', 'MFlixTV')
     return
 }
 Say "node: $node"
@@ -98,7 +98,7 @@ foreach ($cand in @(
 }
 if (-not $appDir) {
     Say '[x] 找不到主站（需要 node_modules\next\dist\bin\next）'
-    [void][System.Windows.Forms.MessageBox]::Show('找不到主站目录，无法启动。请看 logs\start.log', 'lihongguotv')
+    [void][System.Windows.Forms.MessageBox]::Show('找不到主站目录，无法启动。请看 logs\start.log', 'MFlixTV')
     return
 }
 Say "主站: $appDir"
@@ -149,5 +149,5 @@ if (Wait-Http "http://127.0.0.1:$WebPort/" 90) {
     if (-not $NoBrowser) { Start-Process "http://localhost:$WebPort/" }
 } else {
     Say '[x] 90 秒内没起来，看 logs\start.log 或 app 目录下的日志'
-    [void][System.Windows.Forms.MessageBox]::Show("90 秒内没能启动 $WebPort，请看 logs\start.log", 'lihongguotv')
+    [void][System.Windows.Forms.MessageBox]::Show("90 秒内没能启动 $WebPort，请看 logs\start.log", 'MFlixTV')
 }

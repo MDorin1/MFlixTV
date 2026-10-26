@@ -62,7 +62,7 @@ const SECONDARY_TABS: Record<PrimaryTab, { id: SecondaryTab; label: string }[]> 
   data: [{ id: 'io', label: '配置导入导出' }],
 };
 
-const TAB_STORAGE_KEY = 'lihongguotv-settings-tab';
+const TAB_STORAGE_KEY = 'mflixtv-settings-tab';
 
 export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [primary, setPrimary] = useState<PrimaryTab>('sources');
@@ -778,7 +778,7 @@ const REFRESH_OPTIONS: DropdownOption[] = [
 
 /**
  * 数据源订阅 / 分享：
- * - 订阅：填入远程订阅地址（lihongguotv-SourceList JSON、TVBOX 配置 JSON 或接口目录 JSON，
+ * - 订阅：填入远程订阅地址（MFlixTV-SourceList JSON、TVBOX 配置 JSON 或接口目录 JSON，
  *   由服务端自动识别），一次拉取点播源与直播源，可随时重新同步；
  * - 自动刷新：每个订阅可单独设周期（默认手动），到期才在打开站点时静默同步；
  * - 分享：把当前点播源 + 直播源导出为同格式 JSON 文件，托管到任意位置即可被他人订阅。
@@ -868,7 +868,7 @@ function SourceSubscriptions() {
 
     setPublishing(true);
     try {
-      const result = await api.publishSourceList({ name: 'lihongguotv-SourceList', sources, liveSources });
+      const result = await api.publishSourceList({ name: 'MFlixTV-SourceList', sources, liveSources });
       setPublished(result);
       toast(`已发布 ${result.sources} 个点播源、${result.liveSources} 个直播源到 ${result.provider}`, 'success');
     } catch (err) {
@@ -907,12 +907,12 @@ function SourceSubscriptions() {
       })
       .map(({ name, url, epg }) => ({ name: name || hostnameOf(url), url, epg }));
 
-    const payload = { name: 'lihongguotv-SourceList', version: 2, exportedAt: Date.now(), sources, liveSources };
+    const payload = { name: 'MFlixTV-SourceList', version: 2, exportedAt: Date.now(), sources, liveSources };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `lihongguotv-SourceList_${Date.now()}.json`;
+    a.download = `MFlixTV-SourceList_${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast(`已导出 ${sources.length} 个点播源、${liveSources.length} 个直播源，托管后即可被他人订阅`, 'success');
@@ -988,7 +988,7 @@ function SourceSubscriptions() {
       <div className="flex gap-2 mb-2">
         <input
           className="input flex-1 min-w-0"
-          placeholder="订阅地址（lihongguotv 源列表或 TVBOX 配置的 JSON URL）"
+          placeholder="订阅地址（MFlixTV 源列表或 TVBOX 配置的 JSON URL）"
           value={subUrl}
           onChange={(e) => setSubUrl(e.target.value)}
           onKeyDown={(e) => {
@@ -1005,7 +1005,7 @@ function SourceSubscriptions() {
       </div>
       {store.subscriptions.length === 0 ? (
         <p className="text-xs text-faint">
-          一份订阅可同时下发点播源与直播源，支持 lihongguotv 源列表与 TVBOX 配置（仅导入可直接使用的接口，Spider 类站点自动跳过）；
+          一份订阅可同时下发点播源与直播源，支持 MFlixTV 源列表与 TVBOX 配置（仅导入可直接使用的接口，Spider 类站点自动跳过）；
           「导出数据源」生成的 JSON 托管到任意 URL 即可分享给他人订阅。
         </p>
       ) : (
@@ -1169,7 +1169,7 @@ function ConfigIoPanel() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `lihongguotv-Settings_${Date.now()}.json`;
+      a.download = `MFlixTV-Settings_${Date.now()}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast('配置已导出', 'success');
@@ -1243,7 +1243,7 @@ function summarizeConfig(text: string): string {
   } catch {
     throw new Error('文件不是合法的 JSON');
   }
-  if (cfg.name !== 'lihongguotv-Settings') throw new Error('不是 lihongguotv 的配置文件');
+  if (cfg.name !== 'MFlixTV-Settings') throw new Error('不是 MFlixTV 的配置文件');
 
   const parts: string[] = [];
   const settingsRaw = cfg.data?.[PERSIST_KEY];

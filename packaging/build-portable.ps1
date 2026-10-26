@@ -1,7 +1,7 @@
 ﻿# 组装 Windows 便携目录（stage）
 #
 # 用法：
-#   powershell -ExecutionPolicy Bypass -File packaging\build-portable.ps1 -Out D:\Build\lihongguotv\stage
+#   powershell -ExecutionPolicy Bypass -File packaging\build-portable.ps1 -Out D:\Build\MFlixTV\stage
 #
 # 产物结构（Inno Setup 用它打包）：
 #   stage/
@@ -9,7 +9,7 @@
 #     hongguo/         短剧内核（server/src + web）
 #     runtime/         node.exe + ffmpeg
 #     tools/           update.ps1
-#     Launcher.cs → lihongguotv.exe（需另编译，见 packaging\README.md）
+#     Launcher.cs → MFlixTV.exe（需另编译，见 packaging\README.md）
 #     使用说明.txt
 
 param(
@@ -103,10 +103,10 @@ $envSrc = Join-Path $AppDir '.env'
 if (-not (Test-Path $envSrc)) { $envSrc = Join-Path $AppDir '.env.example' }
 if (-not (Test-Path $envSrc)) { throw "找不到 .env / .env.example，无法生成运行时配置" }
 $envText = [IO.File]::ReadAllText($envSrc, [Text.Encoding]::UTF8)
-$envText = [regex]::Replace($envText, '(?m)^PASSWORD=.*$', 'PASSWORD=lihongguotv')
-$envText = [regex]::Replace($envText, '(?m)^PROXY_SECRET=.*$', 'PROXY_SECRET=lihongguotv-desktop-secret')
-if ($envText -notmatch '(?m)^PASSWORD=') { $envText = "PASSWORD=lihongguotv`n" + $envText }
-if ($envText -notmatch '(?m)^PROXY_SECRET=') { $envText = "PROXY_SECRET=lihongguotv-desktop-secret`n" + $envText }
+$envText = [regex]::Replace($envText, '(?m)^PASSWORD=.*$', 'PASSWORD=MFlixTV')
+$envText = [regex]::Replace($envText, '(?m)^PROXY_SECRET=.*$', 'PROXY_SECRET=MFlixTV-secret')
+if ($envText -notmatch '(?m)^PASSWORD=') { $envText = "PASSWORD=MFlixTV`n" + $envText }
+if ($envText -notmatch '(?m)^PROXY_SECRET=') { $envText = "PROXY_SECRET=MFlixTV-secret`n" + $envText }
 [IO.File]::WriteAllText("$Out\app\.env", $envText, (New-Object Text.UTF8Encoding($false)))
 # 版本号：以仓库里的 app/package.json 为准，避免打包用的开发目录版本号漂掉
 $repoPkg = Join-Path $repo 'app\package.json'
@@ -118,7 +118,7 @@ if (Test-Path $repoPkg) {
   [IO.File]::WriteAllText($outPkg, $pkgText, (New-Object Text.UTF8Encoding($false)))
   Write-Host "==> app 版本号对齐为 $repoVer"
 }
-Write-Host "==> 已写入 app\.env（PASSWORD=lihongguotv）"
+Write-Host "==> 已写入 app\.env（PASSWORD=MFlixTV）"
 
 Remove-Item "$Out\app\.next\cache" -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "==> next 版本：构建 $builtNext / 运行 $runNext"
@@ -155,4 +155,4 @@ Copy-Item (Join-Path $repo 'docs\合规与免责.md') "$Out\合规与免责.md" 
 
 $size = [math]::Round(((Get-ChildItem $Out -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
 Write-Host "==> 完成，$Out （$size MB）"
-Write-Host "下一步：编译 lihongguotv.exe 并用 Inno Setup 打包，见 packaging\README.md"
+Write-Host "下一步：编译 MFlixTV.exe 并用 Inno Setup 打包，见 packaging\README.md"

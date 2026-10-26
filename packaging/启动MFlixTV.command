@@ -1,5 +1,5 @@
 #!/bin/bash
-# lihongguotv 启动器（macOS）
+# MFlixTV 启动器（macOS）
 cd "$(dirname "$0")" || exit 1
 
 export PATH="$PWD/runtime/ffmpeg:$PATH"
@@ -18,9 +18,9 @@ if ! port_open 8000; then
     "$NODE" hongguo/server/src/main.js > hongguo/hg.log 2>&1 &
 fi
 
-# 2) lihongguotv 主站（8080）
+# 2) MFlixTV 主站（8080）
 if ! port_open 8080; then
-  echo "[2/2] 启动 lihongguotv…"
+  echo "[2/2] 启动 MFlixTV…"
   "$NODE" app/node_modules/next/dist/bin/next start -p 8080 > app/server.log 2>&1 &
 fi
 
@@ -30,7 +30,7 @@ for i in $(seq 1 40); do
 done
 
 if port_open 8080; then
-  echo "已就绪：http://localhost:8080  （默认密码 lihongguotv）"
+  echo "已就绪：http://localhost:8080  （默认密码 MFlixTV）"
   open "http://localhost:8080"
 else
   echo "启动超时，日志：app/server.log"

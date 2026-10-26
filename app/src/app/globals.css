@@ -4,7 +4,7 @@
 
 /*
  * 语义化配色（RGB 三元组，供 Tailwind 以 <alpha-value> 注入透明度）：
- * 深色主题沿用旧版 lihongguotv 配色；浅色主题为对应的白底变体。
+ * 深色主题沿用旧版 MFlixTV 配色；浅色主题为对应的白底变体。
  */
 :root {
   --c-page: 246 247 249;           /* #f6f7f9 */

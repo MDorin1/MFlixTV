@@ -21,8 +21,8 @@ export interface FavoriteItem {
   ts: number;
 }
 
-const STORAGE_KEY = 'lihongguotv:favorites';
-const EVENT = 'lihongguotv:favorites-changed';
+const STORAGE_KEY = 'mflixtv:favorites';
+const EVENT = 'mflixtv:favorites-changed';
 
 export function readFavorites(): FavoriteItem[] {
   if (typeof window === 'undefined') return [];

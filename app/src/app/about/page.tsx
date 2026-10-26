@@ -21,7 +21,7 @@ export default function AboutPage() {
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
           <div className="mx-auto max-w-3xl space-y-7 pb-10 pt-2 sm:pt-6">
             <header>
-              <h1 className="text-2xl font-bold text-white sm:text-3xl">关于 lihongguotv</h1>
+              <h1 className="text-2xl font-bold text-white sm:text-3xl">关于 MFlixTV</h1>
               <p className="mt-2 text-sm leading-relaxed text-white/60">
                 自建的影视资源聚合播放器，界面与服务都跑在本机。输入片名即可在你自己配置的多个接口中检索并播放。
               </p>
@@ -71,11 +71,11 @@ export default function AboutPage() {
               <p>本项目以 AGPL-3.0 许可开源（派生自 LibreTV），完整源码与第三方许可见仓库：</p>
               <a
                 className="text-accent hover:underline"
-                href="https://github.com/MDorin1/lihongguotv-desktop"
+                href="https://github.com/MDorin1/MFlixTV"
                 target="_blank"
                 rel="noreferrer"
               >
-                github.com/MDorin1/lihongguotv-desktop
+                github.com/MDorin1/MFlixTV
               </a>
             </Block>
           </div>

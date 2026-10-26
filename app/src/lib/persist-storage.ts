@@ -7,7 +7,34 @@
 import type { StateStorage } from 'zustand/middleware';
 
 /** store 持久化在 localStorage 中的键（store.ts 的 persist name 与 importConfig 共用） */
-export const PERSIST_KEY = 'lihongguotv-settings';
+export const PERSIST_KEY = 'mflixtv-settings';
+
+/**
+ * 品牌改名的兼容层：旧版把设置/主题/收藏都存在 `lihongguotv-*` / `lihongguotv:*` 下，
+ * 直接在模块顶层搬一次（此时 store 还没创建，persist 读到的就是搬完后的新键），
+ * 否则改名等于把用户的点播源、勾选状态、收藏全部清空。
+ */
+function migrateLegacyStorage(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const legacy: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key && key.startsWith('lihongguotv')) legacy.push(key);
+    }
+    for (const key of legacy) {
+      const next = key.replace(/^lihongguotv/, 'mflixtv');
+      const value = window.localStorage.getItem(key);
+      if (value !== null && window.localStorage.getItem(next) === null) {
+        window.localStorage.setItem(next, value);
+      }
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    /* 隐私模式 / 配额满：搬不动就算了，继续用默认值 */
+  }
+}
+migrateLegacyStorage();
 
 /** 节流窗口：搜索/测活等高频 set 合并为 800ms 一次落盘 */
 const THROTTLE_MS = 800;

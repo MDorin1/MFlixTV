@@ -174,7 +174,7 @@ export default function TitlePage() {
                     href={`/hongguo?q=${encodeURIComponent(subject.title)}`}
                     className="inline-flex items-center gap-2 rounded-md bg-white/15 px-4 py-2.5 text-sm text-white/90 backdrop-blur transition hover:bg-white/25"
                   >
-                    短剧专区搜
+                    MFlixTV短剧搜
                   </Link>
                   <FavoriteButton
                     item={{

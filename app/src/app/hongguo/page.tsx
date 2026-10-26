@@ -5,7 +5,7 @@ import { Header } from '@/components/header';
 import { cn } from '@/lib/utils';
 
 /**
- * 短剧专区
+ * MFlixTV短剧
  *
  * 两层导航：体裁（真人剧 / 漫剧 / AI短剧）→ 榜单（推荐 / 热播 / 新剧）
  *
@@ -565,19 +565,61 @@ export default function HongguoPage() {
     setStreamNonce(0);
     setPlaying({ index: ep.index, vid: ep.vid, title });
     setEpisodeSheet(false);
-    // 预转后面 5 集：短剧连着看，提前备好才不会一集一等
-    // 错峰 1.2s 逐个发，避免 5 个预转同时抢带宽把当前这集挤慢
-    const eps = detail?.episodes || [];
-    const at = eps.findIndex((e) => e.index === ep.index);
-    for (let k = 1; k <= 5; k++) {
-      const nx = eps[at + k];
-      if (!nx) break;
-      window.setTimeout(
-        () => void hg(`/prewarm?vid=${encodeURIComponent(nx.vid)}`).catch(() => {}),
-        k * 1200
-      );
-    }
+    // 预热后面几集：内核侧解密落盘 + 浏览器侧把首段拿进缓存，点第 4 集才可能是秒开
+    warmUpcoming(ep.index);
   };
+
+  /**
+   * 拼某一集的播放地址。预取和播放必须用完全相同的参数（quality / api_key），
+   * 否则命中的是内核里两份不同的解密产物，预热就白做了。
+   */
+  const streamUrlFor = (vid: string, nonce = 0) =>
+    key
+      ? `${API}/stream?vid=${encodeURIComponent(vid)}&quality=${quality}&api_key=${encodeURIComponent(key)}${
+          nonce > 0 ? `&r=${nonce}` : ''
+        }`
+      : '';
+
+  const warmAbortRef = useRef<AbortController | null>(null);
+
+  /**
+   * 预热后面 4 集（用户点了第 1 集，第 2–5 集就要能直接秒播）：
+   *  1. `/prewarm` 让内核开始下载并解密这一集（落盘后 /stream 就是本机文件 + Range）；
+   *  2. 再顺序拉每集前 1.5MB —— 把解密产物推到「已经就绪」的状态，浏览器也顺手存下首段。
+   * 严格串行 + 600ms 间隔：不跟正在播的这集抢带宽，也不至于把 5 集同时压进解密队列。
+   * 换集/退出时 abort 掉，避免旧剧的预热继续占着连接。
+   */
+  const warmUpcoming = (fromIndex: number) => {
+    warmAbortRef.current?.abort();
+    if (!key) return;
+    const ctrl = new AbortController();
+    warmAbortRef.current = ctrl;
+    const eps = detail?.episodes || [];
+    const at = eps.findIndex((e) => e.index === fromIndex);
+    if (at < 0) return;
+    void (async () => {
+      for (let k = 1; k <= 4; k++) {
+        const nx = eps[at + k];
+        if (!nx || ctrl.signal.aborted) break;
+        void hg(`/prewarm?vid=${encodeURIComponent(nx.vid)}`).catch(() => {});
+        await new Promise((r) => window.setTimeout(r, 600));
+        if (ctrl.signal.aborted) break;
+        try {
+          await fetch(streamUrlFor(nx.vid), {
+            headers: { Range: 'bytes=0-1572863' },
+            signal: ctrl.signal,
+            // Chromium 认识 priority，优先度调低，别顶掉当前这集的取流
+            priority: 'low',
+          } as RequestInit).then((r) => r.arrayBuffer());
+        } catch {
+          /* 预热失败不影响正常播放 */
+        }
+      }
+    })();
+  };
+
+  // 离开播放器/换集时收掉预热请求
+  useEffect(() => () => warmAbortRef.current?.abort(), [playing?.vid]);
 
   /** 切集：没显式指定起点时，自动接上这一集上次看到的位置（回退 3 秒） */
   const playEpisode = (index: number, startAt?: number) => {
@@ -1091,7 +1133,7 @@ export default function HongguoPage() {
                     </span>
                   </span>
                 </div>
-                <p className="mt-1.5 line-clamp-1 text-[11px] text-faint">{it.copyright || '短剧专区'}</p>
+                <p className="mt-1.5 line-clamp-1 text-[11px] text-faint">{it.copyright || 'MFlixTV短剧'}</p>
               </button>
             ))}
           </div>

@@ -22,7 +22,7 @@ export function isPasswordConfigured(): boolean {
 
 function getSecret(): string {
   if (process.env.PROXY_SECRET) return process.env.PROXY_SECRET;
-  return crypto.createHash('sha256').update(getPassword() + ':lihongguotv::session-salt').digest('hex');
+  return crypto.createHash('sha256').update(getPassword() + ':MFlixTV::session-salt').digest('hex');
 }
 
 function hmac(payload: string): string {

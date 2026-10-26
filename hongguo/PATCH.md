@@ -1,6 +1,6 @@
 # hongguo-web 内核补丁：透传 `content_type`
 
-lihongguotv 的短剧专区页用 [sunnysky123/hongguo-web](https://github.com/sunnysky123/hongguo-web) 作为取流内核，它本身是独立仓库（MIT），**不随本仓库分发**。本仓库只提供一行补丁：让内核把上游的体裁标识 `content_type` 透出到 API 结果里。
+MFlixTV 的短剧专区页用 [sunnysky123/hongguo-web](https://github.com/sunnysky123/hongguo-web) 作为取流内核，它本身是独立仓库（MIT），**不随本仓库分发**。本仓库只提供一行补丁：让内核把上游的体裁标识 `content_type` 透出到 API 结果里。
 
 ## 为什么需要
 

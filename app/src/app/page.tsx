@@ -218,10 +218,10 @@ function HomeContent() {
         <section className={cn('flex flex-col items-center', urlQuery ? 'mb-6' : 'mt-8 mb-8')}>
           {!urlQuery && (
             <header className="text-center mb-6">
-              <h1 className="text-4xl sm:text-5xl font-bold brand-gradient">lihongguotv</h1>
+              <h1 className="text-4xl sm:text-5xl font-bold brand-gradient">MFlixTV</h1>
             </header>
           )}
-          {urlQuery && <h1 className="sr-only">lihongguotv 视频搜索</h1>}
+          {urlQuery && <h1 className="sr-only">MFlixTV 视频搜索</h1>}
           {/* 定位容器比胶囊宽一圈：浮层按它的宽度对齐，接缝处不会与胶囊边框错位 1px */}
           <div ref={searchHistory.containerRef} className="relative w-full max-w-2xl">
             <form
@@ -483,7 +483,7 @@ function HomeContent() {
         {/* 本周 TOP 10：Netflix 式大数字排名，点进去是资料页 */}
         {!urlQuery && <RankRow id="douban_movie_weekly" title="本周电影 TOP 10" />}
 
-        {/* 短剧专区入口：只在没有搜索结果时露出（搜索时首屏空间要留给结果） */}
+        {/* MFlixTV短剧入口：只在没有搜索结果时露出（搜索时首屏空间要留给结果） */}
         {!urlQuery && (
           <Link
             href="/hongguo"
@@ -495,9 +495,9 @@ function HomeContent() {
               </svg>
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-content">短剧专区</span>
+              <span className="block text-sm font-semibold text-content">MFlixTV短剧</span>
               <span className="block truncate text-xs text-faint">
-                短剧专区 · 推荐榜 / 热播榜 / 新剧榜 · 本机转换直连播放
+                MFlixTV短剧 · 推荐榜 / 热播榜 / 新剧榜 · 本机转换直连播放
               </span>
             </span>
             <span className="shrink-0 text-sm text-accent transition-transform duration-300 group-hover:translate-x-1">
@@ -551,7 +551,7 @@ function NoSourceGuide({ hasSources = false }: { hasSources?: boolean }) {
           <>点击右上角「设置」，勾选要参与搜索的点播源后重新搜索。</>
         ) : (
           <>
-            lihongguotv 不内置任何采集站。点击右上角「设置 → 添加 API」，填入一个
+            MFlixTV 不内置任何采集站。点击右上角「设置 → 添加 API」，填入一个
             Apple CMS 采集站地址（如 <code className="text-accent text-xs">https://example.com/api.php/provide/vod</code>），
             勾选后即可开始搜索。
           </>

@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
  */
 
 export type ThemeChoice = 'light' | 'dark' | 'system';
-const STORAGE_KEY = 'lihongguotv-theme';
+const STORAGE_KEY = 'mflixtv-theme';
 
 interface ThemeContextValue {
   theme: ThemeChoice;

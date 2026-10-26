@@ -1,5 +1,5 @@
 ﻿<#
-    lihongguotv 热更新工具
+    MFlixTV 热更新工具
     ------------------------------------------------------------------
     用法：
       powershell -NoProfile -ExecutionPolicy Bypass -File update.ps1 -Part all
@@ -60,7 +60,7 @@ function Finish([string]$summary, [bool]$ok) {
     Add-Type -AssemblyName System.Windows.Forms | Out-Null
     [System.Windows.Forms.MessageBox]::Show(
       ($summary + "`r`n`r`n日志：$logFile"),
-      'lihongguotv 更新',
+      'MFlixTV 更新',
       [System.Windows.Forms.MessageBoxButtons]::OK,
       $(if ($ok) { [System.Windows.Forms.MessageBoxIcon]::Information } else { [System.Windows.Forms.MessageBoxIcon]::Warning })
     ) | Out-Null
@@ -115,7 +115,7 @@ function Start-Web {
   if (-not (Test-Path $next)) { Log "找不到 Next 入口 $next" 'WARN'; return }
   $p = Start-Process -FilePath $nodeExe -ArgumentList @($next, 'start', '-p', '8080') -WorkingDirectory $appDir -WindowStyle Hidden -PassThru `
        -RedirectStandardOutput (Join-Path $appDir 'server.log') -RedirectStandardError (Join-Path $appDir 'server.err.log')
-  Log "lihongguotv 已启动 (pid $($p.Id))"
+  Log "MFlixTV 已启动 (pid $($p.Id))"
 }
 
 # ---------------------------------------------------------------- 内核更新
@@ -517,7 +517,7 @@ try {
       Stop-Port 8080
       Start-Sleep -Seconds 1
       Start-Web
-      if (Wait-Port 8080 40) { Log 'lihongguotv 已就绪' } else { Log 'lihongguotv 启动超时' 'WARN' }
+      if (Wait-Port 8080 40) { Log 'MFlixTV 已就绪' } else { Log 'MFlixTV 启动超时' 'WARN' }
     }
   }
 

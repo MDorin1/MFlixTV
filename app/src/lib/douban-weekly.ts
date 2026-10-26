@@ -10,7 +10,7 @@ import { fetchUpstream, getCache, setCache } from './fetch-utils';
  */
 
 const CACHE_TTL = 60 * 60 * 1000;
-const UA = 'lihongguotv/1.0';
+const UA = 'MFlixTV/1.0';
 
 const FALLBACK_BASE = 'https://60s.viki.moe';
 

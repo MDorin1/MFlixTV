@@ -64,7 +64,7 @@
 
 ### 修复
 
-- **程序开着的时候覆盖安装会报「尝试替换已存在的文件时出错」**：安装包原本设了 `CloseApplications=no`，不会去关正在运行的旧版，`lihongguotv.exe` 与 `runtime\node.exe` 被占用就替换失败；跳过之后文件新旧混装，页面直接打不开。现在改为 `CloseApplications=yes`，并在安装前强制结束 `lihongguotv.exe` 及其子进程。
+- **程序开着的时候覆盖安装会报「尝试替换已存在的文件时出错」**：安装包原本设了 `CloseApplications=no`，不会去关正在运行的旧版，`MFlixTV.exe` 与 `runtime\node.exe` 被占用就替换失败；跳过之后文件新旧混装，页面直接打不开。现在改为 `CloseApplications=yes`，并在安装前强制结束 `MFlixTV.exe` 及其子进程。
 - 打包时把 app 版本号对齐到仓库里的 `app/package.json`（此前会出现装完仍显示旧版本号）。
 - 顺带修：`AppMutex` 会让安装器在程序运行时直接拒绝启动（exit 1），已移除，改用 Restart Manager + 显式结束进程。
 
@@ -73,7 +73,7 @@
 
 ### 修复
 
-- **安装后打不开 / 提示「为确保安全，必须设置 PASSWORD 环境变量」**：打包流程漏了生成 `app\.env`，装完既没有密码也没有点播源。现在打包必写 `.env`（PASSWORD=lihongguotv + 预置 6 个点播源 + 2 个直播源），托盘程序还会在文件缺失时自动补一份默认配置。
+- **安装后打不开 / 提示「为确保安全，必须设置 PASSWORD 环境变量」**：打包流程漏了生成 `app\.env`，装完既没有密码也没有点播源。现在打包必写 `.env`（PASSWORD=MFlixTV + 预置 6 个点播源 + 2 个直播源），托盘程序还会在文件缺失时自动补一份默认配置。
 - 打包脚本对 `.env` 与 next 版本都加了硬校验，缺一个直接打包失败。
 
 ### 改进（短剧连播）
@@ -104,9 +104,9 @@
 
 ### 新增
 
-- **品牌名改为 `lihongguotv`**（原 LibreTV Desktop）：界面字标、图标（favicon / PWA / 安装包）、首页海报、安装包名、安装目录（`%LOCALAPPDATA%\Programs\lihongguotv`）、可执行文件（`lihongguotv.exe`）、存储键（`lhg_session` / `lihongguotv-theme` / `lihongguotv-*`）全部改名；上游归属与 AGPL 声明按许可要求保留
+- **品牌名改为 `MFlixTV`**（原 LibreTV Desktop）：界面字标、图标（favicon / PWA / 安装包）、首页海报、安装包名、安装目录（`%LOCALAPPDATA%\Programs\MFlixTV`）、可执行文件（`MFlixTV.exe`）、存储键（`lhg_session` / `mflixtv-theme` / `MFlixTV-*`）全部改名；上游归属与 AGPL 声明按许可要求保留
 - **Windows 安装版**：一键安装，自带 Node 22 运行时与 ffmpeg，托盘常驻，不用装任何环境
-- **macOS 便携版**（Apple 芯片）：解压双击 `启动lihongguotv.command` 即用
+- **macOS 便携版**（Apple 芯片）：解压双击 `启动MFlixTV.command` 即用
 - **短剧专区**（`/hongguo`）：
   - 体裁三层导航：真人剧 / 漫剧 / AI短剧 → 推荐 / 热播 / 新剧
   - 按「剧 + 集」双维度记录观看进度，回到任意一集都接着上次的秒数

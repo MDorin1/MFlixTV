@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'lihongguotv - 本地影视聚合播放器',
-    short_name: 'lihongguotv',
+    name: 'MFlixTV - 本地影视聚合播放器',
+    short_name: 'MFlixTV',
     description: '本地影视聚合播放器',
     start_url: '/',
     display: 'standalone',
