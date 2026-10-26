@@ -491,7 +491,7 @@ export default function HongguoPage() {
       setDetail({ meta: data.meta, episodes: data.episodes || [] });
       // 进详情页就先把第 1 集转好：看完简介点播放时通常已经就绪
       const firstEp = (data.episodes || [])[0];
-      if (firstEp) void hg(`/prewarm?vid=${encodeURIComponent(firstEp.vid)}`).catch(() => {});
+      // 不在进详情页时预热第 1 集：用户往往马上点播放，预热会和播放抢同一集的下载
     } catch (e) {
       setDetailErr(e instanceof Error ? e.message : '剧集加载失败');
     } finally {
@@ -565,8 +565,8 @@ export default function HongguoPage() {
     setStreamNonce(0);
     setPlaying({ index: ep.index, vid: ep.vid, title });
     setEpisodeSheet(false);
-    // 预热后面几集：内核侧解密落盘 + 浏览器侧把首段拿进缓存，点第 4 集才可能是秒开
-    warmUpcoming(ep.index);
+    // 预热由「当前这集真的开始播之后」触发，见 onPlaying —— 播放前预热只会抢带宽
+    warmPendingRef.current = ep.index;
   };
 
   /**
@@ -581,6 +581,9 @@ export default function HongguoPage() {
       : '';
 
   const warmAbortRef = useRef<AbortController | null>(null);
+  /** 等当前这集真正出画后再开始预热下一集，避免抢带宽 */
+  const warmPendingRef = useRef<number | null>(null);
+  const warmStartedRef = useRef<number | null>(null);
 
   /**
    * 预热后面 4 集（用户点了第 1 集，第 2–5 集就要能直接秒播）：
@@ -598,11 +601,16 @@ export default function HongguoPage() {
     const at = eps.findIndex((e) => e.index === fromIndex);
     if (at < 0) return;
     void (async () => {
-      for (let k = 1; k <= 5; k++) {
+      // 只热 3 集，且把带宽压在「下一集」上：内核是逐集整包下载+解密，
+      // 同时发 5 集等于切成 5 份，下一集迟迟好不了，切集就还得等。
+      // 第 1 集立刻发，第 2 集等 12s（当前集已起播），第 3 集再等 25s。
+      const delays = [0, 12000, 25000];
+      for (let k = 1; k <= 3; k++) {
         const nx = eps[at + k];
         if (!nx || ctrl.signal.aborted) break;
+        await new Promise((r) => window.setTimeout(r, delays[k - 1] ?? 25000));
+        if (ctrl.signal.aborted) break;
         void hg(`/prewarm?vid=${encodeURIComponent(nx.vid)}`).catch(() => {});
-        await new Promise((r) => window.setTimeout(r, 300));
         if (ctrl.signal.aborted) break;
         // 只发内核侧预热：实测浏览器侧再抢一遍 Range 会跟当前这集的取流抢带宽，
         // 反而把「正在播」的那集拖到超时（表现为「这一集没能加载出来」）。

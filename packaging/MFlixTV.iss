@@ -10,7 +10,9 @@ AppPublisher=MFlixTV
 DefaultDirName={localappdata}\Programs\MFlixTV
 DefaultGroupName=MFlixTV
 DisableProgramGroupPage=yes
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
+; 允许用户从命令行/右键选择安装范围（默认管理员：装到用户目录，但用管理员令牌，避免 Temp 权限不足报「错误 5」）
+PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=dist
 OutputBaseFilename=MFlixTV-Setup-{#MyAppVersion}
 SetupIconFile=stage\launcher\app.ico
