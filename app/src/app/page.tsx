@@ -9,6 +9,7 @@ import { RecommendSection } from '@/components/douban-section';
 import { RankRow } from '@/components/rank-row';
 import { ContinueWatchingRow } from '@/components/continue-watching';
 import { HeroBillboard } from '@/components/hero-billboard';
+import { FavoritesRow } from '@/components/favorites-row';
 import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { useAppStore, resolveSource, isInDisabledSubscription, isSourceDisabled } from '@/lib/store';
 import { api } from '@/lib/client-api';
@@ -475,6 +476,9 @@ function HomeContent() {
 
         {/* 继续观看：有观看记录才出现，点一下接着上次的进度播 */}
         {!urlQuery && <ContinueWatchingRow />}
+
+        {/* 我的清单：收藏过的资料页，空清单时不显示 */}
+        {!urlQuery && <FavoritesRow />}
 
         {/* 本周 TOP 10：Netflix 式大数字排名，点进去是资料页 */}
         {!urlQuery && <RankRow id="douban_movie_weekly" title="本周电影 TOP 10" />}

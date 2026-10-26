@@ -10,6 +10,7 @@ import { stripHtml } from '@/lib/utils';
 import type { VideoDetail } from '@/lib/types';
 import { Icon } from '@/components/icon';
 import { SourcePlayPanel, type PlaySource } from '@/components/source-play-panel';
+import { FavoriteButton } from '@/components/favorite-button';
 
 /**
  * 采集源资料页：/detail/<源 key>/<vodId>
@@ -168,6 +169,23 @@ function DetailContent() {
                 <div className="h-3 w-1/2 animate-pulse rounded bg-white/10" />
               </div>
             )}
+            <div className="mt-4 flex flex-wrap items-center gap-2.5">
+              <FavoriteButton
+                item={{
+                  key: `${sourceKey}:${vodId}`,
+                  title,
+                  cover,
+                  href: `/detail/${encodeURIComponent(sourceKey)}/${encodeURIComponent(vodId)}?${new URLSearchParams(
+                    {
+                      name: title,
+                      sn: info?.sourceName || qSourceName || '',
+                      ...(cover ? { pic: cover } : {}),
+                      ...(info?.sourceUrl || qSourceUrl ? { su: info?.sourceUrl || qSourceUrl } : {}),
+                    }
+                  ).toString()}`,
+                }}
+              />
+            </div>
           </div>
         </div>
 

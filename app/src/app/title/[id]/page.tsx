@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Icon } from '@/components/icon';
 import { SourcePlayPanel } from '@/components/source-play-panel';
+import { FavoriteButton } from '@/components/favorite-button';
 
 interface Subject {
   id: string;
@@ -175,6 +176,14 @@ export default function TitlePage() {
                   >
                     短剧专区搜
                   </Link>
+                  <FavoriteButton
+                    item={{
+                      key: `db:${subject.id}`,
+                      title: subject.title,
+                      cover: subject.cover,
+                      href: `/title/${subject.id}`,
+                    }}
+                  />
                 </div>
               </div>
             </div>
