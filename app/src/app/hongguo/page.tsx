@@ -607,12 +607,13 @@ export default function HongguoPage() {
       // 现在当前这集是「内核本地文件 → ffmpeg 切片」，播放不占网络；
       // 所以下一集的下载/解密可以立刻开跑，不会跟正在播的这集抢带宽。
       // 3 集依次错开 2 秒发出，避免内核一次性开三个下载把上游打慢。
-      const delays = [0, 2000, 4000];
-      for (let k = 1; k <= 3; k++) {
+      const delays = [0, 1500, 3000, 4500];
+      for (let k = 1; k <= 4; k++) {
         const nx = eps[at + k];
         if (!nx || ctrl.signal.aborted) break;
         await new Promise((r) => window.setTimeout(r, delays[k - 1] ?? 25000));
         if (ctrl.signal.aborted) break;
+        // 下一集插队：用户最可能点的就是它
         void hg(`/prewarm?vid=${encodeURIComponent(nx.vid)}`).catch(() => {});
         if (ctrl.signal.aborted) break;
         // 只发内核侧预热：实测浏览器侧再抢一遍 Range 会跟当前这集的取流抢带宽，
