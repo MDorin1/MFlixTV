@@ -134,6 +134,15 @@ function HomeContent() {
   });
   const persons = personQuery.data?.persons ?? [];
 
+  /** 豆瓣条目：采集源只有片名和海报，想看简介/演员/相似影片得有个能点的入口 */
+  const titleQuery = useQuery({
+    queryKey: ['title-search', urlQuery],
+    queryFn: ({ signal }) => api.titleSearch(urlQuery.slice(0, 60), signal),
+    enabled: Boolean(urlQuery),
+    staleTime: 600_000,
+  });
+  const doubanTitles = titleQuery.data?.titles ?? [];
+
   const runSearch = (q: string) => {
     const query = q.trim().slice(0, 100);
     if (!query) {
@@ -304,6 +313,41 @@ function HomeContent() {
           </div>
         </section>
 
+
+        {/* 豆瓣条目：搜片名时先给「官方资料」入口，点进去有简介 / 演员 / 相似影片 */}
+        {urlQuery && doubanTitles.length > 0 && (
+          <section aria-label="豆瓣条目" className="mb-7">
+            <h2 className="mb-3.5 text-[17px] font-semibold text-content">豆瓣条目</h2>
+            <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {doubanTitles.map((t) => (
+                <Link key={t.id} href={`/title/${t.id}`} className="group/db w-[104px] shrink-0 sm:w-[118px]" title={t.subtitle || t.title}>
+                  <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-chip ring-1 ring-line/60 transition-transform duration-300 group-hover/db:-translate-y-1">
+                    {t.cover && (
+                      <img
+                        src={`/api/proxy?url=${encodeURIComponent(t.cover)}`}
+                        alt={t.title}
+                        loading="lazy"
+                        decoding="async"
+                        referrerPolicy="no-referrer"
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                    {Number(t.rating) > 0 && (
+                      <span className="absolute left-1.5 top-1.5 rounded bg-black/70 px-1 py-0.5 text-[10px] font-semibold text-amber-300">
+                        ★ {t.rating}
+                      </span>
+                    )}
+                    <div className="poster-scrim absolute inset-x-0 bottom-0 h-[55%]" />
+                    <p className="poster-title absolute inset-x-0 bottom-0 line-clamp-2 p-1.5 text-[12.5px] leading-tight">
+                      {t.title}
+                    </p>
+                  </div>
+                  <p className="mt-1 line-clamp-1 text-[11px] text-faint">{t.year || t.subtitle}</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 演员：搜人名时这一行才是主结果，点进去是该演员的作品页 */}
         {urlQuery && persons.length > 0 && (

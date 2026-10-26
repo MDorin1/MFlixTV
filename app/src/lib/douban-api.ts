@@ -394,3 +394,49 @@ export async function searchPersons(query: string, limit = 8): Promise<PersonHit
   suggestCache.set(q, { at: Date.now(), data });
   return data;
 }
+/* ============================ 片名检索（豆瓣条目） ============================ */
+
+export interface TitleHit {
+  id: string;
+  title: string;
+  cover: string;
+  rating: string;
+  year: string;
+  subtitle: string;
+}
+
+/**
+ * 按片名搜豆瓣条目（首页「豆瓣条目」那一行的数据源）。
+ * 和演员检索共用 rexxar 那条节流队列，缓存 10 分钟——
+ * 首页每搜一次只多一个请求，且同一个词重复搜命中缓存，不影响点播源的搜索与预取。
+ */
+export async function searchTitles(query: string, limit = 10): Promise<TitleHit[]> {
+  const q = query.trim();
+  if (!q) return [];
+  interface Raw {
+    target?: {
+      id?: string | number;
+      title?: string;
+      year?: string;
+      card_subtitle?: string;
+      cover_url?: string;
+      rating?: { value?: number };
+    };
+  }
+  const res = await getJson<{ items?: Raw[] }>(
+    `/search/movie?q=${encodeURIComponent(q)}&start=0&count=${limit}`
+  );
+  const items = res?.items || [];
+  return items
+    .map((i) => i.target)
+    .filter((t): t is NonNullable<typeof t> => Boolean(t?.id && t?.title))
+    .map((t) => ({
+      id: String(t.id),
+      title: String(t.title),
+      cover: t.cover_url || '',
+      rating: typeof t.rating?.value === 'number' ? t.rating.value.toFixed(1) : '',
+      year: t.year || '',
+      subtitle: t.card_subtitle || '',
+    }))
+    .slice(0, limit);
+}

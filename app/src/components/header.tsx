@@ -97,16 +97,19 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
 
           <div className="flex-1 sm:hidden" />
 
-          <nav className="flex items-center gap-1 ml-auto shrink-0">
+          <nav className="flex items-center gap-0.5 sm:gap-1 ml-auto shrink-0">
             <HeaderLink href="/hongguo" active={pathname === '/hongguo'}>
               <span className="brand-gradient font-medium">短剧专区</span>
             </HeaderLink>
             <HeaderLink href="/live" active={pathname === '/live'}>
               直播
             </HeaderLink>
-            <HeaderLink href="/about" active={pathname === '/about'}>
-              关于
-            </HeaderLink>
+            {/* 手机宽度下这一行放不下「关于」，先收起来：关于页仍可从页脚进入 */}
+            <span className="hidden sm:block">
+              <HeaderLink href="/about" active={pathname === '/about'}>
+                关于
+              </HeaderLink>
+            </span>
             <LanBadge />
             <ThemeToggle />
             <IconButton label="观看历史" onClick={() => setHistoryOpen(true)}>
@@ -133,7 +136,7 @@ function HeaderLink({ href, active, children }: { href: string; active: boolean;
     <Link
       href={href}
       className={cn(
-        'px-2.5 sm:px-3 py-2 rounded-lg text-[15px] font-medium whitespace-nowrap shrink-0 transition-colors',
+        'px-2 sm:px-3 py-2 rounded-lg text-[13.5px] sm:text-[15px] font-medium whitespace-nowrap shrink-0 transition-colors',
         active ? 'text-content bg-hover' : 'text-muted hover:text-content'
       )}
     >
@@ -145,7 +148,7 @@ function HeaderLink({ href, active, children }: { href: string; active: boolean;
 function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
-      className="p-2.5 rounded-lg text-muted hover:text-content hover:bg-hover transition-colors"
+      className="p-2 sm:p-2.5 rounded-lg text-muted hover:text-content hover:bg-hover transition-colors"
       title={label}
       aria-label={label}
       onClick={onClick}

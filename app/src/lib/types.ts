@@ -248,3 +248,12 @@ export interface PersonSearchHit {
   /** suggest=豆瓣联想直出；cast=按人名搜影片后从演职员表模糊匹配 */
   via: 'suggest' | 'cast';
 }
+/** 豆瓣片名检索命中项（服务端 /api/douban/title-search 返回） */
+export interface TitleSearchHit {
+  id: string;
+  title: string;
+  cover: string;
+  rating: string;
+  year: string;
+  subtitle: string;
+}

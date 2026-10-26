@@ -1,6 +1,6 @@
 'use client';
 
-import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload, QualityProbeItem, QualityProbeResult, PersonSearchHit } from './types';
+import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload, QualityProbeItem, QualityProbeResult, PersonSearchHit, TitleSearchHit } from './types';
 
 /**
  * 客户端 API 封装。401 时触发全局事件打开登录框，
@@ -210,6 +210,10 @@ export const api = {
    */
   personSearch: (q: string, signal?: AbortSignal) =>
     request<{ persons: PersonSearchHit[] }>(`/api/douban/person-search?q=${encodeURIComponent(q)}`, { signal }),
+
+  /** 片名检索：搜索结果顶部的「豆瓣条目」行，点进去是资料页 */
+  titleSearch: (q: string, signal?: AbortSignal) =>
+    request<{ titles: TitleSearchHit[] }>(`/api/douban/title-search?q=${encodeURIComponent(q)}`, { signal }),
 
   /** 影视热榜（60s API 免 key）：豆瓣周榜五个类目 + 百度热播剧 */
   hotList: (id: string, signal?: AbortSignal) => {

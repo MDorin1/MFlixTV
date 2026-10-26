@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/client-api';
 import { useAppStore } from '@/lib/store';
@@ -45,6 +46,7 @@ function DoubanView({
   initialTab?: 'movie' | 'tv';
   initialCat?: string;
 }) {
+  const router = useRouter();
   const [type, setType] = useState<'movie' | 'tv'>(initialTab || 'movie');
   const [tag, setTag] = useState(initialCat || '热门');
 
@@ -101,7 +103,7 @@ function DoubanView({
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-x-3 gap-y-5">
           {items.map((item) => (
-            <DoubanCard key={item.id} item={item} onClick={() => onPick(item.title)} />
+            <DoubanCard key={item.id} item={item} onClick={() => router.push(`/title/${item.id}`)} />
           ))}
         </div>
       )}
@@ -137,7 +139,6 @@ function BangumiView({ onPick }: { onPick: (title: string) => void }) {
           </ChipButton>
         ))}
       </div>
-
       {query.isError ? (
         <p className="text-center text-sm text-faint py-8">推荐内容加载失败，可稍后重试或在设置中关闭</p>
       ) : query.isLoading ? (

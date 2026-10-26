@@ -289,7 +289,22 @@ function WatchContent() {
           <BackButton />
           <HomeButton />
           <div className="min-w-0">
-            <h1 className="text-sm font-medium text-content truncate">{videoTitle}</h1>
+            {/* 标题可点：回资料页看简介 / 导演主演（名字还能继续点） */}
+            {vodId ? (
+              <Link
+                href={`/detail/${encodeURIComponent(sourceKey)}/${encodeURIComponent(vodId)}?${new URLSearchParams({
+                  name: videoTitle,
+                  sn: source?.name || '',
+                  ...(source?.url ? { su: source.url } : {}),
+                }).toString()}`}
+                className="block truncate text-sm font-semibold text-content transition-colors hover:text-accent"
+                title="查看资料页"
+              >
+                {videoTitle}
+              </Link>
+            ) : (
+              <h1 className="truncate text-sm font-semibold text-content">{videoTitle}</h1>
+            )}
             <p className="truncate text-xs text-faint">
               {source.name}
               {episodes.length > 0 && ` · 第 ${currentIndex + 1}/${episodes.length} 集`}

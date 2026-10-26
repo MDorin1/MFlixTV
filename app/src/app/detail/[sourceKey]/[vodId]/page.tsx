@@ -78,16 +78,9 @@ function DetailContent() {
         .join('  ·  '),
     [info?.year, info?.area, info?.typeName, info?.remarks]
   );
-  const credits = useMemo(() => {
-    const rows: [string, string][] = [];
-    if (info?.director) rows.push(['导演', stripHtml(info.director)]);
-    if (info?.actor) {
-      const actors = stripHtml(info.actor);
-      // 采集源的演员表动辄几十个，截断后加「等」，不要切在半截名字上
-      rows.push(['主演', actors.length > 80 ? `${actors.slice(0, 80)}… 等` : actors]);
-    }
-    return rows;
-  }, [info?.director, info?.actor]);
+  /** 采集源的导演/主演是一整串，拆成名字后每个都能点：点名字 = 用这个名字再搜一次 */
+  const directorNames = useMemo(() => splitNames(info?.director), [info?.director]);
+  const actorNames = useMemo(() => splitNames(info?.actor).slice(0, 12), [info?.actor]);
 
   /** 采集源的简介是 HTML 片段，先转成纯文本再排版（否则会把 <p> 标签直接显示出来） */
   const desc = useMemo(() => stripHtml(info?.desc), [info?.desc]);
@@ -145,14 +138,28 @@ function DetailContent() {
           <div className="min-w-0 flex-1 text-center sm:text-left">
             <h1 className="text-2xl font-bold leading-tight sm:text-3xl md:text-4xl">{title}</h1>
             {meta && <p className="mt-2 text-sm text-white/60">{meta}</p>}
-            {credits.length > 0 && (
-              <dl className="mt-3 space-y-1 text-[13px] leading-relaxed text-white/70">
-                {credits.map(([k, v]) => (
-                  <div key={k} className="flex gap-2 text-left sm:justify-start">
-                    <dt className="shrink-0 text-white/40">{k}</dt>
-                    <dd className="min-w-0 flex-1">{v}</dd>
+            {(directorNames.length > 0 || actorNames.length > 0) && (
+              <dl className="mt-3 space-y-1.5 text-[13px] leading-relaxed text-white/70">
+                {directorNames.length > 0 && (
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-left">
+                    <dt className="shrink-0 text-white/40">导演</dt>
+                    <dd className="flex flex-wrap gap-1.5">
+                      {directorNames.map((n, i) => (
+                        <NameChip key={`d-${n}-${i}`} name={n} />
+                      ))}
+                    </dd>
                   </div>
-                ))}
+                )}
+                {actorNames.length > 0 && (
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-left">
+                    <dt className="shrink-0 text-white/40">主演</dt>
+                    <dd className="flex flex-wrap gap-1.5">
+                      {actorNames.map((n, i) => (
+                        <NameChip key={`a-${n}-${i}`} name={n} />
+                      ))}
+                    </dd>
+                  </div>
+                )}
               </dl>
             )}
             {!detail && !err && (
@@ -184,5 +191,28 @@ function DetailContent() {
         </p>
       </main>
     </div>
+  );
+}
+
+/**
+ * 采集源的「导演 / 主演」是一整串（空格、斜杠、顿号混着用），拆成独立名字。
+ * 过滤掉空项和明显不是人名的长串，避免把一句简介塞进胶囊里。
+ */
+function splitNames(raw?: string): string[] {
+  return stripHtml(raw)
+    .split(/[\s,，、\/|；;]+/)
+    .map((s) => s.replace(/^[·・.\-]+|[·・.\-]+$/g, '').trim())
+    .filter((s) => s.length > 0 && s.length <= 12);
+}
+
+/** 名字胶囊：点一下就用这个名字再搜一次（搜索结果里会带出演员行） */
+function NameChip({ name }: { name: string }) {
+  return (
+    <Link
+      href={`/?s=${encodeURIComponent(name)}`}
+      className="rounded-full border border-white/15 bg-white/5 px-2.5 py-0.5 text-[12.5px] text-white/80 transition-colors hover:border-white/40 hover:bg-white/15 hover:text-white"
+    >
+      {name}
+    </Link>
   );
 }
