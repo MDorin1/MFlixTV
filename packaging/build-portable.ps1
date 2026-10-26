@@ -154,5 +154,17 @@ Copy-Item (Join-Path $repo 'LICENSES') "$Out\LICENSES" -Recurse -Force
 Copy-Item (Join-Path $repo 'docs\合规与免责.md') "$Out\合规与免责.md" -Force
 
 $size = [math]::Round(((Get-ChildItem $Out -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
+
+# HARD-GUARD: 安装包必须带默认点播源，否则装完就是空列表（历史事故）
+$envFile = Join-Path $Out 'app\.env'
+if (-not (Test-Path $envFile)) { throw "HARD-GUARD: 缺少 app\.env，打包中止" }
+$envText2 = [IO.File]::ReadAllText($envFile, [Text.Encoding]::UTF8)
+if ($envText2 -notmatch '(?m)^DEFAULT_SOURCES=\s*\[\s*\{') { throw "HARD-GUARD: app\.env 里没有 DEFAULT_SOURCES，打包中止（装完会是空源）" }
+if ($envText2 -notmatch '(?m)^PASSWORD=\s*\S+') { throw "HARD-GUARD: app\.env 里没有 PASSWORD，打包中止" }
+foreach ($req in @('app\.next\BUILD_ID', 'app\node_modules\next\dist\bin\next', 'runtime\node.exe')) {
+  if (-not (Test-Path (Join-Path $Out $req))) { throw "HARD-GUARD: 缺少 $req，打包中止" }
+}
+Write-Host "==> HARD-GUARD 通过：.env 有源与密码、.next 与 next 可执行、runtime 就位"
+
 Write-Host "==> 完成，$Out （$size MB）"
 Write-Host "下一步：编译 MFlixTV.exe 并用 Inno Setup 打包，见 packaging\README.md"

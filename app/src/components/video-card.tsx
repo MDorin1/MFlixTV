@@ -226,24 +226,8 @@ export function AggregatedCard({
             )}
           </div>
 
-          {/* 悬停信息层：Netflix 那种「标题 + 两个按钮」的浮出面板 */}
-          <div className="nf-card-info pointer-events-none absolute inset-x-0 bottom-0 translate-y-3 p-2.5 pt-8 opacity-0 transition-all duration-300 group-hover/poster:translate-y-0 group-hover/poster:opacity-100" style={{ background: 'linear-gradient(to top, rgba(0,0,0,.96), rgba(0,0,0,.7) 55%, transparent)' }}>
-            <p className="poster-title line-clamp-2 text-[14px] leading-tight">{group.name}</p>
-            <div className="mt-2 flex items-center gap-1.5">
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-white text-black">
-                <PlayGlyph className="h-3.5 w-3.5 translate-x-[1px]" />
-              </span>
-              <span className="grid h-7 w-7 place-items-center rounded-full border border-white/50 text-white/90">
-                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden>
-                  <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-                </svg>
-              </span>
-              {group.year && <span className="ml-1 text-[11px] text-white/70">{group.year}</span>}
-            </div>
-          </div>
-
           {/* 悬停播放按钮 */}
-          <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-200 group-hover/poster:opacity-0">
+          <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-300 group-hover/poster:opacity-100">
             <span className="grid h-12 w-12 place-items-center rounded-full bg-white/20 text-white shadow-lg ring-1 ring-white/35 backdrop-blur-md">
               <PlayGlyph className="h-5 w-5 translate-x-[1px]" />
             </span>
