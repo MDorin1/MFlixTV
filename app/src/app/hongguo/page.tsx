@@ -427,7 +427,19 @@ export default function HongguoPage() {
       const myId = ++reqIdRef.current;
       setLoading(true);
       setErr('');
-      setItems([]);
+      // 先上上次的缓存：进专区不该每次白屏重排，缓存就位后再后台刷新（stale-while-revalidate）
+      const cacheKey = 'mflixtv:hongguo:' + g + ':' + b;
+      let cachedArr: Item[] = [];
+      try {
+        const raw = localStorage.getItem(cacheKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) cachedArr = parsed as Item[];
+        }
+      } catch {
+        cachedArr = [];
+      }
+      setItems(cachedArr);
       try {
         if (g === 'comic_series') {
           const list = await loadRank(b);
@@ -437,6 +449,11 @@ export default function HongguoPage() {
             if (myId === reqIdRef.current) setItems(partial);
           });
           if (myId === reqIdRef.current) setItems(list);
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(list.slice(0, 120)));
+          } catch {
+            /* 配额满就算了，下次照样重新拉 */
+          }
         }
       } catch (e) {
         if (myId === reqIdRef.current) {
