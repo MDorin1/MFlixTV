@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/client-api';
 import { useAppStore, resolveSource, isInDisabledSubscription, isSourceDisabled } from '@/lib/store';
@@ -167,6 +168,22 @@ export function SourcePlayPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.sourceKey]);
 
+  /** 同系列：搜索结果里名字包含当前片名的条目（锻刀大赛 → 第一季/第二季…），去重并按名称自然排序 */
+  const seasons = useMemo(() => {
+    const base = normalize(title);
+    if (!base) return [] as PlaySource[];
+    const seen = new Set<string>();
+    const out: PlaySource[] = [];
+    for (const o of options) {
+      const key = o.sourceKey + ':' + o.vodId;
+      if (seen.has(key)) continue;
+      if (!normalize(o.name).includes(base)) continue;
+      seen.add(key);
+      out.push(o);
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+  }, [options, title]);
+
   const episodes = activeState?.data?.episodes ?? [];
   const orderedIndexes = useMemo(() => {
     const all = episodes.map((_, i) => i);
@@ -278,7 +295,36 @@ export function SourcePlayPanel({
             </div>
           )}
 
-          {/* 剧集网格 */}
+        {/* 同系列：同名不同季（第 1 季 / 第 2 季 …）全列出来，省得用户以为缺季 */}
+      {seasons.length > 1 && (
+        <div className="mb-4">
+          <p className="mb-2 text-[13px] text-white/55">
+            同系列 <span className="text-white/35">（共 {seasons.length} 个）</span>
+          </p>
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {seasons.map((s) => (
+              <Link
+                key={s.sourceKey + s.vodId}
+                href={`/detail/${encodeURIComponent(s.sourceKey)}/${encodeURIComponent(s.vodId)}?${new URLSearchParams({
+                  name: s.name,
+                  sn: s.sourceName,
+                  ...(s.pic ? { pic: s.pic } : {}),
+                  ...(s.sourceUrl ? { su: s.sourceUrl } : {}),
+                }).toString()}`}
+                className={
+                  'shrink-0 rounded-full border px-3 py-1.5 text-[13px] transition-colors ' +
+                  (s.name === title
+                    ? 'border-white bg-white font-semibold text-black'
+                    : 'border-white/20 bg-white/5 text-white/75 hover:border-white/45 hover:text-white')
+                }
+              >
+                {s.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+        {/* 剧集网格 */}
           <div className="mt-4">
             {activeState?.loading && episodes.length === 0 ? (
               <div className="grid grid-cols-4 gap-2 sm:grid-cols-8 md:grid-cols-10">

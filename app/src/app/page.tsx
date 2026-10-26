@@ -181,7 +181,17 @@ function HomeContent() {
       .filter((o) => !o.ok)
       .map((o) => ({ sourceKey: o.sourceKey, error: o.error || '请求失败', timedOut: o.timedOut }));
   // 跨源同名聚合：同名影片合并为一张卡片，展开后可选择具体来源
-  const groups = useMemo(() => aggregateResults(list), [list]);
+  // 排序：新的在前。搜「某某大赛」时，最新一季应该排第一，其次才是旧季；
+  // 没有年份的排最后（按名称兜底），避免它们插在年份序列中间。
+  const groups = useMemo(() => {
+    const g = aggregateResults(list);
+    return [...g].sort((a, b) => {
+      const ya = Number(a.year) || 0;
+      const yb = Number(b.year) || 0;
+      if (ya !== yb) return yb - ya;
+      return a.name.localeCompare(b.name, 'zh-CN');
+    });
+  }, [list]);
 
   // 分批渲染：新一次搜索（groups 变化）时重置回首批
   const [visibleCount, setVisibleCount] = useState(RESULT_PAGE_SIZE);
