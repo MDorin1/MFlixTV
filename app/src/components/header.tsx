@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { ThemeToggle } from './theme';
 import { SourceManagerDrawer } from './source-manager';
@@ -17,6 +17,25 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Netflix 顶栏：向下滚动隐藏、向上滚动回来；滚过 8px 后加底色和阴影
+  const [hidden, setHidden] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const lastYRef = useRef(0);
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY || 0;
+      setScrolled(y > 8);
+      const last = lastYRef.current;
+      // 顶部 80px 内始终显示；只在明显位移时才切换，避免抖动
+      if (y < 80) setHidden(false);
+      else if (y - last > 12) setHidden(true);
+      else if (last - y > 12) setHidden(false);
+      lastYRef.current = y;
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [query, setQuery] = useState('');
   // 与首页搜索框共用同一套「最近搜索」下拉逻辑
@@ -38,7 +57,13 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur border-b border-line">
+      <header
+        className={
+          'sticky top-0 z-40 transition-[transform,background-color,box-shadow] duration-300 will-change-transform ' +
+          (hidden ? '-translate-y-full' : 'translate-y-0') + ' ' +
+          (scrolled ? 'bg-page/95 backdrop-blur border-b border-line shadow-[0_10px_30px_-18px_rgba(0,0,0,.9)]' : 'bg-gradient-to-b from-black/70 to-transparent')
+        }
+      >
         <div className="max-w-[1240px] mx-auto px-4 sm:px-6 h-16 flex items-center gap-3">
           <Link href="/" aria-label="MFlixTV 首页" className="flex items-center shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
