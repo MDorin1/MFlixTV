@@ -90,8 +90,24 @@ function DoubanView({
 
   // 综艺走「源内分类浏览」：豆瓣那份只有海报，真正能播的综艺得按源分类拉
   if (tag === '综艺') {
+    // 注意：切到综艺后「电影/剧集」这两个入口必须还在，否则回不去
     return (
       <section aria-label="综艺推荐">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg bg-chip p-0.5">
+              <TypeButton active={false} onClick={() => switchType('movie')}>
+                电影
+              </TypeButton>
+              <TypeButton active={false} onClick={() => switchType('tv')}>
+                剧集
+              </TypeButton>
+              <TypeButton active onClick={() => undefined}>
+                综艺
+              </TypeButton>
+            </div>
+          </div>
+        </div>
         <VarietyBoard />
       </section>
     );
