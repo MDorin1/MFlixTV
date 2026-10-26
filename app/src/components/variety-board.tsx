@@ -6,6 +6,16 @@ import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { cn } from '@/lib/utils';
 import type { SearchResultItem } from '@/lib/types';
 
+/** 短剧二级筛选：真人剧 / AI剧 / 漫剧（按分类名与标题判断，纯前端过滤） */
+export const KIND_FILTERS = ['全部', '真人剧', 'AI剧', '漫剧'] as const;
+
+function kindOf(item: { name?: string; typeName?: string }): '真人剧' | 'AI剧' | '漫剧' {
+  const t = ((item.typeName || '') + ' ' + (item.name || '')).toUpperCase();
+  if (t.includes('AI')) return 'AI剧';
+  if (/漫剧|动漫|动画/.test(t)) return '漫剧';
+  return '真人剧';
+}
+
 export const VARIETY_CATEGORIES = ['综艺', '大陆综艺', '港台综艺', '日韩综艺', '欧美综艺'];
 
 /** 点播源里的短剧分类（实测 豪华资源 48 个分类里的这批） */
@@ -76,7 +86,12 @@ export function CategoryBoard({
     };
   }, [category, cachePrefix]);
 
-  const groups = useMemo(() => aggregateResults(items), [items]);
+  const [kind, setKind] = useState<(typeof KIND_FILTERS)[number]>('全部');
+  const filtered = useMemo(
+    () => (kind === '全部' ? items : items.filter((it) => kindOf(it) === kind)),
+    [items, kind]
+  );
+  const groups = useMemo(() => aggregateResults(filtered), [filtered]);
 
   const open = (item: SearchResultItem) => {
     const sp = new URLSearchParams({ name: item.name, sn: item.sourceName });
@@ -87,6 +102,22 @@ export function CategoryBoard({
 
   return (
     <section aria-label="综艺分类">
+      {/* 二级筛选：真人剧 / AI剧 / 漫剧 */}
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        {KIND_FILTERS.map((k) => (
+          <button
+            key={k}
+            onClick={() => setKind(k)}
+            className={cn(
+              'rounded-full px-3 py-1 text-[12.5px] transition-colors',
+              k === kind ? 'bg-content font-medium text-page' : 'bg-chip text-muted hover:text-content'
+            )}
+          >
+            {k}
+          </button>
+        ))}
+      </div>
+
       <div className="mb-4 flex flex-wrap gap-1.5">
         {categories.map((c) => (
           <button
