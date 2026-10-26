@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { db, type HistoryEntry } from '@/lib/db';
-import { buildWatchUrl, cn } from '@/lib/utils';
+import { buildWatchUrl, cn, formatTime } from '@/lib/utils';
 import { SmartImage } from './smart-image';
 import { useAppStore } from '@/lib/store';
 
@@ -71,18 +71,19 @@ export function ContinueWatchingRow({ className }: { className?: string }) {
           const left = Math.max(0, Math.round((it.duration - it.playbackPosition) / 60));
           const showImg = !!it.pic && !failed.has(it.id);
           return (
-            <Link
-              key={it.id}
-              href={buildWatchUrl({
-                sourceKey: it.sourceKey,
-                vodId: it.vodId,
-                index: it.episodeIndex,
-                title: it.title,
-                sourceUrl: it.sourceUrl,
-                position: it.playbackPosition,
-              })}
-              className="group/w w-[104px] shrink-0 sm:w-[124px]"
-            >
+            <div key={it.id} className="group/w relative w-[104px] shrink-0 sm:w-[124px]">
+              <Link
+                href={buildWatchUrl({
+                  sourceKey: it.sourceKey,
+                  vodId: it.vodId,
+                  index: it.episodeIndex,
+                  title: it.title,
+                  sourceUrl: it.sourceUrl,
+                  position: it.playbackPosition,
+                })}
+                className="block"
+                title={`从 ${formatTime(it.playbackPosition)} 继续 · ${it.title}`}
+              >
               <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-chip ring-1 ring-line/60">
                 {showImg ? (
                   <SmartImage
@@ -118,7 +119,22 @@ export function ContinueWatchingRow({ className }: { className?: string }) {
                 {it.totalEpisodes > 1 ? `第 ${it.episodeIndex + 1} 集 · ` : ''}
                 {left > 0 ? `剩余约 ${left} 分钟` : '快看完了'}
               </p>
-            </Link>
+              </Link>
+              {/* 资料入口：不想续播、只想看看这部的简介/演员时用 */}
+              <Link
+                href={`/detail/${encodeURIComponent(it.sourceKey)}/${encodeURIComponent(it.vodId)}?${new URLSearchParams(
+                  {
+                    name: it.title,
+                    ...(it.pic ? { pic: it.pic } : {}),
+                    ...(it.sourceUrl ? { su: it.sourceUrl } : {}),
+                  }
+                ).toString()}`}
+                className="absolute right-1 top-1 rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] text-white/85 opacity-0 backdrop-blur transition-opacity group-hover/w:opacity-100 focus:opacity-100"
+                title="查看资料页"
+              >
+                资料
+              </Link>
+            </div>
           );
         })}
       </div>
