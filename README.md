@@ -52,17 +52,21 @@
 
 ## 截图
 
-| 首页（左导航 + TOP 10） | 搜索结果（大卡网格） |
+| 首页（头图 + 继续观看 + TOP 10） | 搜索结果（大卡网格） |
 | --- | --- |
 | ![首页](docs/images/home.png) | ![搜索](docs/images/search.png) |
 
-| 豆瓣资料页（资料 + 播放入口） | 相似影片 |
+| 演员检索（首页搜人名） | 豆瓣资料页（资料 + 播放入口） |
 | --- | --- |
-| ![资料页](docs/images/title.png) | ![相似影片](docs/images/similar.png) |
+| ![演员检索](docs/images/actor-search.png) | ![资料页](docs/images/title.png) |
 
-| 采集源资料页（取代播放前弹窗） | 播放器 · 换源面板 |
+| 相似影片 | 采集源资料页（取代播放前弹窗） |
 | --- | --- |
-| ![采集源资料页](docs/images/detail-source.png) | ![换源](docs/images/player-episodes.png) |
+| ![相似影片](docs/images/similar.png) | ![采集源资料页](docs/images/detail-source.png) |
+
+| 播放器 · 换源面板 | 手机资料页 |
+| --- | --- |
+| ![换源](docs/images/player-episodes.png) | ![手机资料页](docs/images/title-mobile.png) |
 
 ## 快速开始
 
