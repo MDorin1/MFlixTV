@@ -614,7 +614,7 @@ export default function HongguoPage() {
         await new Promise((r) => window.setTimeout(r, delays[k - 1] ?? 25000));
         if (ctrl.signal.aborted) break;
         // 下一集插队：用户最可能点的就是它
-        void hg(`/prewarm?vid=${encodeURIComponent(nx.vid)}`).catch(() => {});
+        void hg(`/prewarm?vid=${encodeURIComponent(nx.vid)}${k === 1 ? '&priority=1' : ''}`).catch(() => {});
         if (ctrl.signal.aborted) break;
         // 只发内核侧预热：实测浏览器侧再抢一遍 Range 会跟当前这集的取流抢带宽，
         // 反而把「正在播」的那集拖到超时（表现为「这一集没能加载出来」）。
