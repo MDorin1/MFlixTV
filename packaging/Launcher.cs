@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -294,6 +294,24 @@ namespace MFlixTVLauncher
             catch { }
         }
 
+        /// <summary>
+        /// 首页健康检查：端口通但返回 404，多半是装到别的盘后 .next 没就位、
+        /// 或者 8080 被上一个残留实例占着（那个实例指向旧目录，所以页面 404）。
+        /// </summary>
+        static bool WebHealthy()
+        {
+            try
+            {
+                using (var wc = new System.Net.WebClient())
+                {
+                    wc.Headers.Add("User-Agent", "MFlixTV-Launcher");
+                    string body = wc.DownloadString("http://127.0.0.1:8080/api/status");
+                    return body.Contains("version");
+                }
+            }
+            catch { return false; }
+        }
+
         static void StartWeb()
         {
             string appDir = Path.Combine(baseDir, "app");
@@ -311,6 +329,16 @@ namespace MFlixTVLauncher
             string logDir = Path.Combine(baseDir, "logs");
             Directory.CreateDirectory(logDir);
             string logPath = Path.Combine(logDir, "web.log");
+            // 装到非默认盘时空目录/权限问题最常见：每次启动把关键路径写进日志，出 404 能直接定位
+            try
+            {
+                File.AppendAllText(logPath, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss ")
+                    + "starting: base=" + baseDir + " app=" + appDir
+                    + " next=" + (File.Exists(nextBin) ? "ok" : "MISSING")
+                    + " nextBuild=" + (Directory.Exists(Path.Combine(appDir, ".next")) ? "ok" : "MISSING")
+                    + " port8080=" + (PortOpen(8080) ? "busy" : "free") + Environment.NewLine, Encoding.UTF8);
+            }
+            catch { }
 
             webProc = new Process();
             webProc.StartInfo = psi;
