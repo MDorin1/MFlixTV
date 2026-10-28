@@ -34,7 +34,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val portNum = port
 
     companion object {
-        const val VERSION = "android-0.12"
+        const val VERSION = "android-0.13"
     }
 
     /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
@@ -266,6 +266,11 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             put("lan", if (ip.isEmpty()) "" else "http://$ip:$portNum")
             put("local", "http://127.0.0.1:$portNum")
             put("wifi", LanIp.wifiUp())
+            // 端口不一定是 8080（被占时会自动换），页面与设置页都读这个值
+            put("port", portNum)
+            // 机型指纹 + 最近一次崩溃：别人反馈闪退时，让用户截设置页就能拿到真因
+            put("device", CrashLog.deviceLine(ctx))
+            put("lastCrash", CrashLog.lastSummary(ctx))
         }.toString()
     }
 

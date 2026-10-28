@@ -32,6 +32,13 @@ class ServerService : Service() {
     companion object {
         private const val CH_ID = "mflixtv-service"
         private const val NOTI_ID = 1
+        /** 首选端口；被别的 App 占用时服务端会往后找，页面 / 通知 / 兜底页都读这个值。 */
+        const val DEFAULT_PORT = 8080
+        private const val MAX_PORT_TRY = 8090
+
+        @Volatile
+        var port: Int = DEFAULT_PORT
+            private set
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -50,7 +57,9 @@ class ServerService : Service() {
             val n = buildNotification(LanIp.ip())
             val type = if (Build.VERSION.SDK_INT >= 34)
                 android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            else android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            else if (Build.VERSION.SDK_INT >= 29)
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            else 0
             androidx.core.app.ServiceCompat.startForeground(this, NOTI_ID, n, type)
         } catch (e: Throwable) {
             // 少数 ROM 对 specialUse 不认，退回不带类型的 startForeground 也要能跑起来
@@ -61,20 +70,38 @@ class ServerService : Service() {
             }
         }
 
-        if (server == null) {
-            try {
-                server = WebServer(this, 8080).also {
-                    it.start(fi.iki.elonen.NanoHTTPD.SOCKET_READ_TIMEOUT, false)
-                }
-                Log.i("MFlixTV", "http server listening on 0.0.0.0:8080, lan ip=${LanIp.ip()}")
-            } catch (e: Throwable) {
-                Log.e("MFlixTV", "http server failed to start", e)
-            }
-        }
-
+        startServer()
         acquireWifiLock()
         watchNetwork()
         return START_STICKY
+    }
+
+    /**
+     * 绑端口：8080 被别的 App（常见是各种调试工具、老版本自己没退干净）占了就往后找，
+     * 以前写死 8080 时表现为「App 打开白屏、局域网也打不开」，用户只能卸载重装。
+     */
+    private fun startServer() {
+        if (server != null) return
+        var candidate = DEFAULT_PORT
+        while (candidate <= MAX_PORT_TRY) {
+            val s = WebServer(this, candidate)
+            try {
+                s.start(fi.iki.elonen.NanoHTTPD.SOCKET_READ_TIMEOUT, false)
+                server = s
+                port = candidate
+                Log.i("MFlixTV", "http server listening on 0.0.0.0:$candidate, lan ip=${LanIp.ip()}")
+                if (candidate != DEFAULT_PORT) refreshNotification()
+                return
+            } catch (e: Throwable) {
+                Log.w("MFlixTV", "bind $candidate failed", e)
+                try {
+                    s.stop()
+                } catch (_: Throwable) {
+                }
+            }
+            candidate++
+        }
+        Log.e("MFlixTV", "no free port in $DEFAULT_PORT..$MAX_PORT_TRY")
     }
 
     private fun ensureChannel() {
@@ -92,9 +119,10 @@ class ServerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or
                 (if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
         )
+        val addr = if (ip.isEmpty()) "本机 127.0.0.1:$port" else "局域网访问：http://$ip:$port"
         return NotificationCompat.Builder(this, CH_ID)
             .setContentTitle("MFlixTV 正在运行")
-            .setContentText("局域网访问：http://$ip:8080")
+            .setContentText(addr)
             .setSmallIcon(R.drawable.ic_stat_mflixtv)
             .setOngoing(true)
             .setContentIntent(tap)

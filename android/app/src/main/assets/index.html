@@ -415,6 +415,26 @@
     #sHead{padding:12px 14px 10px}
     #sBody{padding:14px 14px 40px}
   }
+  /* ---- 更老的 WebView（Android 7.x 自带 Chrome 51–55，没有 CSS Grid）----
+     网格全部退回 flex 换行，手机上和网格的样子基本一致，不至于挤成一列。 */
+  @supports not (display: grid) {
+    #eps{display:block}
+    #eps .ep{display:inline-block;width:23.5%;margin:0 1.6% 8px 0;box-sizing:border-box;vertical-align:top}
+    #searchGrid{display:flex;flex-wrap:wrap;padding:0 12px}
+    #searchGrid .card{width:31.5%;margin:0 1.7% 14px 0}
+    #psheetB{display:block}
+    #psheetB .it{display:inline-block;width:23%;margin:0 1.6% 8px 0;box-sizing:border-box}
+    #psheetB.list .it{display:block;width:100%;margin:0 0 8px}
+    #groups{display:block}
+    .grp{display:inline-block;margin:0 8px 8px 0}
+    #pmini{display:block;text-align:right}
+    #pmini button{display:inline-block;margin:0 0 0 7px}
+    #pbtns{display:block}
+    #pbtns button{display:inline-block;margin:0 8px 6px 0}
+    #pbtns #pNext{float:right}
+    #dActions{display:block}
+    #dActions .btn-play{margin-bottom:9px}
+  }
 </style>
 </head>
 <body>
@@ -596,7 +616,9 @@
     <div class="card-box">
       <div class="box-t">关于</div>
       <div class="kv"><span>版本</span><b id="sVer">—</b></div>
-      <div class="kv"><span>本机服务</span><b>NanoHTTPD · 0.0.0.0:8080</b></div>
+      <div class="kv"><span>这台设备</span><b id="sDev">—</b></div>
+      <div class="kv" id="sCrashRow" style="display:none"><span>上次异常</span><b id="sCrash">—</b></div>
+      <div class="kv"><span>本机服务</span><b id="sAddr">NanoHTTPD · 0.0.0.0:8080</b></div>
       <div class="kv"><span>播放内核</span><b>hls.js（离线内置）</b></div>
       <div class="kv"><span>开机自启</span><b>已开启</b></div>
     </div>
@@ -1712,6 +1734,13 @@
       LOCAL = d.local || '';
       $('sVer').textContent = d.version || '—';
       $('sLocal').textContent = LOCAL || (location.protocol + '//' + (location.host || ''));
+      if (d.port) $('sAddr').textContent = 'NanoHTTPD · 0.0.0.0:' + d.port;
+      if (d.device) $('sDev').textContent = String(d.device).split(' | ')[0];
+      // 上次崩溃（有才显示）：机型 + 堆栈都在 crash.log，反馈闪退时直接截这一行
+      if (d.lastCrash) {
+        $('sCrashRow').style.display = 'flex';
+        $('sCrash').textContent = d.lastCrash;
+      }
       if (LAN) {
         $('sLan').textContent = LAN;
         $('sLan').style.color = LAN ? '#3ddc84' : '#fff';

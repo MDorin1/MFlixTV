@@ -9,11 +9,16 @@ android {
 
     defaultConfig {
         applicationId = "com.mflixtv.app"
-        minSdk = 26
+        // 0.13：往下兼容到 Android 7.0（API 24）。之前是 26，Android 7.x 的老机型直接装不上。
+        minSdk = 24
         targetSdk = 34
-        versionCode = 12
-        versionName = "0.12"
-        ndk { abiFilters += listOf("arm64-v8a") }
+        versionCode = 13
+        versionName = "0.13"
+        // 这里原来写着 abiFilters += listOf("arm64-v8a")，再加一份用不到的 jniLibs/arm64-v8a/libnode.so
+        // （42 MB 的 nodejs-mobile 残留）。结果 API 里声明了 native-code: arm64-v8a，
+        // 32 位机型、部分平板/盒子和 x86 设备不是装不上就是起来就崩。
+        // 现在这条链路上没有任何 native 库，去掉限制 → 通用包，什么 ABI 都能装。
+        vectorDrawables.useSupportLibrary = true
     }
 
     // 正式签名：keystore 只在本地，不进仓库。没有 keystore 时退回 debug 签名，保证还能出包。

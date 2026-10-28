@@ -186,7 +186,9 @@ cd android
 ./gradlew assembleRelease    # 产物：app/build/outputs/apk/release/app-release.apk（正式签名）
 ```
 
-需要 JDK 17、Android SDK 34（`local.properties` 里写 `sdk.dir`）；最低 Android 8.0（API 26），仅 arm64。正式签名用仓库外的 `android/keystore/mflixtv.jks`（不进版本库），没有这个文件时自动退回 debug 签名仍能出包。装之前先在系统里允许「安装未知应用」；从旧 debug 包升级要先卸载（签名不同）。
+需要 JDK 17、Android SDK 34（`local.properties` 里写 `sdk.dir`）；**最低 Android 7.0（API 24），不限制 CPU 架构**（0.13 起是通用包，arm64 / 32 位 / x86 都能装，包体积 2.8 MB）。正式签名用仓库外的 `android/keystore/mflixtv.jks`（不进版本库），没有这个文件时自动退回 debug 签名仍能出包。装之前先在系统里允许「安装未知应用」；从旧 debug 包升级要先卸载（签名不同）。
+
+**装不上 / 一装就闪退**：0.13 已经处理掉两个最常见的原因——包里 42 MB 的 `libnode.so` 残留（会让 32 位和多架构机型被判不兼容）、WebView 渲染进程被杀。如果还有问题，设置页「关于」里现在能看到**机型 + Android 版本 + WebView 版本 + 上次异常**，崩溃堆栈在 `Android/data/com.mflixtv.app/files/crash.log`，把这两处发出来就能直接定位。
 
 ---
 

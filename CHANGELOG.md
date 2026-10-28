@@ -1,5 +1,39 @@
 # 更新日志
 
+## Android 0.13 — 兼容性专项：别的机型「装不上 / 一装就闪退」全部修掉
+
+### 1. 真正的元凶：一个 42 MB 的 `libnode.so` 残留
+
+- `app/src/main/jniLibs/arm64-v8a/libnode.so` 是早期「把 Next.js 塞进 APK」那条废弃路线的残留，**代码里根本没有任何地方加载它**，但它在 APK 里留下了两个致命后果：
+  - 清单里被声明成 `native-code: arm64-v8a` → **32 位机型、部分平板 / 电视盒子 / x86 设备直接判为不兼容**：要么「应用未安装 / 解析包出错」，要么装上了也起不来；
+  - 45 MB 的包里 42 MB 是它，低存储机型安装时解压失败，也报「安装失败」。
+- 删掉这个文件 + 去掉 `abiFilters` 之后：包 **45.0 MB → 2.76 MB**，`native-code` 声明消失，**通用包，任何 ABI 都能装**。
+
+### 2. 最低系统从 Android 8.0 降到 Android 7.0（API 26 → 24）
+
+- Android 7.x 的老机型以前根本装不上。这次把 26 才有的写法全部加了版本判断（`startForegroundService`、通知渠道、前台服务类型、`getCurrentWebViewPackage`…），7.0 起都能跑。
+- 老 WebView（Chrome 51–55，没有 CSS Grid）补了一套 flex 兜底：选集、搜索网格、抽屉、播放器按钮在旧内核上同样排成几列，不会挤成一列。
+
+### 3. 闪退本身的兜底：WebView 渲染进程被杀不再连带整 App
+
+- **低内存机型最典型的闪退**：WebView 渲染进程一被系统回收，默认行为是把整个 App 一起杀掉 → 用户看到「打开就闪退、反复闪退」。现在在 `onRenderProcessGone` 里接住，销毁旧 WebView 再建一个新的接着用。
+- WebView 造不出来（ROM 没带 WebView / 被禁用 / 版本异常）不再崩：给一屏原生兜底页，带「重试 / 用手机浏览器打开 / 复制地址」，并显示机型和 WebView 版本。
+- 启动重试改成退避（0.5s → 0.9s → 1.5s → 2.2s，最多 10 次），失败给失败页，不再卡白屏；子资源（海报、分片）报错不再触发整页重载。
+
+### 4. 端口被占不再白屏
+
+- 以前写死 `8080`，被别的 App 占了就整个打不开。现在服务端从 8080 起依次试到 8090，页面、通知栏地址、`/api/status` 全部跟着换成实际端口。
+
+### 5. 兼容性清单与可诊断性
+
+- 清单：`wifi` / `touchscreen` / `faketouch` 一律标「非必需」（没 WiFi 的平板、盒子、模拟器不再被判不兼容），`largeHeap`、`resizeableActivity`，各种屏幕/密度都放行。
+- WebView 关掉用不到的 WebSQL / 文件访问，省内存。
+- 崩溃日志升级：记录**厂商 型号 Android 版本 ABI WebView 版本 + 堆栈**，写到 `Android/data/com.mflixtv.app/files/crash.log`（超过 128 KB 自动截断）；设置页「关于」新增**这台设备 / 上次异常**两行，`/api/status` 也返回 `device` / `lastCrash` / `port`——下次谁再反馈闪退，截一张设置页就能定位。
+
+### 6. 版本
+
+- `WebServer.VERSION = android-0.13`，`versionCode = 13`，`versionName = 0.13`。
+
 ## Android 0.12 — 局域网访问的界面按电脑端对齐 + 播放器补齐右下角四个键 + 电脑端同步品牌开场
 
 ### 1. 搜索界面：一排十几张，卡片改成平铺样式（对齐电脑端）
