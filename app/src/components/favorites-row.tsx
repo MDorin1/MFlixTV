@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useFavorites } from '@/lib/favorites';
 import { cn } from '@/lib/utils';
+import { Rail } from './rail';
 
 /**
  * 首页「我的清单」：收藏过的资料页，横滑卡片。
@@ -15,7 +16,7 @@ export function FavoritesRow({ className }: { className?: string }) {
   return (
     <section className={cn('mb-8', className)} aria-label="我的清单">
       <h2 className="row-title mb-3.5 text-content">我的清单</h2>
-      <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <Rail className="-mx-4 px-4 sm:mx-0 sm:px-0" ariaLabel="我的清单">
         {favorites.map((f) => (
           <Link key={f.key} href={f.href} className="group/f w-[104px] shrink-0 sm:w-[120px]" title={f.title}>
             <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-chip ring-1 ring-line/60 transition-transform duration-300 group-hover/f:-translate-y-1">
@@ -41,7 +42,7 @@ export function FavoritesRow({ className }: { className?: string }) {
             </div>
           </Link>
         ))}
-      </div>
+      </Rail>
     </section>
   );
 }

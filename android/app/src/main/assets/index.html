@@ -383,6 +383,72 @@
     border:1px solid rgba(255,255,255,.1);box-shadow:0 10px 30px rgba(0,0,0,.6);
     transition:opacity .2s;pointer-events:none;max-width:82%}
   #toast.on{opacity:1}
+  /* ---------- 追剧日历（首页日期条 + 整周页） ---------- */
+  #calMod{display:none;margin:0 0 22px}
+  #calMod .row-h{align-items:center;padding-bottom:9px}
+  #calMod .row-h .more{margin-left:auto;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
+    color:#dcdcdc;border-radius:999px;padding:6px 12px;font-size:11.5px;font-weight:700;
+    transition:background .18s,transform .13s}
+  #calMod .row-h .more:active{background:rgba(255,255,255,.2);transform:scale(.95)}
+  .wstrip{display:flex;padding:0 14px 4px}
+  .wcell{flex:1;min-width:0;margin-right:6px;background:#101010;border:1px solid #1e1e1e;border-radius:12px;
+    padding:8px 1px 6px;text-align:center;color:#cfcfcf;transition:background .16s,border-color .16s,transform .12s}
+  .wcell:last-child{margin-right:0}
+  .wcell .wd{font-size:10px;color:#8a8a8a;line-height:1.2;letter-spacing:.2px}
+  .wcell .dd{font-size:16px;font-weight:800;color:#fff;line-height:1.3;margin-top:1px}
+  .wcell .dn{font-size:9px;line-height:1.2;margin-top:2px;height:11px;overflow:hidden;color:#6f6f6f}
+  .wcell.on{background:linear-gradient(160deg,#e50914,#a3060d);border-color:transparent;
+    box-shadow:0 6px 16px rgba(229,9,20,.3)}
+  .wcell.on .wd,.wcell.on .dn{color:rgba(255,255,255,.85)}
+  .wcell.today:not(.on){border-color:rgba(229,9,20,.6)}
+  .wcell:active{transform:scale(.95)}
+  .cal-note{padding:8px 14px 0;font-size:11px;color:#6e6e6e;line-height:1.6}
+  .cal-empty{padding:16px 14px;font-size:12.5px;color:#7b7b7b;text-align:center}
+  .cal-tabs{display:flex;overflow-x:auto;padding:8px 14px 10px;scrollbar-width:none}
+  .cal-tabs::-webkit-scrollbar{display:none}
+  .cal-tab{flex:0 0 auto;margin-right:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.11);
+    color:#c8c8c8;border-radius:999px;padding:6px 13px;font-size:12px;transition:background .16s,color .16s,transform .12s}
+  .cal-tab:active{transform:scale(.95)}
+  .cal-tab.on{background:#fff;border-color:transparent;color:#000;font-weight:800}
+  .cal-tab .n{margin-left:5px;font-size:10.5px;opacity:.62}
+  .cal-tab.on .n{opacity:.6}
+
+  /* 层级：日历层要压在详情页下面（48 < 50），这样从日历点进片子，详情才盖得住它 */
+  #calendar{position:fixed;top:0;right:0;bottom:0;left:0;z-index:48;background:#000;overflow-y:auto;display:none;
+    -webkit-overflow-scrolling:touch}
+  #calendar.on{display:block;animation:slideUp .24s ease}
+  #cHead{position:sticky;top:0;z-index:2;display:flex;align-items:center;background:#000;
+    padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;border-bottom:1px solid var(--line)}
+  #cHead .t{flex:1;font-size:16px;font-weight:800;padding-left:9px}
+  #cHead .sub{font-size:11px;color:#7d7d7d;padding-right:6px}
+  #cBody{padding:12px 0 calc(env(safe-area-inset-bottom) + 44px)}
+  .cbar{display:flex;align-items:center;padding:0 14px 10px}
+  .cbar .wk{flex:1;font-size:13px;font-weight:800;color:#fff}
+  .cbar button{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:#dcdcdc;
+    border-radius:999px;padding:7px 12px;font-size:12px;margin-left:8px;font-weight:700;
+    transition:background .18s,transform .13s}
+  .cbar button:active{background:rgba(255,255,255,.2);transform:scale(.96)}
+  .cbar button.off{opacity:.4}
+  .cbar button.on{background:linear-gradient(135deg,#e50914,#ff4d57);border-color:transparent;color:#fff}
+  .cgroup{margin:0 0 14px}
+  .cgroup .gh{display:flex;align-items:baseline;padding:0 14px 8px}
+  .cgroup .gh .t{font-size:14px;font-weight:800}
+  .cgroup .gh .n{font-size:11px;color:#8a8a8a;margin-left:8px}
+  .citem{display:flex;align-items:center;padding:9px 14px;border-bottom:1px solid #101010;width:100%;
+    background:none;border-left:0;border-right:0;border-top:0;color:inherit;text-align:left}
+  .citem:active{background:#0d0d0d}
+  .citem .pi{flex:0 0 auto;width:44px;height:66px;border-radius:7px;overflow:hidden;background:#161616;
+    margin-right:11px;position:relative}
+  .citem .pi img{width:100%;height:100%;object-fit:cover;display:block}
+  .citem .tx{flex:1;min-width:0}
+  .citem .nm{font-size:13.5px;font-weight:700;color:#fff;line-height:1.3;overflow:hidden;
+    white-space:nowrap;text-overflow:ellipsis}
+  .citem .mt{font-size:11px;color:#8a8a8a;margin-top:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .citem .at{flex:0 0 auto;margin-left:8px;text-align:right;font-size:10.5px;color:#8a8a8a}
+  .citem .at b{display:block;font-size:12px;font-weight:800;color:var(--accent)}
+  .citem .ep{display:inline-block;background:rgba(229,9,20,.16);color:#ff8c92;border-radius:999px;
+    padding:1px 7px;font-size:10px;font-weight:800;margin-left:6px}
+
   /* ---- 老 WebView 兼容（Android 8.x 上常见 Chrome 6x/7x 内核）----
      aspect-ratio 与 flex gap 都不支持：用 padding 撑海报比例、margin 撑间距。 */
   @supports not (aspect-ratio: 1 / 1) {
@@ -467,7 +533,10 @@
   <div class="hstrip" id="heroStrip"></div>
 </div>
 
-<div id="localRows"></div>
+<div id="contRow"></div>
+<!-- 追剧日历：首页这一条只放「选中的那一天更新了什么」，点「整周」进全屏周表 -->
+<div id="calMod"></div>
+<div id="listRow"></div>
 <div id="loading"><div class="spin"></div>正在载入片单…</div>
 <div id="err"></div>
 <div id="rows"></div>
@@ -552,6 +621,30 @@
   </div>
   <div id="centerPlay"><div><div class="cp-logo">MFlixTV</div><div class="cp-sub">TAP TO PLAY</div></div></div>
   <div id="pmsg"></div>
+</div>
+
+<div id="calendar">
+  <div id="cHead">
+    <button class="icon-btn" id="cClose">&#8592;</button>
+    <div class="t">追剧日历</div>
+    <div class="sub" id="cSub"></div>
+  </div>
+  <div id="cBody">
+    <div class="cbar">
+      <div class="wk" id="cWeekLabel">—</div>
+      <button id="cPrev">上一周</button>
+      <button id="cThis">本周</button>
+      <button id="cNext">下一周</button>
+    </div>
+    <div class="wstrip" id="cWeek"></div>
+    <div class="cal-tabs" id="cKinds"></div>
+    <div class="cbar" style="padding-top:2px">
+      <div class="wk" id="cDayLabel" style="font-size:12px;color:#9a9a9a;font-weight:600"></div>
+      <button id="cWatch">只看我追的</button>
+    </div>
+    <div id="cList"></div>
+    <div class="cal-note" id="cNote"></div>
+  </div>
 </div>
 
 <div id="settings">
@@ -658,9 +751,15 @@
     var p = function (n) { return (n < 10 ? '0' : '') + n; };
     return h > 0 ? (h + ':' + p(m) + ':' + p(x)) : (p(m) + ':' + p(x));
   }
+  /** 调原生能力（页面里 MFlixNative.xxx）。返回 true 表示这个能力这台设备上真的有。 */
   function native(fn, arg) {
-    try { if (window.MFlixNative && window.MFlixNative[fn]) window.MFlixNative[fn](arg); } catch (e) {}
+    try {
+      if (window.MFlixNative && window.MFlixNative[fn]) { window.MFlixNative[fn](arg); return true; }
+    } catch (e) {}
+    return false;
   }
+  /** 在 App 里跑（而不是手机浏览器 / 电脑上打开）——全屏、旋转都要走原生那条路。 */
+  function inApp() { return !!(window.MFlixNative && window.MFlixNative.fullscreen); }
   function lockScroll(on) { document.body.style.overflow = on ? 'hidden' : ''; }
   function ls(key, val) {
     try {
@@ -847,27 +946,25 @@
   }
 
   /** 本机记录行（继续观看 / 我的列表）：先出本地数据，不依赖网络。 */
-  function localRowsHTML() {
-    var h = '';
+  function contRowHTML() {
     var c = contAll();
-    if (c.length) {
-      h += '<div class="row"><div class="row-h"><div class="row-t">继续观看</div><div class="row-n">' +
-        c.length + ' 部</div></div><div class="strip">';
-      c.slice(0, 14).forEach(function (r) {
-        var pct = r.dur > 0 ? Math.round(r.pos / r.dur * 100) : 0;
-        if (pct > 96) pct = 0;
-        h += cardHTML(r, '', true, { auto: true, ep: r.ep || 0, epLabel: r.epLabel, pct: pct });
-      });
-      h += '</div></div>';
-    }
+    if (!c.length) return '';
+    var h = '<div class="row"><div class="row-h"><div class="row-t">继续观看</div><div class="row-n">' +
+      c.length + ' 部</div></div><div class="strip">';
+    c.slice(0, 14).forEach(function (r) {
+      var pct = r.dur > 0 ? Math.round(r.pos / r.dur * 100) : 0;
+      if (pct > 96) pct = 0;
+      h += cardHTML(r, '', true, { auto: true, ep: r.ep || 0, epLabel: r.epLabel, pct: pct });
+    });
+    return h + '</div></div>';
+  }
+  function listRowHTML() {
     var l = listAll();
-    if (l.length) {
-      h += '<div class="row"><div class="row-h"><div class="row-t">我的列表</div><div class="row-n">' +
-        l.length + ' 部</div></div><div class="strip">';
-      l.slice(0, 16).forEach(function (r) { h += cardHTML(r, '', true, {}); });
-      h += '</div></div>';
-    }
-    return h;
+    if (!l.length) return '';
+    var h = '<div class="row"><div class="row-h"><div class="row-t">我的列表</div><div class="row-n">' +
+      l.length + ' 部</div></div><div class="strip">';
+    l.slice(0, 16).forEach(function (r) { h += cardHTML(r, '', true, {}); });
+    return h + '</div></div>';
   }
 
   function render() {
@@ -1015,11 +1112,10 @@
 
   /** 本机记录行单独渲染：播放回来只刷新这两行，不动服务器片单（不闪图）。 */
   function paintLocal() {
-    var box = $('localRows');
-    if (!box) return;
-    var html = localRowsHTML();
-    box.innerHTML = html;
-    box.style.display = html ? 'block' : 'none';
+    var a = contRowHTML(), b = listRowHTML();
+    var c1 = $('contRow'), c2 = $('listRow');
+    if (c1) { c1.innerHTML = a; c1.style.display = a ? 'block' : 'none'; }
+    if (c2) { c2.innerHTML = b; c2.style.display = b ? 'block' : 'none'; }
   }
 
   home.addEventListener('click', function (e) {
@@ -1027,11 +1123,13 @@
     if (c) openDetail(c.dataset.src, c.dataset.id, c.dataset.name, c.dataset.auto === '1',
       parseInt(c.dataset.ep || '0', 10) || 0);
   });
-  $('localRows').addEventListener('click', function (e) {
+  function localTap(e) {
     var c = e.target.closest('.card');
     if (c) openDetail(c.dataset.src, c.dataset.id, c.dataset.name, c.dataset.auto === '1',
       parseInt(c.dataset.ep || '0', 10) || 0);
-  });
+  }
+  $('contRow').addEventListener('click', localTap);
+  $('listRow').addEventListener('click', localTap);
   // 顶部大图轮播：点没选中的卡片 = 切到那部；点已选中的卡片 = 进详情
   bindHeroStrip();
   $('heroStrip').addEventListener('click', function (e) {
@@ -1052,6 +1150,257 @@
     var it = (state.heroItems || [])[state.heroIdx] || (state.heroItems || [])[0];
     if (it) openDetail(it.src, it.vodId, it.name, false, 0);
   };
+
+  /* ---------------- 追剧日历（首页日期条 + 整周页） ----------------
+     数据只有一条：各采集源「最新更新」里的 vod_time，也就是源站已经发生的更新。
+     三条纪律（电脑端同款）：
+      1. 日期条上的数字与下面的列表出自同一份 payload，杜绝「日期条 6 部、点进去 4 部」；
+      2. 同一天同一部只算一条（片名去重）；
+      3. 先拿本地快照立刻画，再后台刷新覆盖——进页面不白屏。
+     换一天 / 换分类都要带 day、kind 参数重新问，服务端 10 分钟内同参数直接给快照。 */
+  var CAL = { week: 'current', day: '', kind: 'all', watch: false, data: null, loading: false };
+
+  /** 「只看我追的」＝ 本机继续观看 + 我的列表里的片名（这台设备自己的记录）。 */
+  function watchNames() {
+    var seen = {}, out = [];
+    contAll().forEach(function (r) {
+      if (r && r.name && !seen[r.name]) { seen[r.name] = 1; out.push(r.name); }
+    });
+    listAll().forEach(function (r) {
+      if (r && r.name && !seen[r.name]) { seen[r.name] = 1; out.push(r.name); }
+    });
+    return out;
+  }
+
+  function addDaysStr(d, n) {
+    var p = String(d || '').split('-');
+    if (p.length !== 3) return d;
+    var t = new Date(Date.UTC(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10)) + n * 86400000);
+    var mm = t.getUTCMonth() + 1, dd = t.getUTCDate();
+    return t.getUTCFullYear() + '-' + (mm < 10 ? '0' : '') + mm + '-' + (dd < 10 ? '0' : '') + dd;
+  }
+
+  function calKey(limit) {
+    return [CAL.week, CAL.day || '-', CAL.kind, CAL.watch ? 'w' : '-', limit].join('|');
+  }
+  function calUrl(limit) {
+    var q = 'week=' + encodeURIComponent(CAL.week);
+    if (CAL.day) q += '&day=' + encodeURIComponent(CAL.day);
+    if (CAL.kind && CAL.kind !== 'all') q += '&kind=' + encodeURIComponent(CAL.kind);
+    if (CAL.watch) {
+      var w = watchNames();
+      if (w.length) q += '&watch=' + encodeURIComponent(w.join(','));
+    }
+    return '/api/calendar?' + q + '&limit=' + (limit || 14);
+  }
+  function calCacheGet(k) {
+    try {
+      var raw = localStorage.getItem('mfl:calc:' + k);
+      if (!raw) return null;
+      var o = JSON.parse(raw);
+      if (!o || !o.d || !o.t) return null;
+      return (Date.now() - o.t < 30 * 60 * 1000) ? o : null;
+    } catch (e) { return null; }
+  }
+  function calCacheSet(k, d) {
+    try { localStorage.setItem('mfl:calc:' + k, JSON.stringify({ t: Date.now(), d: d })); } catch (e) {}
+  }
+
+  /**
+   * 取周表。paint(payload, ts, cached) 负责画，缓存命中先画一遍再刷新，
+   * 刷新失败就继续留着缓存（不清空、不闪白）。
+   */
+  function loadCal(paint, limit) {
+    limit = limit || 14;
+    var k = calKey(limit), hit = calCacheGet(k);
+    if (hit) paint(hit.d, hit.t, true);
+    // 同一个查询正在飞就别重复发；不同查询（换天/换周）要各自发，否则点了没反应
+    if (CAL.loading === k) return;
+    CAL.loading = k;
+    fetch(calUrl(limit))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (CAL.loading === k) CAL.loading = '';
+        if (!d || !d.days) { if (!hit) paint(null, 0, false); return; }
+        // 服务端没认这个 day（跨周了）就跟着它给的选中日走，别让日期条和列表对不上
+        if (d.selected && d.selected.date) CAL.day = d.selected.date;
+        CAL.data = d;
+        calCacheSet(k, d);
+        paint(d, Date.now(), false);
+      })
+      .catch(function () {
+        if (CAL.loading === k) CAL.loading = '';
+        if (!hit) paint(null, 0, false);
+      });
+  }
+
+  function weekStripHTML(days, sel) {
+    return (days || []).map(function (d) {
+      var n = d.totals ? (d.totals.all | 0) : 0;
+      var dom = String(d.date || '').slice(8);
+      if (dom.charAt(0) === '0') dom = dom.slice(1);
+      return '<button class="wcell' + (d.date === sel ? ' on' : '') + (d.today ? ' today' : '') +
+        '" data-d="' + esc(d.date) + '">' +
+        '<div class="wd">' + esc(d.weekdayLabel) + '</div>' +
+        '<div class="dd">' + esc(dom) + '</div>' +
+        '<div class="dn">' + (n ? (n + ' 部') : '—') + '</div>' +
+        '</button>';
+    }).join('');
+  }
+
+  /* ---- 首页那一条 ---- */
+  function paintCalModule(d, ts, cached) {
+    var box = $('calMod');
+    if (!box) return;
+    if (!d || !d.days) { box.style.display = 'none'; return; }
+    var sel = (d.selected && d.selected.date) || '';
+    var items = [];
+    (d.groups || []).forEach(function (g) {
+      (g.items || []).forEach(function (it) { items.push(it); });
+    });
+    items = items.slice(0, 14);
+    var total = (d.selected && d.selected.totals) ? (d.selected.totals.all | 0) : items.length;
+    var h = '<div class="row-h">' +
+      '<div class="row-t">' + esc(sel.slice(5).replace('-', '/')) + ' 更新' +
+      (d.selected && d.selected.today ? '（今天）' : '') + '</div>' +
+      '<div class="row-n">' + total + ' 部</div>' +
+      '<button class="more" id="calMore">整周 ›</button></div>' +
+      '<div class="wstrip">' + weekStripHTML(d.days, sel) + '</div>';
+    if (items.length) {
+      h += '<div class="strip">';
+      items.forEach(function (it) { h += cardHTML(it, '', false, {}); });
+      h += '</div>';
+    } else {
+      h += '<div class="cal-empty">这天还没有更新记录，点上面别的日子看看</div>';
+    }
+    h += '<div class="cal-note">按各采集源最近更新统计（同一天同一部只算一条），源站排播会变，实际可能延迟。' +
+      (cached ? ' 当前是缓存，正在刷新…' : '') + '</div>';
+    box.innerHTML = h;
+    box.style.display = 'block';
+    var m = $('calMore');
+    if (m) m.onclick = openCalendar;
+  }
+
+  /* ---- 整周页 ---- */
+  function calItemHTML(it) {
+    var pic = it.pic && it.pic.indexOf('http') === 0 ? it.pic : '';
+    var mt = [it.typeName, it.area, it.year].filter(Boolean).join(' · ');
+    var ep = it.episode ? '<span class="ep">第' + it.episode + '集</span>' : '';
+    var src = it.srcName || it.src || '';
+    return '<button class="citem" data-src="' + esc(it.src) + '" data-id="' + esc(it.vodId) +
+      '" data-name="' + esc(it.name) + '">' +
+      '<div class="pi">' + (pic ? '<img loading="lazy" src="' + esc(pic) + '" alt="" onerror="this.onerror=null;this.src=\'' +
+        proxy(pic).replace(/'/g, "\\'") + '\'">' : '') + '</div>' +
+      '<div class="tx"><div class="nm">' + esc(it.name) + ep + '</div>' +
+      '<div class="mt">' + esc((mt || it.remarks || '') + (src ? (' · ' + src) : '')) + '</div></div>' +
+      '<div class="at">' + (it.at ? '<b>' + esc(it.at) + '</b>' : '') + esc(String(it.date || '').slice(5)) + '</div>' +
+      '</button>';
+  }
+
+  function paintCalPage(d, ts, cached) {
+    if (!d || !d.days) {
+      $('cList').innerHTML = '<div class="cal-empty">没取到数据，点「上一周 / 下一周」再试一次</div>';
+      return;
+    }
+    var sel = (d.selected && d.selected.date) || '';
+    $('cWeekLabel').textContent = d.weekLabel || '';
+    $('cSub').textContent = (d.weekTotal | 0) + ' 部';
+    $('cWeek').innerHTML = weekStripHTML(d.days, sel);
+    $('cKinds').innerHTML = (d.categories || []).map(function (c) {
+      return '<button class="cal-tab' + (c.key === CAL.kind ? ' on' : '') + '" data-k="' + esc(c.key) + '">' +
+        esc(c.label) + '<span class="n">' + (c.total | 0) + '</span></button>';
+    }).join('');
+    var sd = d.selected || {};
+    $('cDayLabel').textContent = (sd.date ? (sd.date + ' ' + (sd.weekdayLabel || '')) : '') +
+      (sd.today ? ' · 今天' : '') + (sd.totals ? (' · ' + (sd.totals.all | 0) + ' 部更新') : '');
+    var wl = watchNames().length;
+    var wb = $('cWatch');
+    if (wb) {
+      wb.textContent = CAL.watch ? ('只看我追的 · ' + wl) : '只看我追的';
+      wb.className = CAL.watch ? 'on' : (wl ? '' : 'off');
+    }
+    var h = '';
+    (d.groups || []).forEach(function (g) {
+      if (!g.items || !g.items.length) return;
+      h += '<div class="cgroup"><div class="gh"><div class="t">' + esc(g.label) + '</div>' +
+        '<div class="n">' + (g.total | 0) + ' 部' + (g.hasMore ? ('（这里列 ' + g.items.length + ' 部）') : '') +
+        '</div></div>';
+      g.items.forEach(function (it) { h += calItemHTML(it); });
+      h += '</div>';
+    });
+    $('cList').innerHTML = h || '<div class="cal-empty">这天没有更新记录</div>';
+    $('cNote').textContent = (d.notice || '') + (cached ? ' 当前显示缓存，正在刷新…' : '');
+  }
+
+  function openCalendar() {
+    $('calendar').classList.add('on');
+    CAL.open = true;
+    lockScroll(true);
+    refreshCalPage(true);
+  }
+  function closeCalendar() {
+    $('calendar').classList.remove('on');
+    CAL.open = false;
+    if (!$('detail').classList.contains('on') && !$('player').classList.contains('on') &&
+      !$('settings').classList.contains('on') && !$('searchView').classList.contains('on')) lockScroll(false);
+  }
+  /** 换周、换日、换分类都走这里：先按缓存画，再让 loadCal 去刷新。 */
+  function refreshCalPage(restart) {
+    if (restart && CAL.day) CAL.day = '';
+    loadCal(paintCalPage, 40);
+  }
+
+  $('cClose').onclick = closeCalendar;
+  $('cPrev').onclick = function () {
+    var base = (CAL.data && CAL.data.weekStart) || '';
+    CAL.week = base ? addDaysStr(base, -7) : 'prev';
+    CAL.day = '';
+    refreshCalPage(false);
+  };
+  $('cNext').onclick = function () {
+    var base = (CAL.data && CAL.data.weekStart) || '';
+    CAL.week = base ? addDaysStr(base, 7) : 'next';
+    CAL.day = '';
+    refreshCalPage(false);
+  };
+  $('cThis').onclick = function () {
+    CAL.week = 'current'; CAL.day = ''; refreshCalPage(false);
+  };
+  $('cWeek').addEventListener('click', function (e) {
+    var c = e.target.closest('.wcell');
+    if (!c || !c.dataset.d) return;
+    CAL.day = c.dataset.d;
+    refreshCalPage(false);
+  });
+  $('cKinds').addEventListener('click', function (e) {
+    var c = e.target.closest('.cal-tab');
+    if (!c) return;
+    var k = c.dataset.k || 'all';
+    if (k === CAL.kind) return;
+    CAL.kind = k;
+    refreshCalPage(false);
+  });
+  $('cWatch').onclick = function () {
+    if (!watchNames().length) { toast('本机还没有观看记录，先去追几部片'); return; }
+    CAL.watch = !CAL.watch;
+    refreshCalPage(false);
+  };
+  $('cList').addEventListener('click', function (e) {
+    var c = e.target.closest('.citem');
+    if (c) openDetail(c.dataset.src, c.dataset.id, c.dataset.name, false, 0);
+  });
+  // 首页那条：点日期换天、点海报进详情、点「整周」开全屏页
+  $('calMod').addEventListener('click', function (e) {
+    var w = e.target.closest('.wcell');
+    if (w && w.dataset.d) {
+      CAL.week = 'current';
+      CAL.day = w.dataset.d;
+      loadCal(paintCalModule, 14);
+      return;
+    }
+    var c = e.target.closest('.card');
+    if (c) openDetail(c.dataset.src, c.dataset.id, c.dataset.name, false, 0);
+  });
 
   /* ---------------- 搜索 ---------------- */
   var searchOpen = false;
@@ -1383,6 +1732,8 @@
     $('player').classList.add('on');
     lockScroll(true);
     native('landscape', true);
+    natWide = true;
+    paintFullBtns();
     if (!wasOpen) showBrand();   // 只有刚进播放器才亮品牌，连播下一集不重复闪
     attach(e.url, 'mfl:t:' + state.title + '|' + (e.label || i));
     showCtl();
@@ -1468,10 +1819,29 @@
     v.pause();
     v.removeAttribute('src');
     try { v.load(); } catch (e) {}
+    // 全屏 / 横屏状态一并还原：退出播放器就回到竖屏 + 系统栏
+    natFull = false;
+    natWide = false;
+    if (inApp()) native('fullscreen', false);
     native('landscape', false);
+    paintFullBtns();
   }
   $('pClose').onclick = closePlayer;
-  $('pRotate').onclick = function () { native('landscape', true); };
+  // 旋转键：一下横屏、再一下回竖屏（顺手把全屏状态一起收掉）
+  $('pRotate').onclick = function () {
+    natWide = !natWide;
+    if (natWide) {
+      native('landscape', true);
+      toast('已转横屏');
+    } else {
+      natFull = false;
+      native('fullscreen', false);
+      paintFullBtns();
+      toast('已转回竖屏');
+    }
+    paintFullBtns();
+    showCtl();
+  };
 
   var hideTimer = null;
   function showCtl() {
@@ -1581,7 +1951,37 @@
     toast(on ? '网页全屏：画面铺满窗口' : '已退出网页全屏');
     showCtl();
   };
+  /**
+   * 全屏：App 里走原生（转横屏 + 收掉系统栏），浏览器里走 HTML5 全屏。
+   * 以前 App 里也硬调 requestFullscreen()，WebView 不理就只剩一句
+   * 「这台设备的 WebView 不支持系统全屏」——按钮等于没用，也不会转横屏。
+   */
+  var natFull = false, natWide = false;
+  function paintFullBtns() {
+    $('pRotate').classList.toggle('on', natWide);
+    $('pmFull').classList.toggle('on', natFull);
+  }
+  /** App 里退出全屏：横屏也一起收回去，否则退到「竖屏播放」这个中间态很奇怪 */
+  function exitNativeFull(silent) {
+    natFull = false;
+    natWide = false;
+    native('fullscreen', false);
+    paintFullBtns();
+    if (!silent) showCtl();
+  }
   $('pmFull').onclick = function () {
+    if (inApp()) {
+      if (natFull) { exitNativeFull(); toast('已退出全屏'); }
+      else {
+        natFull = true;
+        natWide = true;
+        native('fullscreen', true);
+        paintFullBtns();
+        toast('全屏 · 已转横屏');
+      }
+      showCtl();
+      return;
+    }
     var on = false;
     try {
       if (document.fullscreenElement) { document.exitFullscreen(); on = false; }
@@ -1591,17 +1991,19 @@
         if (fn) { fn.call(el); on = true; }
       }
     } catch (e) {}
-    // App 里本来就已经铺满屏幕：顺带把横屏锁一次，桌面上没这个桥也不会报错
-    try { native('landscape', true); } catch (e) {}
     this.classList.toggle('on', on);
     if (!on && !document.fullscreenElement) {
-      toast('这台设备的 WebView 不支持系统全屏，播放器已经铺满屏幕');
+      // 桌面浏览器 / 老内核都不给全屏，但播放器本来就是铺满的，不算失败
+      toast('这个浏览器不给系统全屏，播放器已经铺满屏幕');
     }
     showCtl();
   };
   // 用户按 ESC / 系统手势退出全屏时，按钮高亮也要跟着回位
   document.addEventListener('fullscreenchange', function () {
     $('pmFull').classList.toggle('on', !!document.fullscreenElement);
+  });
+  document.addEventListener('webkitfullscreenchange', function () {
+    $('pmFull').classList.toggle('on', !!document.webkitFullscreenElement);
   });
 
   /* ---- 播放器里的选集 / 换线路 / 播放设置（对齐电脑端，不只靠右下角「下一集」） ---- */
@@ -1949,9 +2351,12 @@
   window.mflBack = function () {
     if ($('player').classList.contains('on')) {
       if ($('psheet').classList.contains('on')) { $('psheet').classList.remove('on'); return true; }
+      // 全屏中按返回 = 先退全屏（留在播放器），再按一次才关播放器
+      if (natFull) { exitNativeFull(); toast('已退出全屏'); return true; }
       closePlayer(); return true;
     }
     if ($('settings').classList.contains('on')) { closeSettings(); return true; }
+    if ($('calendar').classList.contains('on')) { closeCalendar(); return true; }
     if ($('detail').classList.contains('on')) { $('dBack').onclick(); return true; }
     if ($('searchView').classList.contains('on') || searchOpen) { closeSearch(); return true; }
     return false;
@@ -1966,6 +2371,8 @@
   }, { passive: true });
 
   loadHome(false);
+  // 追剧日历跟片单并行取：片单慢的时候首页照样先有「今天更新了什么」
+  loadCal(paintCalModule, 14);
   // 不在进页面时强行重建片单：服务端自己按 10 分钟 TTL 处理，
   // 过期了先给旧数据、后台静默重建，省流量也不让首屏等。
 })();

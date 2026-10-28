@@ -23,6 +23,7 @@ import kotlin.concurrent.thread
  *  - GET  /api/series?name=     同名的其它季/部（资料页「同系列」）
  *  - GET  /api/lines?name=&src=&id=  跨源线路汇总（详情页线路、播放器切源）
  *  - GET  /api/hero?name=&type=      首页大图轮播的 5–8 部（有观看记录就推同类，否则最近更新）
+ *  - GET  /api/calendar?week=&day=&kind=&watch=&limit=  追剧日历周表（10 分钟快照）
  *  - GET  /api/proxy?url=       转发（图片 / m3u8 / 分片，Range 透传、m3u8 重写）
  *  - GET  /api/sources          当前源列表
  *  - POST /api/sources/save     保存源列表（body: JSON 数组）
@@ -34,7 +35,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val portNum = port
 
     companion object {
-        const val VERSION = "android-0.14"
+        const val VERSION = "android-0.15"
     }
 
     /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
@@ -61,6 +62,17 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                     )
                 }
                 uri == "/api/home" -> home(session, p["force"]?.firstOrNull() == "1")
+                // 追剧日历（周表）：week=current|prev|next|YYYY-MM-DD，day=YYYY-MM-DD 定选哪天，
+                // kind=all|series|...，watch=片名清单（只看我追的）
+                uri == "/api/calendar" -> json(
+                    CalendarWeek.json(
+                        p["week"]?.firstOrNull(),
+                        p["kind"]?.firstOrNull(),
+                        p["watch"]?.firstOrNull(),
+                        (p["limit"]?.firstOrNull() ?: "6").toIntOrNull() ?: 6,
+                        p["day"]?.firstOrNull()
+                    )
+                )
                 uri == "/api/search" -> json(Sources.search(p["wd"]?.firstOrNull() ?: ""))
                 uri == "/api/series" -> json(series(p["name"]?.firstOrNull() ?: ""))
                 uri == "/api/lines" -> json(

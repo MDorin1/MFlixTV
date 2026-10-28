@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Rail } from './rail';
 
 interface Item {
   id: string;
@@ -46,7 +47,7 @@ export function RankRow({ id = 'douban_movie_weekly', title = '本周 TOP 10' }:
         <span className="text-[13px] text-faint">按豆瓣周榜</span>
       </div>
 
-      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:gap-4 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <Rail className="-mx-4 px-4 sm:mx-0 sm:px-0" ariaLabel={title}>
         {items.map((it, i) => (
           <Link
             key={it.id}
@@ -84,7 +85,7 @@ export function RankRow({ id = 'douban_movie_weekly', title = '本周 TOP 10' }:
             </div>
           </Link>
         ))}
-      </div>
+      </Rail>
     </section>
   );
 }

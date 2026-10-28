@@ -1,6 +1,22 @@
 'use client';
 
 import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload, QualityProbeItem, QualityProbeResult, PersonSearchHit, TitleSearchHit } from './types';
+import type { CalendarPayload } from './calendar';
+
+/** /api/calendar 请求体：与 /api/search 同一套「客户端提交源列表」约定 */
+export interface CalendarQuery {
+  sources: SourceConfig[];
+  filterAdult?: boolean;
+  /** current | prev | next | YYYY-MM-DD */
+  week?: string;
+  /** 1=周一 … 7=周日 */
+  weekday?: number;
+  /** all | series | movie | anime | variety | short | other */
+  kind?: string;
+  limit?: number;
+  watchOnly?: boolean;
+  watchlist?: string[];
+}
 
 /**
  * 客户端 API 封装。401 时触发全局事件打开登录框，
@@ -203,6 +219,18 @@ export const api = {
 
   /** Bangumi 每日放送（免 key），首页推荐的另一数据源 */
   bangumiCalendar: (signal?: AbortSignal) => request<BangumiCalendarResponse>('/api/bangumi/calendar', { signal }),
+
+  /**
+   * 追剧日历（周表）：按各源「最新更新」的 vod_time 汇总成一周七天。
+   * 服务端有 10 分钟快照，反复切日期/分类/翻页都不会再打源站。
+   */
+  calendar: (query: CalendarQuery, signal?: AbortSignal) =>
+    request<CalendarPayload>('/api/calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(query),
+      signal,
+    }),
 
   /**
    * 演员模糊检索：首页搜索时与影片结果并排展示。

@@ -49,6 +49,11 @@ class MainActivity : AppCompatActivity() {
     private var retries = 0
     private var loadingUrl: String = ""
 
+    /** HTML5 全屏（WebView 交过来的自定义视图）——页面里 <video> 自带的全屏按钮也走这条路 */
+    private var fullView: View? = null
+    private var fullCb: WebChromeClient.CustomViewCallback? = null
+    private var chrome: WebChromeClient? = null
+
     /** 暴露给页面的原生能力（页面里用 MFlixNative.xxx 调）。 */
     inner class Bridge {
         @JavascriptInterface
@@ -61,6 +66,42 @@ class MainActivity : AppCompatActivity() {
                     else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 } catch (_: Throwable) {
                 }
+            }
+        }
+
+        /**
+         * 原生全屏（0.16）：页面右下角那个「全屏」键走这里。
+         *
+         * 以前页面调的是 HTML5 的 `requestFullscreen()`，而 WebView 只有在
+         * WebChromeClient 实现了 onShowCustomView 时才会真的进全屏 —— 没实现就什么都不发生，
+         * 用户只看到一句「这台设备的 WebView 不支持系统全屏」，也没转横屏，等于按钮是废的。
+         * 现在真效果 = 转横屏 + 隐藏状态栏 / 导航栏 + 屏幕常亮，退出再还原。
+         */
+        @JavascriptInterface
+        fun fullscreen(on: Boolean) {
+            runOnUiThread {
+                try {
+                    requestedOrientation = if (on) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    if (on) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        immersive()
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        immersive()
+                    }
+                } catch (_: Throwable) {
+                }
+            }
+        }
+
+        /** 现在是不是横着的（页面据此给「全屏 / 旋转」键打高亮，不用自己猜）。 */
+        @JavascriptInterface
+        fun wide(): Boolean {
+            return try {
+                resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            } catch (_: Throwable) {
+                false
             }
         }
 
@@ -234,8 +275,54 @@ class MainActivity : AppCompatActivity() {
                     } catch (_: Throwable) {
                     }
                 }
+
+                /**
+                 * 页面里真的调 requestFullscreen() 时（比如 <video> 自带的那个全屏键），
+                 * WebView 把渲染好的视图交过来——以前这里没实现，所以请求被静静吞掉。
+                 * 现在接住：铺满整屏 + 转横屏，退出时还原。
+                 */
+                override fun onShowCustomView(view: View, callback: WebChromeClient.CustomViewCallback) {
+                    if (fullView != null) {
+                        try { callback.onCustomViewHidden() } catch (_: Throwable) {}
+                        return
+                    }
+                    fullView = view
+                    fullCb = callback
+                    try {
+                        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        immersive()
+                        web?.visibility = View.GONE
+                        root.addView(
+                            view,
+                            LinearLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                        )
+                    } catch (_: Throwable) {
+                    }
+                }
+
+                override fun onHideCustomView() {
+                    val v = fullView
+                    fullView = null
+                    try { if (v != null) (v.parent as? ViewGroup)?.removeView(v) } catch (_: Throwable) {}
+                    try { fullCb?.onCustomViewHidden() } catch (_: Throwable) {}
+                    fullCb = null
+                    runOnUiThread {
+                        try {
+                            web?.visibility = View.VISIBLE
+                            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            immersive()
+                        } catch (_: Throwable) {
+                        }
+                    }
+                }
             }
 
+            chrome = w.webChromeClient
             web = w
             root.removeAllViews()
             fallback = null
@@ -438,6 +525,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun closeWeb() {
+        try { if (fullView != null) chrome?.onHideCustomView() } catch (_: Throwable) {}
+        fullView = null
+        fullCb = null
+        chrome = null
         val w = web ?: return
         try {
             (w.parent as? ViewGroup)?.removeView(w)
@@ -478,8 +569,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 横竖屏切换后系统栏会自己回来，这里重新收一次
+        try {
+            immersive()
+        } catch (_: Throwable) {
+        }
+    }
+
     @Deprecated("Android 13 起由系统手势处理，这里保留以兼容旧机型")
     override fun onBackPressed() {
+        // 正在 HTML5 全屏：返回键先退全屏，不要直接退到桌面
+        if (fullView != null) {
+            try {
+                chrome?.onHideCustomView()
+            } catch (_: Throwable) {
+            }
+            return
+        }
         val w = web
         if (w == null) {
             super.onBackPressed()

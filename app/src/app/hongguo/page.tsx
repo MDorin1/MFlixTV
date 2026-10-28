@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from '@/components/header';
 import { cn } from '@/lib/utils';
+import { ShortFeed } from './short-feed';
 
 /**
  * MFlixTV短剧
@@ -276,6 +277,10 @@ export default function HongguoPage() {
   const [resumeHint, setResumeHint] = useState('');
   /** 流地址附加的 nonce：出错重试时 +1，强制视频重新拉流 */
   const [streamNonce, setStreamNonce] = useState(0);
+  /** 刷剧流（竖向整屏翻页）是否打开 */
+  const [feedOpen, setFeedOpen] = useState(false);
+  /** 从刷剧流点了播放：等这部剧的集数拉回来就自动起播 */
+  const autoPlayRef = useRef<string | null>(null);
   /** 清晰度：1080p 兼容性最好（服务端会转 H.264），失败时可降档重试 */
   const [quality, setQuality] = useState<'1080p' | '720p' | '540p'>('1080p');
   const retriedRef = useRef(false);
@@ -489,7 +494,10 @@ export default function HongguoPage() {
   };
 
   /* ------------------------------- 详情 -------------------------------- */
-  const openDetail = async (item: Item) => {
+  const openDetail = async (item: Item, autoPlay = false) => {
+    // 从刷剧流点「看第 1 集 / 继续第 N 集」时，集数还没拉回来，
+    // 先把意图记下来，等 detail 到位后的 effect 里起播。
+    autoPlayRef.current = autoPlay ? item.series_id : null;
     setDetail({
       meta: {
         series_id: item.series_id,
@@ -658,6 +666,21 @@ export default function HongguoPage() {
     }
     play(ep, detail.meta.title, start);
   };
+
+  /**
+   * 刷剧流里点了「看第 1 集 / 继续第 N 集」：
+   * 集数拉回来之后自动起播（有进度就接着上次那集）。
+   */
+  useEffect(() => {
+    const want = autoPlayRef.current;
+    if (!want || !detail || detail.episodes.length === 0) return;
+    if (String(detail.meta.series_id) !== String(want)) return;
+    autoPlayRef.current = null;
+    const prev = loadProgress().find((x) => x.seriesId === detail.meta.series_id);
+    if (prev && prev.lastEp > 0) playEpisode(prev.lastEp, Math.max(0, prev.lastPos - 5));
+    else playEpisode(detail.episodes[0].index);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail]);
 
   /** 播完：默认 5 秒倒计时自动下一集，可取消 */
   const clearCountdown = () => {
@@ -1146,6 +1169,20 @@ export default function HongguoPage() {
                 {b.label}
               </button>
             ))}
+            {/* 刷剧：一整屏一部，上下翻（kanju 短剧流那一套手感） */}
+            {items.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setFeedOpen(true)}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-line bg-chip/60 px-3 py-1 text-xs text-muted transition-colors hover:border-accent/50 hover:text-content"
+                title="一屏一部，上下滑动换剧"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M7 4v16M12 4v16M17 4v16" strokeLinecap="round" />
+                </svg>
+                刷剧
+              </button>
+            )}
           </div>
         )}
 
@@ -1376,6 +1413,17 @@ export default function HongguoPage() {
                 >
                   {isFav ? '★ 已收藏' : '☆ 收藏'}
                 </button>
+                {/* 「最近更新」快捷入口：追更的人 90% 只想直接看最新一集，
+                    不该让他去 80 集的网格里找最后一个 */}
+                {episodes.length > 0 && episodes[episodes.length - 1].index !== playing.index && (
+                  <button
+                    className="rounded-lg whitespace-nowrap bg-accent/15 px-2 py-1 text-xs text-accent transition-colors hover:bg-accent/25 sm:px-2.5"
+                    onClick={() => playEpisode(episodes[episodes.length - 1].index)}
+                    title={`跳到最新一集：第 ${episodes[episodes.length - 1].index} 集`}
+                  >
+                    最新 {episodes[episodes.length - 1].index}
+                  </button>
+                )}
                 <button
                   className="rounded-lg whitespace-nowrap bg-white/10 px-2 py-1 text-xs text-white/80 transition-colors hover:bg-white/20 disabled:opacity-30 sm:px-3"
                   disabled={playing.index <= 1}
@@ -1726,6 +1774,27 @@ export default function HongguoPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* 刷剧流：一屏一部，滚轮/↑↓ 翻，右侧 1/N 计数 */}
+      {feedOpen && items.length > 0 && (
+        <ShortFeed
+          items={items}
+          imgBase={API}
+          onClose={() => setFeedOpen(false)}
+          onPlay={(it) => {
+            setFeedOpen(false);
+            void openDetail(it as Item, true);
+          }}
+          onDetail={(it) => {
+            setFeedOpen(false);
+            void openDetail(it as Item);
+          }}
+          progressOf={(id) => {
+            const p = history.find((h) => h.seriesId === id);
+            return p ? { lastEp: p.lastEp, lastPos: p.lastPos } : undefined;
+          }}
+        />
       )}
     </div>
   );

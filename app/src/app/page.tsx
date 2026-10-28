@@ -10,6 +10,8 @@ import { RankRow } from '@/components/rank-row';
 import { ContinueWatchingRow } from '@/components/continue-watching';
 import { HeroBillboard } from '@/components/hero-billboard';
 import { FavoritesRow } from '@/components/favorites-row';
+import { WatchCalendarModule } from '@/components/watch-calendar';
+import { HotSearchChips } from '@/components/hot-chips';
 import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { useAppStore, resolveSource, isInDisabledSubscription, isSourceDisabled } from '@/lib/store';
 import { api } from '@/lib/client-api';
@@ -322,6 +324,16 @@ function HomeContent() {
               />
             )}
           </div>
+
+          {/* 热词胶囊：kanju.ai 的取向是「胶囊=搜索建议」，点一下直接开搜，不是分类入口 */}
+          {!urlQuery && (
+            <HotSearchChips
+              onPick={(word) => {
+                setInput(word);
+                runSearch(word);
+              }}
+            />
+          )}
         </section>
 
 
@@ -486,6 +498,13 @@ function HomeContent() {
 
         {/* 继续观看：有观看记录才出现，点一下接着上次的进度播 */}
         {!urlQuery && <ContinueWatchingRow />}
+
+        {/*
+          本周追剧（日期条 + 四分类更新预览）
+          顺序学 kanju.ai：前两段全是「与你有关」——上次看到哪 → 今天更新了什么，
+          第三段起才是推荐。首屏的注意力预算就这么多，先解决「今晚看什么」。
+        */}
+        {!urlQuery && <WatchCalendarModule sources={selectedSources} />}
 
         {/* 我的清单：收藏过的资料页，空清单时不显示 */}
         {!urlQuery && <FavoritesRow />}

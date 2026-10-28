@@ -129,6 +129,12 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
             <HeaderLink href="/live" active={pathname === '/live'}>
               直播
             </HeaderLink>
+            {/* 追剧日历：手机宽度放不下，首页「本周追剧」模块里有同一个入口 */}
+            <span className="hidden sm:block">
+              <HeaderLink href="/calendar" active={pathname === '/calendar'}>
+                追剧日历
+              </HeaderLink>
+            </span>
             {/* 手机宽度下这一行放不下「关于」，先收起来：关于页仍可从页脚进入 */}
             <span className="hidden sm:block">
               <HeaderLink href="/about" active={pathname === '/about'}>

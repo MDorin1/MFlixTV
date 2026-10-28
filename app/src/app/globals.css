@@ -338,3 +338,40 @@ html { scroll-behavior: smooth; }
   color: rgba(255, 255, 255, 0.86);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 2px 8px rgba(0, 0, 0, 0.85);
 }
+
+/*
+ * 横向 rail（首页每一行 / 追剧日历的分组）
+ * 与 kanju.ai 的 `.home-feed-rail-track` 同一套手感：
+ *  - 滚动条彻底隐藏：视觉上是一排卡片，不是一个带滚动条的盒子；
+ *  - `scroll-snap-type: x proximity`（不是 mandatory）：能停在任意位置，不强迫对齐；
+ *  - `overscroll-behavior-inline: contain`：滑到头不带动整页左右晃；
+ *  - `-webkit-overflow-scrolling: touch`：老 iOS WebView 也有惯性。
+ * 箭头由 <Rail> 组件画在两侧，到头自动置灰。
+ */
+.rail-track {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 0.25rem;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.5rem;
+  /* 卡片 hover 抬升时不会被 overflow 裁掉阴影 */
+  padding-top: 0.125rem;
+}
+.rail-track::-webkit-scrollbar {
+  display: none;
+}
+.rail-track > * {
+  scroll-snap-align: start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-track {
+    scroll-behavior: auto;
+  }
+}
