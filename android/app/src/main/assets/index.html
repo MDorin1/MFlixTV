@@ -665,6 +665,8 @@
     paintHero();
     var out = '';
     state.rows.forEach(function (row, ri) {
+      // 顶部大卡已经把那行完整展示了（≤6 部），下面就不再重复一遍
+      if (ri === state.heroRow && (row.items || []).length <= 6) return;
       out += '<div class="row"><div class="row-h"><div class="row-t">' + esc(row.title) +
         '</div><div class="row-n">' + row.items.length + ' 部</div></div><div class="strip">';
       var eager = ri < 2;
@@ -686,6 +688,10 @@
       var B = (b.title || '').indexOf('更新') >= 0 ? 1 : 0;
       return B - A;
     });
+    state.heroRow = -1;
+    for (var r = 0; r < state.rows.length; r++) {
+      if ((state.rows[r].title || '').indexOf('更新') >= 0) { state.heroRow = r; break; }
+    }
     var items = [], seen = {};
     rows.forEach(function (row) {
       (row.items || []).forEach(function (it) {
