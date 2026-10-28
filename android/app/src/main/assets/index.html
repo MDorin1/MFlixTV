@@ -36,23 +36,21 @@
   .txt-btn{background:none;border:0;color:#fff;font-size:15px;padding:8px 4px}
   .txt-btn.accent{color:var(--accent);font-weight:700}
 
-  /* ---------- Hero ---------- */
-  #hero{position:relative;padding:calc(env(safe-area-inset-top) + 58px) 0 4px;overflow:hidden;display:none}
+  /* ---------- Hero（对齐桌面版：整屏横图 + 底部叠字，不再用小海报） ---------- */
+  #hero{position:relative;height:54vh;min-height:340px;max-height:480px;overflow:hidden;display:none}
   #hero.on{display:block}
-  #heroBg{position:absolute;top:-14%;right:-14%;bottom:-14%;left:-14%;background-size:cover;background-position:50% 30%;
-    filter:blur(22px) brightness(.42) saturate(1.05);transform:scale(1.06)}
+  #heroBg{position:absolute;top:0;right:0;bottom:0;left:0;background-size:cover;background-position:50% 16%;
+    background-color:#101010}
   #heroFade{position:absolute;top:0;right:0;bottom:0;left:0;background:
-    linear-gradient(180deg,rgba(0,0,0,.62) 0%,rgba(0,0,0,.25) 42%,rgba(0,0,0,.72) 82%,#000 100%)}
-  #heroBody{position:relative;z-index:2;padding:0 16px}
-  #heroRow{display:flex;gap:13px;align-items:flex-end;margin-bottom:14px}
-  #heroPic{flex:0 0 auto;width:104px;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:#1a1a1a;
-    box-shadow:0 8px 26px rgba(0,0,0,.75)}
-  #heroPic img{width:100%;height:100%;object-fit:cover;display:block}
-  #heroText{flex:1;min-width:0;padding-bottom:2px}
-  #heroTitle{font-size:23px;font-weight:900;line-height:1.16;margin:0 0 7px;
-    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
-    text-shadow:0 2px 12px rgba(0,0,0,.9)}
-  #heroMeta{font-size:12px;color:#cfcfcf;line-height:1.5}
+    linear-gradient(180deg,rgba(0,0,0,.78) 0%,rgba(0,0,0,.18) 24%,rgba(0,0,0,.18) 48%,rgba(0,0,0,.82) 82%,#000 100%)}
+  #heroBody{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:0 16px 10px}
+  #heroRow{display:block;margin-bottom:11px}
+  #heroPic{display:none}
+  #heroText{padding:0}
+  #heroTitle{font-size:27px;font-weight:900;line-height:1.14;margin:0 0 7px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    text-shadow:0 2px 14px rgba(0,0,0,.92)}
+  #heroMeta{font-size:12px;color:#d6d6d6;line-height:1.5;text-shadow:0 1px 8px rgba(0,0,0,.9)}
   #heroBtns{display:flex;gap:9px;align-items:center}
   .btn-play{flex:0 0 auto;display:flex;align-items:center;gap:7px;background:#fff;color:#000;border:0;
     border-radius:6px;padding:9px 20px;font-size:14.5px;font-weight:800}
@@ -61,21 +59,22 @@
 
   /* ---------- 片单行 ---------- */
   #rows{padding:4px 0 26px}
-  .row{margin:0 0 20px}
-  .row-h{display:flex;align-items:baseline;gap:8px;padding:0 14px 9px}
-  .row-t{font-size:15.5px;font-weight:800;letter-spacing:.2px}
-  .row-n{font-size:11px;color:#7d7d7d}
+  .row{margin:0 0 22px}
+  .row-h{display:flex;align-items:baseline;gap:8px;padding:0 14px 10px}
+  .row-t{font-size:17px;font-weight:800;letter-spacing:.2px}
+  .row-n{font-size:11.5px;color:#8a8a8a}
   .strip{display:flex;gap:9px;overflow-x:auto;padding:0 14px 2px;scroll-snap-type:x proximity;
     scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .strip::-webkit-scrollbar{display:none}
-  .card{flex:0 0 auto;width:112px;scroll-snap-align:start;position:relative;background:none;border:0;padding:0;
+  .card{flex:0 0 auto;width:104px;scroll-snap-align:start;position:relative;background:none;border:0;padding:0;
     color:inherit;text-align:left}
   .card .ph{position:relative;width:100%;aspect-ratio:2/3;border-radius:7px;overflow:hidden;background:#171717}
   .card .ph img{width:100%;height:100%;object-fit:cover;display:block}
-  .card .shade{position:absolute;left:0;right:0;bottom:0;height:46%;
-    background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.88))}
-  .card .cap{position:absolute;left:6px;right:6px;bottom:6px;font-size:12.5px;font-weight:800;line-height:1.2;
-    text-shadow:0 1px 4px #000;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .shade{position:absolute;left:0;right:0;bottom:0;height:58%;
+    background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.55) 42%,rgba(0,0,0,.94))}
+  .card .cap{position:absolute;left:6px;right:6px;bottom:6px;font-size:13px;font-weight:800;line-height:1.2;
+    text-shadow:0 1px 5px #000,0 0 12px rgba(0,0,0,.8);display:-webkit-box;-webkit-line-clamp:2;
+    -webkit-box-orient:vertical;overflow:hidden}
   .card .badge{position:absolute;top:5px;left:5px;background:rgba(229,9,20,.94);color:#fff;font-size:9.5px;
     font-weight:800;padding:2px 5px;border-radius:3px;letter-spacing:.3px}
   /* 继续观看：海报底部一条红色进度 */
@@ -113,7 +112,7 @@
     -webkit-overflow-scrolling:touch}
   #detail.on{display:block;animation:slideUp .26s ease}
   @keyframes slideUp{from{transform:translateY(18px);opacity:.4}to{transform:none;opacity:1}}
-  #dHead{position:relative;height:37vh;min-height:226px;max-height:352px;overflow:hidden}
+  #dHead{position:relative;height:42vh;min-height:250px;max-height:380px;overflow:hidden}
   #dHeadBg{position:absolute;top:-16%;right:-16%;bottom:-16%;left:-16%;background-size:cover;background-position:50% 26%;
     filter:blur(26px) brightness(.46) saturate(1.05);transform:scale(1.05)}
   #dHeadFade{position:absolute;top:0;right:0;bottom:0;left:0;background:linear-gradient(180deg,rgba(0,0,0,.42),rgba(0,0,0,.18) 45%,#000 100%)}
@@ -235,7 +234,7 @@
     body{padding-bottom:0}
     #top{padding:12px 14px 10px}
     #searchBar{padding:12px 12px 10px}
-    #hero{padding:58px 0 4px}
+    #hero{height:54vh;min-height:320px;max-height:420px}
     #searchView{padding:62px 0 30px}
     #dBack{top:10px}
     #ptop{padding:10px 12px 0}
@@ -728,7 +727,8 @@
   });
 
   /* ---------------- 详情 ---------------- */
-  function openDetail(src, id, name, autoPlay, epIdx) {
+  function openDetail(src, id, name, autoPlay, epIdx, depth) {
+    depth = depth || 0;
     $('detail').classList.add('on');
     lockScroll(true);
     state.src = src || ''; state.vodId = id || ''; state.pic = '';
@@ -749,8 +749,9 @@
     fetch('/api/detail?src=' + encodeURIComponent(src) + '&id=' + encodeURIComponent(id))
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d.error && !(d.groups || []).length) {
-          $('eps').innerHTML = '<div class="muted">这个源没给出可用分集（' + esc(d.error) + '）</div>';
+        if (d.error || !(d.groups || []).length) {
+          $('eps').innerHTML = '<div class="muted">这个源没给出分集（' + esc(friendlyDetailErr(d.error)) + '），正在换源试试…</div>';
+          tryAltSource(d.name || name, src, depth);
           return;
         }
         state.title = d.name || name || '';
@@ -777,6 +778,42 @@
       });
   }
 
+  /** 把后端异常翻成人话，别把 No address associated with hostname 甩给用户。 */
+  function friendlyDetailErr(e) {
+    var s = String(e || '');
+    if (/resolve host|UnknownHost|No address/i.test(s)) return '这个源连不上';
+    if (/timeout|timed out|SocketTimeout/i.test(s)) return '这个源超时';
+    if (/HTTP 4|HTTP 5/.test(s)) return '源站返回错误';
+    if (/empty detail/.test(s)) return '源站没有这条数据';
+    return s.slice(0, 40) || '未知原因';
+  }
+
+  /** 当前源没分集时，自动换到其它源的同名片重试（最多两级）。 */
+  function tryAltSource(name, fromSrc, depth) {
+    if (!name || depth >= 2) {
+      $('eps').innerHTML = '<div class="muted">换过几个源都没分集，换个片名再搜一次试试</div>';
+      return;
+    }
+    fetch('/api/series?name=' + encodeURIComponent(name))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var alts = (d.list || []).filter(function (it) { return it.src !== fromSrc && it.vodId; });
+        alts.sort(function (a, b) {
+          var rank = function (x) { return x.name === name ? 2 : (x.name.indexOf(name) === 0 ? 1 : 0); };
+          return rank(b) - rank(a);
+        });
+        if (!alts.length) {
+          $('eps').innerHTML = '<div class="muted">换过几个源都没分集，换个片名再搜一次试试</div>';
+          return;
+        }
+        var alt = alts[0];
+        toast('这个源不行，换到「' + (alt.srcName || alt.src) + '」');
+        openDetail(alt.src, alt.vodId, alt.name || name, false, 0, depth + 1);
+      })
+      .catch(function (e) {
+        $('eps').innerHTML = '<div class="muted">换源失败：' + esc(e.message) + '</div>';
+      });
+  }
   /** 主演 / 导演：每个名字都能点，点了直接搜这个人。 */
   function renderCast(actor, director) {
     var names = String(actor || '').split(/[,，\/、|]/).map(function (s) { return s.trim(); })
@@ -859,7 +896,7 @@
     $('dMore').textContent = d.classList.contains('open') ? '收起' : '展开';
   };
   $('dPlay').onclick = function () {
-    if (!state.eps.length) return;
+    if (!state.eps.length) { toast('这个源还没给出分集，稍等一下或换条线路'); return; }
     playEp(state.last && state.last < state.eps.length ? state.last : state.ep);
   };
   $('dList').onclick = toggleList;

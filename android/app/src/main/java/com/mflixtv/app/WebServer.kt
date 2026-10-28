@@ -28,7 +28,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val ctx = context
 
     companion object {
-        const val VERSION = "android-0.6"
+        const val VERSION = "android-0.7"
     }
 
     override fun serve(session: IHTTPSession): Response {
@@ -43,12 +43,14 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 uri == "/api/home" -> home(session, p["force"]?.firstOrNull() == "1")
                 uri == "/api/search" -> json(Sources.search(p["wd"]?.firstOrNull() ?: ""))
                 uri == "/api/series" -> json(series(p["name"]?.firstOrNull() ?: ""))
-                uri == "/api/detail" -> json(
-                    SourceDetail.detail(
-                        p["src"]?.firstOrNull() ?: "",
-                        p["id"]?.firstOrNull() ?: ""
-                    )
-                )
+                uri == "/api/detail" -> {
+                    // 前端传的是源 key（如 zuid），这里必须换成接口地址；以前直接当域名用，
+                    // 结果是 Unable to resolve host "zuid"，所有片子都拿不到分集。
+                    val key = p["src"]?.firstOrNull().orEmpty()
+                    val id = p["id"]?.firstOrNull().orEmpty()
+                    val base = Sources.byKey(key)?.base ?: key
+                    json(SourceDetail.detail(base, id, key))
+                }
                 uri == "/api/sources" -> json(
                     "{\"list\":" + Sources.toJson(Sources.ALL) +
                         ",\"builtin\":" + Sources.toJson(Sources.BUILTIN) + "}"

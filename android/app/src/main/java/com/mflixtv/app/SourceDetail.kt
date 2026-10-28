@@ -12,22 +12,27 @@ import org.json.JSONObject
  */
 object SourceDetail {
 
-    fun detail(base: String, vodId: String): String {
+    /**
+     * @param base    源接口地址（https://xxx/api.php/provide/vod）
+     * @param vodId   片 id
+     * @param srcKey  源 key（前端传的是 key；调用方负责把 key 换成 base，这里只用来回填名字）
+     */
+    fun detail(base: String, vodId: String, srcKey: String = ""): String {
         val out = JSONObject()
         out.put("groups", JSONArray())
-        if (base.isBlank() || vodId.isBlank()) {
+        if (base.isBlank() || vodId.isBlank() || !base.startsWith("http")) {
             out.put("error", "missing params")
             return out.toString()
         }
         return try {
-            val text = Sources.get(base + "?ac=detail&ids=" + Sources.enc(vodId), 12000)
+            val text = Sources.get(base + "?ac=detail&ids=" + Sources.enc(vodId), 9000)
             val list = JSONObject(text).optJSONArray("list")
             if (list == null || list.length() == 0) {
                 out.put("error", "empty detail")
                 return out.toString()
             }
             val v = list.getJSONObject(0)
-            val src = Sources.byBase(base)
+            val src = Sources.byKey(srcKey) ?: Sources.byBase(base)
             out.put("name", v.optString("vod_name"))
             out.put("pic", v.optString("vod_pic"))
             out.put("remarks", v.optString("vod_remarks"))
@@ -36,7 +41,7 @@ object SourceDetail {
             out.put("typeName", v.optString("vod_class").ifBlank { v.optString("type_name") })
             out.put("actor", v.optString("vod_actor"))
             out.put("director", v.optString("vod_director"))
-            out.put("src", src?.key ?: "")
+            out.put("src", src?.key ?: srcKey)
             out.put("srcName", src?.name ?: "")
             out.put("sourceUrl", base)
             out.put("content", clean(v.optString("vod_content")))
