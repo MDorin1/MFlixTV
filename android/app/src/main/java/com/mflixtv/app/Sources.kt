@@ -255,10 +255,44 @@ object Sources {
 
     fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
 
-    data class Row(val key: String, val title: String, val type: String, val srcCount: Int)
+    data class Row(val key: String, val title: String, val names: List<String>, val type: String, val srcCount: Int)
 
     /** 首页每一行要打哪几个源：优先用自检通过的源。 */
     private fun pick(row: Row): List<Src> = usableSources().take(row.srcCount)
+
+    /**
+     * 分类名 → type_id 映射。
+     * CMS 的 `t` 参数只认数字 id，而各家 id 完全不一样（同一个「短剧」在 A 站是 30、在 B 站是 5），
+     * 所以先拿一次 `?ac=list` 的 class 表，按分类名找 id；查不到再退回写死的老 id。
+     */
+    private val catCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Map<String, Int>, Long>>()
+
+    private fun catMap(base: String): Map<String, Int> {
+        val now = System.currentTimeMillis()
+        catCache[base]?.let { if (now - it.second < 30 * 60 * 1000L) return it.first }
+        val map = HashMap<String, Int>()
+        try {
+            val json = JSONObject(get(base + "?ac=list", 8000))
+            val arr = json.optJSONArray("class") ?: json.optJSONArray("list") ?: JSONArray()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val id = o.optInt("type_id", -1)
+                val nm = o.optString("type_name").trim()
+                if (id > 0 && nm.isNotEmpty()) map[nm] = id
+            }
+        } catch (_: Exception) {
+        }
+        catCache[base] = map to now
+        return map
+    }
+
+    private fun typeIdFor(src: Src, row: Row): String {
+        if (row.names.isEmpty()) return row.type
+        val map = catMap(src.base)
+        for (want in row.names) map.entries.firstOrNull { it.key == want }?.let { return it.value.toString() }
+        for (want in row.names) map.entries.firstOrNull { it.key.contains(want) }?.let { return it.value.toString() }
+        return row.type
+    }
 
     /**
      * 搜索：并发查所有源，合并后按年份倒序（新片在前）。
@@ -308,13 +342,17 @@ object Sources {
         put("sourceUrl", src.base)
     }
 
-    /** 首页片单：每行只打 2–4 个源，避免首屏几十个请求把手机拖死。 */
+    /**
+     * 首页片单：每行只打 2–4 个源，避免首屏几十个请求把手机拖死。
+     * 顺序对齐电脑端：最近更新 → 电影 → 剧集 → 短剧 → 综艺（→ 动漫）。
+     */
     private val HOME_ROWS = listOf(
-        Row("latest", "最近更新", "", 4),
-        Row("movie", "电影", "1", 3),
-        Row("tv", "剧集", "2", 3),
-        Row("show", "综艺", "3", 3),
-        Row("anime", "动漫", "4", 2)
+        Row("latest", "最近更新", emptyList(), "", 4),
+        Row("movie", "电影", listOf("电影", "片"), "1", 3),
+        Row("tv", "剧集", listOf("电视剧", "连续剧", "剧集", "国产剧", "欧美剧"), "2", 3),
+        Row("short", "短剧", listOf("短剧", "微短剧", "短剧场", "竖屏剧"), "", 3),
+        Row("show", "综艺", listOf("综艺", "真人秀"), "3", 3),
+        Row("anime", "动漫", listOf("动漫", "动画"), "4", 2)
     )
 
     fun homeRows(): List<Row> = HOME_ROWS
@@ -324,15 +362,27 @@ object Sources {
         val workers = pick(row).map { src ->
             thread {
                 try {
-                    val q = StringBuilder(src.base).append("?ac=videolist")
-                    if (row.type.isNotEmpty()) q.append("&t=").append(row.type)
-                    q.append("&pg=1")
-                    val text = get(q.toString(), 9000)
+                    val t = typeIdFor(src, row)
+                    // 短剧这类新分类不一定在所有源里建了分类，那就退回按关键词搜
+                    val byKeyword = t.isEmpty() && row.key == "short"
+                    val url = if (byKeyword) {
+                        src.base + "?ac=videolist&wd=" + enc("短剧")
+                    } else {
+                        val q = StringBuilder(src.base).append("?ac=videolist")
+                        if (t.isNotEmpty()) q.append("&t=").append(t)
+                        q.append("&pg=1")
+                        q.toString()
+                    }
+                    val text = get(url, 9000)
                     val arr = JSONObject(text).optJSONArray("list") ?: return@thread
                     val limit = minOf(arr.length(), 24)
                     for (i in 0 until limit) {
                         val o = arr.optJSONObject(i) ?: continue
                         if (o.optString("vod_name").isBlank()) continue
+                        if (byKeyword) {
+                            val nm = o.optString("type_name")
+                            if (!nm.contains("短剧") && !o.optString("vod_name").contains("短剧")) continue
+                        }
                         items.add(item(src, o))
                     }
                 } catch (_: Exception) {
