@@ -7,6 +7,9 @@ import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.concurrent.thread
 
 /**
  * 手机上的服务端（NanoHTTPD，绑 0.0.0.0:8080）。
@@ -18,6 +21,7 @@ import java.net.URL
  *  - GET  /api/search?wd=       多源搜索（片名 / 演员都命中）
  *  - GET  /api/detail?src=&id=  详情 + 全部播放组
  *  - GET  /api/series?name=     同名的其它季/部（资料页「同系列」）
+ *  - GET  /api/lines?name=&src=&id=  跨源线路汇总（详情页线路、播放器切源）
  *  - GET  /api/proxy?url=       转发（图片 / m3u8 / 分片，Range 透传、m3u8 重写）
  *  - GET  /api/sources          当前源列表
  *  - POST /api/sources/save     保存源列表（body: JSON 数组）
@@ -29,8 +33,11 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val portNum = port
 
     companion object {
-        const val VERSION = "android-0.8"
+        const val VERSION = "android-0.9"
     }
+
+    /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
+    private val lineCache = ConcurrentHashMap<String, Pair<String, Long>>()
 
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri ?: "/"
@@ -41,6 +48,13 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 uri == "/api/home" -> home(session, p["force"]?.firstOrNull() == "1")
                 uri == "/api/search" -> json(Sources.search(p["wd"]?.firstOrNull() ?: ""))
                 uri == "/api/series" -> json(series(p["name"]?.firstOrNull() ?: ""))
+                uri == "/api/lines" -> json(
+                    lines(
+                        p["name"]?.firstOrNull() ?: "",
+                        p["src"]?.firstOrNull() ?: "",
+                        p["id"]?.firstOrNull() ?: ""
+                    )
+                )
                 uri == "/api/detail" -> {
                     // 前端传的是源 key（如 zuid），这里必须换成接口地址；以前直接当域名用，
                     // 结果是 Unable to resolve host "zuid"，所有片子都拿不到分集。
@@ -107,6 +121,106 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         out.put("base", base)
         out.put("list", arr)
         return out.toString()
+    }
+
+    /**
+     * 跨源线路汇总。
+     *
+     * 采集站的每条线路只在自己的源里有效，所以一部片只有在同一个源里才有几条线路。
+     * 想要「线路够多」，只能把其它源里的同名片也拉出来，把它们的线路并到一张表上：
+     *   1. 已知的 (src, id) 排第一，保证用户当前在看的源一定在里面；
+     *   2. 再用片名跨源搜一遍，同名条目按源去重，最多补 4 个源；
+     *   3. 对这些源并发拉 detail，把 groups 全并起来，每条标上 src/srcName。
+     * 结果缓存 10 分钟。
+     */
+    private fun lines(name: String, src: String, id: String): String {
+        val q = baseName(name)
+        val cacheKey = q.lowercase() + "|" + src + "|" + id
+        lineCache[cacheKey]?.let {
+            if (System.currentTimeMillis() - it.second < 10 * 60 * 1000L) return it.first
+        }
+
+        val out = JSONObject()
+        val groups = JSONArray()
+        val cands = ArrayList<Triple<String, String, String>>() // srcKey / vodId / 源里那片名
+        val usedSrc = HashSet<String>()
+        if (src.isNotEmpty() && id.isNotEmpty()) {
+            usedSrc.add(src)
+            cands.add(Triple(src, id, name.trim()))
+        }
+        if (q.length >= 2) {
+            try {
+                val found = JSONObject(Sources.search(q)).optJSONArray("list") ?: JSONArray()
+                val usedId = HashSet<String>()
+                for (i in 0 until found.length()) {
+                    if (cands.size >= 5) break
+                    val o = found.optJSONObject(i) ?: continue
+                    val n = o.optString("name").trim()
+                    if (n.isEmpty()) continue
+                    // 同名（忽略大小写/空格），或者一方包含另一方（如带副标题）
+                    val same = n.equals(name.trim(), true) || n.equals(q, true) ||
+                        n.contains(q, true) || q.contains(n, true)
+                    if (!same) continue
+                    val ks = o.optString("src")
+                    val ki = o.optString("vodId")
+                    if (ks.isEmpty() || ki.isEmpty()) continue
+                    if (!usedId.add(ks + "|" + ki)) continue
+                    if (usedSrc.contains(ks)) continue // 同一个源只取一条，避免同名重复刷
+                    usedSrc.add(ks)
+                    cands.add(Triple(ks, ki, n))
+                }
+            } catch (_: Exception) {
+            }
+        }
+
+        val parts = Collections.synchronizedList(ArrayList<JSONObject>())
+        val workers = cands.map { c ->
+            thread {
+                val s = Sources.byKey(c.first) ?: return@thread
+                try {
+                    val d = JSONObject(SourceDetail.detail(s.base, c.second, s.key))
+                    if (d.has("error")) return@thread
+                    val gs = d.optJSONArray("groups") ?: return@thread
+                    for (j in 0 until gs.length()) {
+                        val g = JSONObject(gs.getJSONObject(j).toString())
+                        g.put("src", s.key)
+                        g.put("srcName", s.name)
+                        g.put("vodId", c.second)
+                        parts.add(g)
+                    }
+                } catch (_: Exception) {
+                }
+            }
+        }
+        workers.forEach { it.join(14000) }
+
+        // m3u8 直链线路排前面，分享页排后面；同源同首集只留一个
+        val seen = HashSet<String>()
+        val ordered = parts.sortedBy { rankOfGroup(it) }
+        for (g in ordered) {
+            val eps = g.optJSONArray("episodes") ?: continue
+            if (eps.length() == 0) continue
+            val first = eps.optJSONObject(0)?.optString("url").orEmpty()
+            val sig = g.optString("src") + "|" + first
+            if (!seen.add(sig)) continue
+            groups.put(g)
+        }
+
+        out.put("groups", groups)
+        out.put("count", groups.length())
+        val text = out.toString()
+        lineCache[cacheKey] = text to System.currentTimeMillis()
+        return text
+    }
+
+    private fun rankOfGroup(g: JSONObject): Int {
+        val first = g.optJSONArray("episodes")?.optJSONObject(0)?.optString("url").orEmpty().lowercase()
+        return when {
+            first.contains("/share/") -> 30
+            first.contains(".m3u8") -> 0
+            first.contains(".mp4") -> 10
+            else -> 20
+        }
     }
 
     private fun baseName(name: String): String {

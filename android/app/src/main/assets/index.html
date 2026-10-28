@@ -36,22 +36,30 @@
   .txt-btn{background:none;border:0;color:#fff;font-size:15px;padding:8px 4px}
   .txt-btn.accent{color:var(--accent);font-weight:700}
 
-  /* ---------- Hero（对齐桌面版：整屏横图 + 底部叠字，不再用小海报） ---------- */
-  #hero{position:relative;height:54vh;min-height:340px;max-height:480px;overflow:hidden;display:none}
+  /* ---------- 首页顶部：最近更新横滑大卡（替代原来单张大图） ---------- */
+  #hero{display:none;padding:calc(env(safe-area-inset-top) + 54px) 0 2px}
   #hero.on{display:block}
-  #heroBg{position:absolute;top:0;right:0;bottom:0;left:0;background-size:cover;background-position:50% 16%;
-    background-color:#101010}
-  #heroFade{position:absolute;top:0;right:0;bottom:0;left:0;background:
-    linear-gradient(180deg,rgba(0,0,0,.78) 0%,rgba(0,0,0,.18) 24%,rgba(0,0,0,.18) 48%,rgba(0,0,0,.82) 82%,#000 100%)}
-  #heroBody{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:0 16px 10px}
-  #heroRow{display:block;margin-bottom:11px}
-  #heroPic{display:none}
-  #heroText{padding:0}
-  #heroTitle{font-size:27px;font-weight:900;line-height:1.14;margin:0 0 7px;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-    text-shadow:0 2px 14px rgba(0,0,0,.92)}
-  #heroMeta{font-size:12px;color:#d6d6d6;line-height:1.5;text-shadow:0 1px 8px rgba(0,0,0,.9)}
-  #heroBtns{display:flex;gap:9px;align-items:center}
+  .hero-h{display:flex;align-items:baseline;gap:8px;padding:0 14px 9px}
+  .hero-t{font-size:17px;font-weight:800;letter-spacing:.2px}
+  .hero-n{font-size:11.5px;color:#8a8a8a}
+  .hstrip{display:flex;gap:10px;overflow-x:auto;padding:0 14px 4px;scroll-snap-type:x proximity;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .hstrip::-webkit-scrollbar{display:none}
+  .hcard{flex:0 0 auto;width:46vw;max-width:198px;scroll-snap-align:start;position:relative}
+  .hcard .hp{position:relative;width:100%;aspect-ratio:2/3;border-radius:10px;overflow:hidden;background:#141414;
+    box-shadow:0 10px 26px rgba(0,0,0,.6)}
+  .hcard .hp img{width:100%;height:100%;object-fit:cover;display:block}
+  .hcard .hs{position:absolute;left:0;right:0;bottom:0;height:72%;
+    background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.5) 38%,rgba(0,0,0,.96))}
+  .hcard .hcap{position:absolute;left:9px;right:9px;bottom:9px}
+  .hcard .ht{font-size:15px;font-weight:900;line-height:1.2;text-shadow:0 1px 6px #000;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .hcard .hm{font-size:10.5px;color:#cfcfcf;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hcard .badge{position:absolute;top:7px;left:7px;background:rgba(229,9,20,.94);color:#fff;font-size:9.5px;
+    font-weight:800;padding:2px 5px;border-radius:3px}
+  .hcard .hplay{position:absolute;top:7px;right:7px;width:29px;height:29px;border-radius:50%;
+    background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.6);color:#fff;font-size:11px;
+    display:flex;align-items:center;justify-content:center}
   .btn-play{flex:0 0 auto;display:flex;align-items:center;gap:7px;background:#fff;color:#000;border:0;
     border-radius:6px;padding:9px 20px;font-size:14.5px;font-weight:800}
   .btn-ghost{display:flex;align-items:center;gap:7px;background:rgba(70,70,70,.72);color:#fff;border:0;
@@ -82,6 +90,9 @@
   .card .prog i{display:block;height:100%;background:var(--accent)}
   .card .ep-tag{position:absolute;right:5px;bottom:7px;font-size:9.5px;font-weight:800;color:#eee;
     background:rgba(0,0,0,.62);padding:1px 5px;border-radius:3px}
+  /* 搜索结果里同名片合并后标「N 个源」 */
+  .card .srcs{position:absolute;top:5px;right:5px;background:rgba(0,0,0,.74);color:#e6e6e6;font-size:9.5px;
+    font-weight:800;padding:2px 5px;border-radius:3px;border:1px solid rgba(255,255,255,.22)}
   /* 我的列表 / 继续观看 的空行不占位 */
   .row.hidden{display:none}
 
@@ -103,7 +114,11 @@
   #searchView{position:fixed;top:0;right:0;bottom:0;left:0;z-index:35;background:#000;overflow-y:auto;display:none;
     padding:calc(env(safe-area-inset-top) + 62px) 0 30px}
   #searchView.on{display:block}
-  #searchHint{padding:10px 14px 14px;font-size:12.5px;color:#8b8b8b}
+  #svHead{display:flex;align-items:center;gap:10px;padding:4px 14px 8px}
+  #svBack{background:#1a1a1a;border:1px solid #262626;border-radius:16px;padding:6px 13px;
+    font-size:12.5px;color:#dcdcdc;display:flex;align-items:center;gap:6px}
+  #svBack:active{background:#2a2a2a;color:#fff}
+  #searchHint{padding:4px 14px 14px;font-size:12.5px;color:#8b8b8b}
   #searchGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 14px}
   #searchGrid .card{width:auto}
 
@@ -175,6 +190,23 @@
   #pmsg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#cfcfcf;font-size:13px;
     text-align:center;line-height:1.7;padding:0 30px;display:none}
   #pmsg.on{display:block}
+  /* 播放器里的「选集 / 换线路」抽屉 */
+  #psheet{position:absolute;left:0;right:0;bottom:0;z-index:4;max-height:66%;background:rgba(14,14,14,.985);
+    border-top:1px solid #222;border-radius:14px 14px 0 0;display:none;flex-direction:column;
+    padding-bottom:env(safe-area-inset-bottom)}
+  #psheet.on{display:flex}
+  #psheetH{display:flex;align-items:center;gap:10px;padding:12px 14px 8px}
+  #psheetH .t{flex:1;font-size:13.5px;font-weight:800;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  #psheetX{background:none;border:0;color:#9a9a9a;font-size:15px;padding:4px}
+  #psheetB{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px 16px;
+    display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  #psheetB.list{display:block}
+  #psheetB .it{background:#1b1b1b;border:1px solid #2a2a2a;border-radius:7px;color:#dcdcdc;font-size:12px;
+    padding:10px 6px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  #psheetB .it.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+  #psheetB.list .it{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;
+    padding:11px 12px;margin-bottom:8px;width:100%}
+  #psheetB.list .it span:first-child{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 
   /* ---------- 设置 ---------- */
   #settings{position:fixed;top:0;right:0;bottom:0;left:0;z-index:60;background:#000;overflow-y:auto;display:none;
@@ -214,12 +246,12 @@
      aspect-ratio 与 flex gap 都不支持：用 padding 撑海报比例、margin 撑间距。 */
   @supports not (aspect-ratio: 1 / 1) {
     .card .ph{height:0;padding-bottom:150%}
-    #heroPic,#dPoster{height:0;padding-bottom:150%}
-    .card .ph img,#heroPic img,#dPoster img{position:absolute;top:0;left:0;width:100%;height:100%}
+    .hcard .hp{height:0;padding-bottom:150%}
+    #dPoster{height:0;padding-bottom:150%}
+    .card .ph img,.hcard .hp img,#dPoster img{position:absolute;top:0;left:0;width:100%;height:100%}
     #top > * + *{margin-left:12px}
     #searchBar > * + *{margin-left:8px}
-    #heroRow > * + *{margin-left:13px}
-    #heroBtns > * + *{margin-left:9px}
+    .hstrip > * + *{margin-left:10px}
     .row-h > * + *{margin-left:8px}
     .strip > * + *{margin-left:9px}
     .btn-play > * + *{margin-left:7px}
@@ -234,7 +266,7 @@
     body{padding-bottom:0}
     #top{padding:12px 14px 10px}
     #searchBar{padding:12px 12px 10px}
-    #hero{height:54vh;min-height:320px;max-height:420px}
+    #hero{padding:52px 0 2px}
     #searchView{padding:62px 0 30px}
     #dBack{top:10px}
     #ptop{padding:10px 12px 0}
@@ -259,21 +291,8 @@
 </div>
 
 <div id="hero">
-  <div id="heroBg"></div>
-  <div id="heroFade"></div>
-  <div id="heroBody">
-    <div id="heroRow">
-      <div id="heroPic"><img id="heroImg" alt=""></div>
-      <div id="heroText">
-        <h1 id="heroTitle"></h1>
-        <div id="heroMeta"></div>
-      </div>
-    </div>
-    <div id="heroBtns">
-      <button class="btn-play" id="heroPlay">&#9654; 播放</button>
-      <button class="btn-ghost" id="heroInfo">详情</button>
-    </div>
-  </div>
+  <div class="hero-h"><div class="hero-t">最近更新</div><div class="hero-n" id="heroCnt"></div></div>
+  <div class="hstrip" id="heroStrip"></div>
 </div>
 
 <div id="localRows"></div>
@@ -282,6 +301,7 @@
 <div id="rows"></div>
 
 <div id="searchView">
+  <div id="svHead"><button id="svBack">&#8592; 返回首页</button></div>
   <div id="searchHint">输入关键词搜索</div>
   <div id="searchGrid"></div>
 </div>
@@ -311,7 +331,7 @@
       <div id="dCastList"></div>
     </div>
     <div class="sec">
-      <div class="sec-h">线路</div>
+      <div class="sec-h">线路 <span class="cnt" id="grpCnt"></span></div>
       <div id="groups"></div>
       <div class="sec-h">选集 <span class="cnt" id="epCnt"></span></div>
       <div id="eps"></div>
@@ -337,9 +357,15 @@
       <div id="pbtns">
         <button id="pPlay">&#10074;&#10074;</button>
         <button id="pRate">1.0x</button>
+        <button id="pEps">选集</button>
+        <button id="pSrc">线路</button>
         <button id="pNext" style="margin-left:auto">下一集 ›</button>
       </div>
     </div>
+  </div>
+  <div id="psheet">
+    <div id="psheetH"><div class="t" id="psheetT"></div><button id="psheetX">&#10005;</button></div>
+    <div id="psheetB"></div>
   </div>
   <div id="centerPlay">&#9654;</div>
   <div id="pmsg"></div>
@@ -604,6 +630,7 @@
         proxy(pic).replace(/'/g, "\\'") + '\'">' : '') +
       '<div class="shade"></div>' +
       (it.remarks && !extra.epLabel ? '<div class="badge">' + esc(badgeText(it.remarks)) + '</div>' : '') +
+      (extra.srcs > 1 ? '<div class="srcs">' + extra.srcs + ' 个源</div>' : '') +
       (extra.epLabel ? '<div class="ep-tag">' + esc(extra.epLabel) + '</div>' : '') +
       '<div class="cap">' + esc(it.name) + '</div>' +
       (pct > 0 ? '<div class="prog"><i style="width:' + Math.min(100, pct) + '%"></i></div>' : '') +
@@ -635,20 +662,7 @@
   }
 
   function render() {
-    var h = state.rows[0] && state.rows[0].items[0];
-    if (h) {
-      state.hero = h;
-      hero.classList.add('on');
-      $('heroBg').style.backgroundImage = h.pic ? 'url("' + h.pic + '")' : 'none';
-      var hi = $('heroImg');
-      hi.dataset.fb = '';
-      hi.onerror = function () {
-        if (!this.dataset.fb && h.pic) { this.dataset.fb = '1'; this.src = proxy(h.pic); }
-      };
-      hi.src = h.pic || '';
-      $('heroTitle').textContent = h.name || '';
-      $('heroMeta').textContent = [h.year, h.typeName, h.remarks, h.srcName].filter(Boolean).join(' · ');
-    }
+    paintHero();
     var out = '';
     state.rows.forEach(function (row, ri) {
       out += '<div class="row"><div class="row-h"><div class="row-t">' + esc(row.title) +
@@ -659,6 +673,49 @@
     });
     home.innerHTML = out;
     paintLocal();
+  }
+
+  /**
+   * 首页第一屏：最近更新的 6 部，做成一排可左右滑的大卡（不再是单张大图）。
+   * 优先取「更新」那一行，凑不满再从别的行补。
+   */
+  function paintHero() {
+    var rows = state.rows.slice();
+    rows.sort(function (a, b) {
+      var A = (a.title || '').indexOf('更新') >= 0 ? 1 : 0;
+      var B = (b.title || '').indexOf('更新') >= 0 ? 1 : 0;
+      return B - A;
+    });
+    var items = [], seen = {};
+    rows.forEach(function (row) {
+      (row.items || []).forEach(function (it) {
+        if (items.length >= 6 || !it || !it.vodId) return;
+        var k = String(it.name || '') + '|' + String(it.vodId);
+        if (seen[k]) return;
+        seen[k] = 1;
+        items.push(it);
+      });
+    });
+    if (!items.length) { hero.classList.remove('on'); return; }
+    $('heroCnt').textContent = '最近 ' + items.length + ' 部';
+    $('heroStrip').innerHTML = items.map(function (it, i) { return hcardHTML(it, i < 2); }).join('');
+    hero.classList.add('on');
+  }
+
+  function hcardHTML(it, eager) {
+    var pic = it.pic && it.pic.indexOf('http') === 0 ? it.pic : '';
+    var meta = [it.year, it.typeName, it.srcName].filter(Boolean).join(' · ');
+    return '<div class="hcard" data-src="' + esc(it.src) + '" data-id="' + esc(it.vodId) +
+      '" data-name="' + esc(it.name) + '">' +
+      '<div class="hp">' +
+      (pic ? '<img ' + (eager ? '' : 'loading="lazy" ') + 'src="' + esc(pic) + '" alt="" onerror="this.onerror=null;this.src=\'' +
+        proxy(pic).replace(/'/g, "\\'") + '\'">' : '') +
+      '<div class="hs"></div>' +
+      (it.remarks ? '<div class="badge">' + esc(badgeText(it.remarks)) + '</div>' : '') +
+      '<div class="hplay" data-act="play">&#9654;</div>' +
+      '<div class="hcap"><div class="ht">' + esc(it.name) + '</div>' +
+      '<div class="hm">' + esc(meta) + '</div></div>' +
+      '</div></div>';
   }
 
   /** 本机记录行单独渲染：播放回来只刷新这两行，不动服务器片单（不闪图）。 */
@@ -680,8 +737,13 @@
     if (c) openDetail(c.dataset.src, c.dataset.id, c.dataset.name, c.dataset.auto === '1',
       parseInt(c.dataset.ep || '0', 10) || 0);
   });
-  $('heroPlay').onclick = function () { if (state.hero) openDetail(state.hero.src, state.hero.vodId, state.hero.name, true, 0); };
-  $('heroInfo').onclick = function () { if (state.hero) openDetail(state.hero.src, state.hero.vodId, state.hero.name, false, 0); };
+  // 顶部横滑大卡：点卡片进详情，点右上角 ▶ 直接播
+  $('heroStrip').addEventListener('click', function (e) {
+    var c = e.target.closest('.hcard');
+    if (!c) return;
+    var play = e.target.closest('[data-act="play"]');
+    openDetail(c.dataset.src, c.dataset.id, c.dataset.name, !!play, 0);
+  });
 
   /* ---------------- 搜索 ---------------- */
   var searchOpen = false;
@@ -691,12 +753,41 @@
     $('top').style.visibility = 'hidden';
     setTimeout(function () { $('q').focus(); }, 60);
   };
-  $('cancelSearch').onclick = function () {
+  $('cancelSearch').onclick = function () { closeSearch(); };
+  $('svBack').onclick = function () { closeSearch(); };
+  /**
+   * 退出搜索：搜索栏和结果层一起关，回首页。
+   * 以前只关了搜索栏，结果层还盖在最上面，等于「回不了主页」。
+   */
+  function closeSearch() {
     searchOpen = false;
     $('searchBar').classList.remove('on');
+    $('searchView').classList.remove('on');
     $('top').style.visibility = 'visible';
     $('q').blur();
-  };
+    if (!$('detail').classList.contains('on') && !$('player').classList.contains('on') &&
+      !$('settings').classList.contains('on')) lockScroll(false);
+    try { window.scrollTo(0, 0); } catch (e) {}
+  }
+
+  /** 同名不同源的结果合成一条（对齐电脑端），并记下每一条的源，进详情时再汇总线路。 */
+  function mergeSameTitle(list) {
+    var map = {}, out = [];
+    list.forEach(function (it) {
+      var k = String(it.name || '').trim().toLowerCase() + '|' + String(it.year || '');
+      var c = map[k];
+      if (!c) {
+        c = {};
+        for (var p in it) { if (Object.prototype.hasOwnProperty.call(it, p)) c[p] = it[p]; }
+        c.alts = [];
+        map[k] = c;
+        out.push(c);
+      }
+      if (it.src && it.vodId) c.alts.push({ src: it.src, vodId: it.vodId, srcName: it.srcName || it.src });
+    });
+    out.forEach(function (c) { c.srcCount = c.alts.length || 1; });
+    return out;
+  }
   function doSearch() {
     var wd = $('q').value.trim();
     if (!wd) return;
@@ -707,9 +798,14 @@
     fetch('/api/search?wd=' + encodeURIComponent(wd))
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        var list = d.list || [];
-        $('searchHint').textContent = list.length ? ('找到 ' + list.length + ' 部，按年份从新到旧') : '没有找到，换个词试试';
-        $('searchGrid').innerHTML = list.map(function (it) { return cardHTML(it); }).join('');
+        var raw = d.list || [];
+        var list = mergeSameTitle(raw);
+        $('searchHint').textContent = list.length
+          ? ('找到 ' + list.length + ' 部（已把同片不同源合成一条，原始 ' + raw.length + ' 条），按年份从新到旧')
+          : '没有找到，换个词试试';
+        $('searchGrid').innerHTML = list.map(function (it) {
+          return cardHTML(it, '', false, { srcs: it.srcCount });
+        }).join('');
       })
       .catch(function (e) { $('searchHint').textContent = '搜索失败：' + e.message; });
   }
@@ -771,7 +867,9 @@
         state.groups = d.groups || [];
         state.eps = [];
         renderGroups(0, epIdx);
+        $('grpCnt').textContent = state.groups.length ? (state.groups.length + ' 条') : '';
         if (autoPlay && state.eps.length) playEp(Math.min(epIdx || 0, state.eps.length - 1));
+        loadLines(state.title, src, id);
         loadSeries(state.title);
       })
       .catch(function (e) {
@@ -829,6 +927,41 @@
     $('dCast').style.display = 'block';
   }
 
+  /**
+   * 跨源线路汇总：单个采集站一般只给一两条线路，
+   * 这里问服务端要「同名片在其它源上的线路」，并进线路列表（每条标上源名）。
+   * 播放器开着时不动它，免得正在看的集被打断，下次进详情再合。
+   */
+  function loadLines(name, src, id) {
+    if (!name) return;
+    var token = (state.linesToken = (state.linesToken || 0) + 1);
+    fetch('/api/lines?name=' + encodeURIComponent(name) + '&src=' + encodeURIComponent(src || '') +
+      '&id=' + encodeURIComponent(id || ''))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (token !== state.linesToken) return;
+        if ($('player').classList.contains('on')) return;
+        if (!$('detail').classList.contains('on')) return;
+        var gs = d.groups || [];
+        var before = (state.groups || []).length;
+        if (!gs.length || gs.length <= before) return;
+        // 尽量停在原来那条线路上，并保持集序号
+        var keepEp = state.ep | 0;
+        var oldFirst = '';
+        try { oldFirst = ((state.groups[state.group || 0] || {}).episodes || [{}])[0].url || ''; } catch (e) {}
+        var gi = 0;
+        for (var i = 0; i < gs.length; i++) {
+          var f = (((gs[i] || {}).episodes || [{}])[0] || {}).url || '';
+          if (oldFirst && f === oldFirst) { gi = i; break; }
+        }
+        state.groups = gs;
+        renderGroups(gi, keepEp);
+        $('grpCnt').textContent = gs.length + ' 条';
+        toast('线路已汇总：共 ' + gs.length + ' 条（多个源）');
+      })
+      .catch(function () {});
+  }
+
   /** 同系列：把「第 X 季」的片子都列出来（缺一季用户会以为没有）。 */
   function loadSeries(name) {
     if (!name) return;
@@ -865,11 +998,12 @@
     if (last > 0) markEp(last);
   }
 
-  /** 采集站的线路名多是 modum3u8 / ffm3u8 这种技术标识，统一显示成「线路 N」。 */
+  /** 采集站的线路名多是 modum3u8 / ffm3u8 这种技术标识，统一显示成「线路 N」；跨源的补上源名。 */
   function grpLabel(x, i) {
     var n = (x && x.name) || '';
-    if (!n || /m3u8|mp4|^[a-z0-9_\-]+$/i.test(n)) return '线路 ' + (i + 1);
-    return n;
+    var base = (!n || /m3u8|mp4|^[a-z0-9_\-]+$/i.test(n)) ? ('线路 ' + (i + 1)) : n;
+    var s = (x && x.srcName) ? String(x.srcName) : '';
+    return s ? (base + ' · ' + s) : base;
   }
 
   function markEp(i) {
@@ -888,7 +1022,7 @@
   });
   $('dBack').onclick = function () {
     $('detail').classList.remove('on');
-    if (!$('player').classList.contains('on')) lockScroll(false);
+    if (!$('player').classList.contains('on') && !$('searchView').classList.contains('on')) lockScroll(false);
     paintLocal();
   };
   $('dMore').onclick = function () {
@@ -920,6 +1054,7 @@
     var e = state.eps[i];
     if (!e) return;
     state.ep = i;
+    $('psheet').classList.remove('on');
     markEp(i);
     ls('mfl:last:' + state.title, i);
     touchCont({ pos: 0, dur: 0 });
@@ -978,6 +1113,7 @@
 
   function closePlayer() {
     $('player').classList.remove('on');
+    $('psheet').classList.remove('on');
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     v.pause();
     v.removeAttribute('src');
@@ -996,6 +1132,7 @@
     }, 3200);
   }
   $('player').addEventListener('click', function (e) {
+    if (e.target.closest('#psheet')) return;   // 抽屉里的点击不要顺带收起控制条
     if (e.target.closest('#pctl') && !e.target.matches('#pctl')) { showCtl(); return; }
     if ($('pctl').classList.contains('hide')) showCtl();
     else $('pctl').classList.add('hide');
@@ -1057,6 +1194,45 @@
     if (state.ep + 1 < state.eps.length) playEp(state.ep + 1);
     else toast('已经是最后一集');
   };
+
+  /* ---- 播放器里的选集 / 换线路（对齐电脑端，不只靠右下角「下一集」） ---- */
+  function sheetOpen(title, kind) {
+    $('psheetT').textContent = title;
+    var b = $('psheetB');
+    b.className = kind === 'src' ? 'list' : '';
+    if (kind === 'eps') {
+      b.innerHTML = state.eps.map(function (e, i) {
+        return '<button class="it' + (i === state.ep ? ' on' : '') + '" data-k="ep" data-i="' + i + '">' +
+          esc(e.label || ('第' + (i + 1) + '集')) + '</button>';
+      }).join('') || '<div class="muted">这条线路没有分集</div>';
+    } else {
+      b.innerHTML = state.groups.map(function (g, i) {
+        return '<button class="it' + (i === state.group ? ' on' : '') + '" data-k="grp" data-i="' + i + '">' +
+          '<span>' + esc(grpLabel(g, i)) + '</span>' +
+          '<span style="color:#8a8a8a;font-size:11px">' + (g.total || (g.episodes || []).length) + ' 集</span>' +
+          '</button>';
+      }).join('') || '<div class="muted">没有线路</div>';
+    }
+    $('psheet').classList.add('on');
+    showCtl();
+  }
+  $('pEps').onclick = function () { sheetOpen('选集 · ' + (state.title || ''), 'eps'); };
+  $('pSrc').onclick = function () {
+    sheetOpen('线路 · 共 ' + state.groups.length + ' 条', 'src');
+  };
+  $('psheetX').onclick = function () { $('psheet').classList.remove('on'); };
+  $('psheetB').addEventListener('click', function (e) {
+    var t = e.target.closest('.it');
+    if (!t) return;
+    var i = parseInt(t.dataset.i, 10) || 0;
+    var keep = state.ep | 0;
+    $('psheet').classList.remove('on');
+    if (t.dataset.k === 'ep') { playEp(i); return; }
+    renderGroups(i);
+    if (!state.eps.length) { toast('这条线路没有分集'); return; }
+    toast('已切到「' + grpLabel(state.groups[i], i) + '」');
+    playEp(Math.min(keep, state.eps.length - 1));
+  });
 
   /* ---------------- 设置 ---------------- */
   var SET = { list: [], builtin: [] };
@@ -1272,11 +1448,13 @@
 
   /* ---------------- 返回键 ---------------- */
   window.mflBack = function () {
-    if ($('player').classList.contains('on')) { closePlayer(); return true; }
+    if ($('player').classList.contains('on')) {
+      if ($('psheet').classList.contains('on')) { $('psheet').classList.remove('on'); return true; }
+      closePlayer(); return true;
+    }
     if ($('settings').classList.contains('on')) { closeSettings(); return true; }
     if ($('detail').classList.contains('on')) { $('dBack').onclick(); return true; }
-    if ($('searchView').classList.contains('on')) { $('searchView').classList.remove('on'); lockScroll(false); return true; }
-    if (searchOpen) { $('cancelSearch').onclick(); return true; }
+    if ($('searchView').classList.contains('on') || searchOpen) { closeSearch(); return true; }
     return false;
   };
 
