@@ -175,6 +175,48 @@ h3 {
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
+/*
+ * 播放器开场品牌动画（跟安卓端同一套）：
+ * 红渐变 MFlixTV 字标淡入放大 + 一条红色渐变横线 + PLEASE ENJOY 小字。
+ * 只在刚进播放器时亮一次，第一帧画面出来就撤。
+ */
+.brand-splash-word {
+  font-size: 46px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  line-height: 1;
+  background: linear-gradient(100deg, #e50914 8%, #ff5a63 52%, #ffb9bd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 6px 24px rgba(229, 9, 20, 0.55));
+  opacity: 0;
+  transform: scale(0.9);
+  animation: brandSplashIn 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+.brand-splash-bar {
+  width: 62px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #e50914, #ff5a63);
+  box-shadow: 0 0 18px rgba(229, 9, 20, 0.7);
+  opacity: 0;
+  animation: brandSplashBar 0.7s 0.2s ease forwards;
+}
+.brand-splash-sub {
+  font-size: 11.5px;
+  letter-spacing: 3px;
+  color: #8b8b8b;
+  opacity: 0;
+  animation: brandSplashBar 0.7s 0.45s ease forwards;
+}
+@keyframes brandSplashIn { to { opacity: 1; transform: none; } }
+@keyframes brandSplashBar { to { opacity: 1; } }
+@media (max-width: 640px) {
+  .brand-splash-word { font-size: 34px; }
+}
+
 /* 播放器集数激活态 */
 .episode-active {
   background: rgb(var(--c-accent)) !important;

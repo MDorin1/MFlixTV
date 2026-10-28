@@ -153,6 +153,11 @@ export function PlayerShell({
   // 起播前的品牌占位图（沿用旧版 nomedia 素材），实际开始播放后隐藏
   const [showPoster, setShowPoster] = useState(true);
   /**
+   * 开场品牌动画：和安卓端同一套（红渐变 MFlixTV 字标 + 红线 + PLEASE ENJOY）。
+   * 进播放器先亮，第一帧画面出来或 3.2 秒后自动撤；连播下一集不重复闪（组件不重建）。
+   */
+  const [branding, setBranding] = useState(true);
+  /**
    * 换集/换源瞬间的「上一帧」：切换时把当前画面抓成一张图盖在上面，
    * 新分片进 buffer 再淡出。比直接露黑底 + 通用占位图体感快得多——
    * 用户看到的是「接着上一集」，而不是「黑屏了，在等」。
@@ -861,6 +866,8 @@ export function PlayerShell({
     art.on('video:playing', () => {
       playbackStartedRef.current = true;
       setShowPoster(false);
+      // 第一帧上屏：开场品牌动画撤掉，不遮挡画面
+      setBranding(false);
       // 新画面上屏了，切换遮罩（上一帧）可以撤了
       setSwitchFrame(null);
       setSwitchLabel('');
@@ -871,6 +878,8 @@ export function PlayerShell({
     });
     art.on('video:error', () => {
       mediaHealthyRef.current = false;
+      // 出错时也别让品牌页挡着错误提示
+      setBranding(false);
       // 起播阶段的 video 元素级错误（MSE/解码偶发失败）：重建一次播放链路自愈，
       // 而不是直接钉死错误遮罩——重建后视频轨重新 append，黑屏有声即可解除
       if (!playbackStartedRef.current && !videoErrorRetryUsedRef.current) {
@@ -1235,6 +1244,13 @@ export function PlayerShell({
     }
   }, [panel]);
 
+  // 开场品牌兜底：源站慢、一直没出画面时，3.2 秒后也要撤掉，别让黑底字标一直挂着
+  useEffect(() => {
+    if (!branding) return;
+    const t = window.setTimeout(() => setBranding(false), 3200);
+    return () => window.clearTimeout(t);
+  }, [branding]);
+
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" style={{ WebkitTouchCallout: 'none' }} />
@@ -1264,6 +1280,15 @@ export function PlayerShell({
             backgroundRepeat: 'no-repeat',
           }}
         />
+      )}
+      {branding && !error && (
+        // 开场品牌动画：和安卓端同一套（红渐变大字标 + 红线 + PLEASE ENJOY），
+        // 第一帧画面出来或 3.2 秒后自动撤；连播下一集组件不重建，所以只亮一次。
+        <div className="pointer-events-none absolute inset-0 z-[9] flex flex-col items-center justify-center gap-4 bg-black">
+          <div className="brand-splash-word">MFlixTV</div>
+          <div className="brand-splash-bar" />
+          <div className="brand-splash-sub">PLEASE ENJOY</div>
+        </div>
       )}
       {!error && skipPrompt && (
         <button
