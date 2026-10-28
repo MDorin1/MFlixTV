@@ -95,7 +95,7 @@ class ServerService : Service() {
         return NotificationCompat.Builder(this, CH_ID)
             .setContentTitle("MFlixTV 正在运行")
             .setContentText("局域网访问：http://$ip:8080")
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(R.drawable.ic_stat_mflixtv)
             .setOngoing(true)
             .setContentIntent(tap)
             .setPriority(NotificationCompat.PRIORITY_LOW)

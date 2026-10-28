@@ -11,12 +11,12 @@ android {
         applicationId = "com.mflixtv.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10
-        versionName = "0.10"
+        versionCode = 11
+        versionName = "0.11"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
-    // 正式签名（keystore 只在本地，不进仓库）。没有 keystore 时退回 debug 签名，保证还能出包。
+    // 正式签名：keystore 只在本地，不进仓库。没有 keystore 时退回 debug 签名，保证还能出包。
     val ksFile = rootProject.file("keystore/mflixtv.jks")
     if (ksFile.exists()) {
         signingConfigs {

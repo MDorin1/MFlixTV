@@ -22,6 +22,7 @@ import kotlin.concurrent.thread
  *  - GET  /api/detail?src=&id=  详情 + 全部播放组
  *  - GET  /api/series?name=     同名的其它季/部（资料页「同系列」）
  *  - GET  /api/lines?name=&src=&id=  跨源线路汇总（详情页线路、播放器切源）
+ *  - GET  /api/hero?name=&type=      首页大图轮播的 5–8 部（有观看记录就推同类，否则最近更新）
  *  - GET  /api/proxy?url=       转发（图片 / m3u8 / 分片，Range 透传、m3u8 重写）
  *  - GET  /api/sources          当前源列表
  *  - POST /api/sources/save     保存源列表（body: JSON 数组）
@@ -33,11 +34,14 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val portNum = port
 
     companion object {
-        const val VERSION = "android-0.10"
+        const val VERSION = "android-0.11"
     }
 
     /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
     private val lineCache = ConcurrentHashMap<String, Pair<String, Long>>()
+
+    /** 首页 hero 推荐缓存：like|type -> (json, 时间)。 */
+    private val heroCache = ConcurrentHashMap<String, Pair<String, Long>>()
 
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri ?: "/"
@@ -55,6 +59,19 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                         p["id"]?.firstOrNull() ?: ""
                     )
                 )
+                uri == "/api/hero" -> {
+                    val name = p["name"]?.firstOrNull() ?: ""
+                    val type = p["type"]?.firstOrNull() ?: ""
+                    val ck = name.trim().lowercase() + "|" + type.trim().lowercase()
+                    val hit = heroCache[ck]
+                    if (hit != null && System.currentTimeMillis() - hit.second < 10 * 60 * 1000L) {
+                        json(hit.first)
+                    } else {
+                        val body = Sources.hero(name, type)
+                        heroCache[ck] = body to System.currentTimeMillis()
+                        json(body)
+                    }
+                }
                 uri == "/api/detail" -> {
                     // 前端传的是源 key（如 zuid），这里必须换成接口地址；以前直接当域名用，
                     // 结果是 Unable to resolve host "zuid"，所有片子都拿不到分集。

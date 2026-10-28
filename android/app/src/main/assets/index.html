@@ -43,30 +43,44 @@
   .txt-btn:active{background:rgba(255,255,255,.2);transform:scale(.95)}
   .txt-btn.accent{color:var(--accent);font-weight:700}
 
-  /* ---------- 首页顶部：最近更新横滑大卡（替代原来单张大图） ---------- */
-  #hero{display:none;padding:calc(env(safe-area-inset-top) + 54px) 0 2px}
+  /* ---------- 首页顶部：大图轮播（滑到哪部，整页背景就换成那部的海报） ---------- */
+  #hero{position:relative;display:none;overflow:hidden;
+    padding:calc(env(safe-area-inset-top) + 56px) 0 8px}
   #hero.on{display:block}
-  .hero-h{display:flex;align-items:baseline;gap:8px;padding:0 14px 9px}
-  .hero-t{font-size:17px;font-weight:800;letter-spacing:.2px}
-  .hero-n{font-size:11.5px;color:#8a8a8a}
-  .hstrip{display:flex;gap:10px;overflow-x:auto;padding:0 14px 4px;scroll-snap-type:x proximity;
-    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  #heroBg{position:absolute;left:-12%;right:-12%;top:-12%;bottom:0;z-index:0;
+    background-size:cover;background-position:50% 30%;background-color:#080808;
+    filter:blur(26px) brightness(.5) saturate(1.2);transform:scale(1.1)}
+  #heroFade{position:absolute;left:0;right:0;top:0;bottom:0;z-index:1;background:
+    linear-gradient(180deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,.16) 32%,rgba(0,0,0,.5) 66%,#000 98%)}
+  #heroBody{position:relative;z-index:2;padding:0 16px 12px;min-height:190px}
+  .hero-h{font-size:11px;font-weight:800;letter-spacing:1.4px;color:#e2e2e2;opacity:.92;
+    margin:0 0 9px;text-shadow:0 1px 8px rgba(0,0,0,.9);
+    overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  #heroTitle{font-size:26px;font-weight:900;line-height:1.15;margin:0 0 8px;letter-spacing:.2px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    text-shadow:0 2px 16px rgba(0,0,0,.95)}
+  #heroMeta{font-size:11.5px;color:#dcdcdc;margin:0 0 8px;line-height:1.5;
+    text-shadow:0 1px 8px rgba(0,0,0,.9)}
+  #heroDesc{font-size:12.5px;color:#c6c6c6;line-height:1.6;margin:0 0 13px;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+    text-shadow:0 1px 6px rgba(0,0,0,.85)}
+  #heroBtns{display:flex;gap:9px;align-items:center}
+  .hstrip{position:relative;z-index:2;display:flex;gap:10px;overflow-x:auto;padding:2px 16px 6px;
+    scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .hstrip::-webkit-scrollbar{display:none}
-  .hcard{flex:0 0 auto;width:46vw;max-width:198px;scroll-snap-align:start;position:relative}
-  .hcard .hp{position:relative;width:100%;aspect-ratio:2/3;border-radius:14px;overflow:hidden;background:#141414;
-    box-shadow:0 12px 30px rgba(0,0,0,.65)}
+  .hcard{flex:0 0 auto;width:27vw;max-width:118px;scroll-snap-align:center;position:relative;
+    opacity:.5;transform:scale(.93);transition:opacity .22s,transform .22s}
+  .hcard.on{opacity:1;transform:scale(1)}
+  .hcard .hp{position:relative;width:100%;aspect-ratio:2/3;border-radius:12px;overflow:hidden;background:#141414;
+    box-shadow:0 8px 20px rgba(0,0,0,.55);border:1.5px solid transparent;transition:border-color .22s}
+  .hcard.on .hp{border-color:rgba(255,255,255,.88)}
   .hcard .hp img{width:100%;height:100%;object-fit:cover;display:block}
-  .hcard .hs{position:absolute;left:0;right:0;bottom:0;height:72%;
-    background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.5) 38%,rgba(0,0,0,.96))}
-  .hcard .hcap{position:absolute;left:9px;right:9px;bottom:9px}
-  .hcard .ht{font-size:15px;font-weight:900;line-height:1.2;text-shadow:0 1px 6px #000;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .hcard .hm{font-size:10.5px;color:#cfcfcf;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .hcard .badge{position:absolute;top:8px;left:8px;background:rgba(229,9,20,.95);color:#fff;font-size:9.5px;
-    font-weight:800;padding:3px 8px;border-radius:999px}
-  .hcard .hplay{position:absolute;top:8px;right:8px;width:31px;height:31px;border-radius:50%;
-    background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.6);color:#fff;font-size:11px;
-    display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.5)}
+  .hcard .hs{position:absolute;left:0;right:0;bottom:0;height:46%;
+    background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.72))}
+  .hcard .badge{position:absolute;top:6px;left:6px;background:rgba(229,9,20,.95);color:#fff;font-size:9px;
+    font-weight:800;padding:2px 7px;border-radius:999px}
+  .hcard .ht{position:absolute;left:6px;right:6px;bottom:6px;font-size:10.5px;font-weight:800;line-height:1.2;
+    text-shadow:0 1px 5px #000;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .btn-play{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:7px;background:#fff;color:#000;border:0;
     border-radius:999px;padding:11px 24px;font-size:14.5px;font-weight:800;
     box-shadow:0 8px 22px rgba(0,0,0,.5);transition:transform .13s ease,box-shadow .18s}
@@ -187,7 +201,13 @@
   /* ---------- 播放器 ---------- */
   #player{position:fixed;top:0;right:0;bottom:0;left:0;z-index:80;background:#000;display:none}
   #player.on{display:block}
-  #video{width:100%;height:100%;background:#000;display:block}
+  #video{width:100%;height:100%;background:#000;display:block;object-fit:contain}
+  /* WebView 自带的「白色方框 + 播放三角」一律藏掉，中间统一换 MFlixTV 字标 */
+  video::-webkit-media-controls-start-playback-button{display:none !important;-webkit-appearance:none;-webkit-tap-highlight-color:transparent}
+  video::-webkit-media-controls-play-button,video::-webkit-media-controls-overlay-play-button,
+  video::-webkit-media-controls-panel,video::-webkit-media-controls-enclosure,
+  video::-webkit-media-controls,video::-webkit-media-controls-overlay-enclosure{display:none !important}
+  video::-webkit-media-controls-timeline{display:none !important}
   #pctl{position:absolute;top:0;right:0;bottom:0;left:0;z-index:3;display:flex;flex-direction:column;justify-content:space-between;
     background:linear-gradient(180deg,rgba(0,0,0,.62),rgba(0,0,0,0) 22%,rgba(0,0,0,0) 62%,rgba(0,0,0,.72));
     transition:opacity .22s;opacity:1}
@@ -206,13 +226,21 @@
   #pbtns button:active{transform:scale(.94);background:rgba(255,255,255,.24)}
   #pPlay{font-size:17px !important;width:44px;height:44px;padding:0 !important;border-radius:50% !important;
     background:rgba(255,255,255,.2) !important;display:flex;align-items:center;justify-content:center}
-  #centerPlay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:66px;height:66px;
-    border-radius:50%;background:rgba(0,0,0,.5);border:2px solid rgba(255,255,255,.9);color:#fff;
-    font-size:24px;display:none;align-items:center;justify-content:center;z-index:4;
-    box-shadow:0 8px 30px rgba(0,0,0,.6)}
+  /* 暂停/等待时的中央提示：不再是白框播放三角，改成 MFlixTV 红渐变字标 */
+  #centerPlay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;
+    display:none;align-items:center;justify-content:center;flex-direction:column;
+    background:none;border:0;border-radius:0;box-shadow:none;padding:18px 26px}
   #centerPlay.on{display:flex}
-  #pmsg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#cfcfcf;font-size:13px;
-    text-align:center;line-height:1.7;padding:0 30px;display:none}
+  #centerPlay .cp-logo{font-size:34px;font-weight:900;letter-spacing:1px;line-height:1;
+    background:linear-gradient(100deg,#e50914 6%,#ff5a63 54%,#ffb9bd 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
+    filter:drop-shadow(0 4px 18px rgba(229,9,20,.55))}
+  #centerPlay .cp-sub{margin-top:10px;font-size:9.5px;letter-spacing:3.2px;text-align:center;
+    color:rgba(255,255,255,.55);-webkit-text-fill-color:rgba(255,255,255,.55)}
+  #pmsg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#dcdcdc;font-size:13px;
+    text-align:center;line-height:1.7;padding:16px 22px;display:none;z-index:5;
+    background:rgba(10,10,10,.86);border:1px solid rgba(255,255,255,.12);border-radius:16px;
+    max-width:80%;box-shadow:0 12px 34px rgba(0,0,0,.6)}
   #pmsg.on{display:block}
   /* 开场品牌：跟电脑端同一个红渐变字标（linear-gradient #e50914 → #ff5a63） */
   #pbrand{position:absolute;left:0;right:0;top:0;bottom:0;z-index:2;background:#000;
@@ -334,7 +362,18 @@
 </div>
 
 <div id="hero">
-  <div class="hero-h"><div class="hero-t">最近更新</div><div class="hero-n" id="heroCnt"></div></div>
+  <div id="heroBg"></div>
+  <div id="heroFade"></div>
+  <div id="heroBody">
+    <div class="hero-h" id="heroHint">为你推荐</div>
+    <h1 id="heroTitle"></h1>
+    <div id="heroMeta"></div>
+    <div id="heroDesc"></div>
+    <div id="heroBtns">
+      <button class="btn-play" id="heroPlay">&#9654; 播放</button>
+      <button class="btn-ghost" id="heroInfo">详情</button>
+    </div>
+  </div>
   <div class="hstrip" id="heroStrip"></div>
 </div>
 
@@ -387,8 +426,7 @@
 </div>
 
 <div id="player">
-  <video id="video" playsinline webkit-playsinline preload="metadata"></video>
-  <div id="pbrand">
+  <video id="video" playsinline webkit-playsinline preload="metadata"></video>  <div id="pbrand">
     <div class="word">MFlixTV</div>
     <div class="bar"></div>
     <div class="sub">PLEASE ENJOY</div>
@@ -415,7 +453,7 @@
     <div id="psheetH"><div class="t" id="psheetT"></div><button id="psheetX">&#10005;</button></div>
     <div id="psheetB"></div>
   </div>
-  <div id="centerPlay">&#9654;</div>
+  <div id="centerPlay"><div><div class="cp-logo">MFlixTV</div><div class="cp-sub">TAP TO PLAY</div></div></div>
   <div id="pmsg"></div>
 </div>
 
@@ -499,7 +537,7 @@
   var home = $('rows'), hero = $('hero');
   var state = {
     rows: [], hero: null, cur: null, groups: [], group: 0, eps: [], ep: 0, title: '',
-    src: '', vodId: '', pic: '', last: 0
+    src: '', vodId: '', pic: '', last: 0, typeName: '', heroItems: [], heroIdx: -1
   };
   var hls = null;
 
@@ -551,6 +589,7 @@
     if (!state.title) return;
     var rec = {
       name: state.title, pic: state.pic || '', src: state.src || '', vodId: state.vodId || '',
+      typeName: state.typeName || '',
       ep: state.ep | 0, epLabel: (state.eps[state.ep] && state.eps[state.ep].label) || '',
       pos: 0, dur: 0, ts: Date.now()
     };
@@ -601,6 +640,7 @@
         state.rows = d.rows || [];
         $('loading').style.display = 'none';
         render();
+        loadHeroReco();   // 有观看记录时换成「看了 X 之后推的同类片」
         if (d.stale) toast('源站暂时不通，先显示上次的片单');
         if (!state.rows.length) showFail(d);
       })
@@ -713,8 +753,6 @@
     paintHero();
     var out = '';
     state.rows.forEach(function (row, ri) {
-      // 顶部大卡已经把那行完整展示了（≤6 部），下面就不再重复一遍
-      if (ri === state.heroRow && (row.items || []).length <= 6) return;
       out += '<div class="row"><div class="row-h"><div class="row-t">' + esc(row.title) +
         '</div><div class="row-n">' + row.items.length + ' 部</div></div><div class="strip">';
       var eager = ri < 2;
@@ -726,39 +764,123 @@
   }
 
   /**
-   * 首页第一屏：最近更新的 6 部，做成一排可左右滑的大卡（不再是单张大图）。
-   * 优先取「更新」那一行，凑不满再从别的行补。
+   * 首页顶部大图轮播（Netflix 那种）：5–8 部，一次露一张卡，
+   * 滑到哪部，整页背景就模糊成那部的海报，上面的标题/简介也跟着换。
+   * 数据先用手上的「最近更新」顶上，再问服务端要「因为你看了 X」的同类推荐替换。
    */
   function paintHero() {
+    var items = [], seen = {};
     var rows = state.rows.slice();
     rows.sort(function (a, b) {
       var A = (a.title || '').indexOf('更新') >= 0 ? 1 : 0;
       var B = (b.title || '').indexOf('更新') >= 0 ? 1 : 0;
       return B - A;
     });
-    state.heroRow = -1;
-    for (var r = 0; r < state.rows.length; r++) {
-      if ((state.rows[r].title || '').indexOf('更新') >= 0) { state.heroRow = r; break; }
-    }
-    var items = [], seen = {};
     rows.forEach(function (row) {
       (row.items || []).forEach(function (it) {
-        if (items.length >= 6 || !it || !it.vodId) return;
+        if (items.length >= 8 || !it || !it.vodId) return;
         var k = String(it.name || '') + '|' + String(it.vodId);
         if (seen[k]) return;
         seen[k] = 1;
         items.push(it);
       });
     });
-    if (!items.length) { hero.classList.remove('on'); return; }
-    $('heroCnt').textContent = '最近 ' + items.length + ' 部';
-    $('heroStrip').innerHTML = items.map(function (it, i) { return hcardHTML(it, i < 2); }).join('');
+    $('heroHint').textContent = '为你推荐 · 最近更新';
+    paintHeroItems(items);
+  }
+
+  function paintHeroItems(items) {
+    state.heroItems = items || [];
+    state.heroIdx = -1;
+    if (!state.heroItems.length) { hero.classList.remove('on'); return; }
+    $('heroStrip').innerHTML = state.heroItems.map(function (it, i) { return hcardHTML(it, i < 3); }).join('');
     hero.classList.add('on');
+    heroSelect(0, true);
+  }
+
+  /** 选中第 i 张：换背景 + 换标题/信息/简介，并把卡片滚动到中间。 */
+  function heroSelect(i, keepScroll) {
+    var items = state.heroItems || [];
+    var it = items[i];
+    if (!it) return;
+    state.heroIdx = i;
+    var cards = $('heroStrip').children;
+    for (var k = 0; k < cards.length; k++) {
+      if (k === i) cards[k].classList.add('on'); else cards[k].classList.remove('on');
+    }
+    setHeroBg(it.pic);
+    $('heroTitle').textContent = it.name || '';
+    $('heroMeta').textContent = [it.year, it.typeName, it.remarks, it.srcName].filter(Boolean).join(' · ');
+    var cast = String(it.actor || '').split(/[,，\/、|]/)
+      .map(function (s) { return s.trim(); })
+      .filter(function (s) { return s && s.length < 12; }).slice(0, 3);
+    var tips = [];
+    if (cast.length) tips.push('主演：' + cast.join(' / '));
+    if (it.typeName) tips.push(it.typeName + (it.srcName ? ' · ' + it.srcName + ' 源' : ''));
+    $('heroDesc').textContent = tips.join('　·　');
+    if (!keepScroll && cards[i] && cards[i].scrollIntoView) {
+      try { cards[i].scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+    }
+  }
+
+  /** 背景海报：先直链，失败了走本机代理（图床按 Referer 放行时会 403）。 */
+  function setHeroBg(url) {
+    var bg = $('heroBg');
+    if (!bg) return;
+    if (!url) { bg.style.backgroundImage = 'none'; return; }
+    var img = new Image();
+    img.onload = function () { bg.style.backgroundImage = 'url("' + url + '")'; };
+    img.onerror = function () {
+      var p = proxy(url), i2 = new Image();
+      i2.onload = function () { bg.style.backgroundImage = 'url("' + p + '")'; };
+      i2.src = p;
+    };
+    img.src = url;
+  }
+
+  /** 滑到哪张选哪张：按卡片中心离列表中心最近的那个。 */
+  function bindHeroStrip() {
+    var strip = $('heroStrip');
+    if (!strip || strip.dataset.bound === '1') return;
+    strip.dataset.bound = '1';
+    var ticking = false;
+    strip.addEventListener('scroll', function () {
+      if (ticking) return;
+      ticking = true;
+      var run = function () {
+        ticking = false;
+        var box = strip.getBoundingClientRect();
+        var mid = box.left + box.width / 2;
+        var best = state.heroIdx, bestD = 1e9;
+        for (var i = 0; i < strip.children.length; i++) {
+          var r = strip.children[i].getBoundingClientRect();
+          var d = Math.abs((r.left + r.width / 2) - mid);
+          if (d < bestD) { bestD = d; best = i; }
+        }
+        if (best !== state.heroIdx) heroSelect(best, true);
+      };
+      if (window.requestAnimationFrame) window.requestAnimationFrame(run);
+      else setTimeout(run, 60);
+    }, { passive: true });
+  }
+
+  /** 有观看记录就推同类片（服务端跨源搜同名/同类型），否则保持最近更新。 */
+  function loadHeroReco() {
+    var rec = contAll()[0];
+    if (!rec || !rec.name) return;
+    $('heroHint').textContent = '因为你看了《' + rec.name + '》';
+    fetch('/api/hero?name=' + encodeURIComponent(rec.name) + '&type=' + encodeURIComponent(rec.typeName || ''))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var list = d.list || [];
+        if (list.length < 5) { $('heroHint').textContent = '为你推荐 · 最近更新'; return; }
+        paintHeroItems(list);
+      })
+      .catch(function () { $('heroHint').textContent = '为你推荐 · 最近更新'; });
   }
 
   function hcardHTML(it, eager) {
     var pic = it.pic && it.pic.indexOf('http') === 0 ? it.pic : '';
-    var meta = [it.year, it.typeName, it.srcName].filter(Boolean).join(' · ');
     return '<div class="hcard" data-src="' + esc(it.src) + '" data-id="' + esc(it.vodId) +
       '" data-name="' + esc(it.name) + '">' +
       '<div class="hp">' +
@@ -766,9 +888,7 @@
         proxy(pic).replace(/'/g, "\\'") + '\'">' : '') +
       '<div class="hs"></div>' +
       (it.remarks ? '<div class="badge">' + esc(badgeText(it.remarks)) + '</div>' : '') +
-      '<div class="hplay" data-act="play">&#9654;</div>' +
-      '<div class="hcap"><div class="ht">' + esc(it.name) + '</div>' +
-      '<div class="hm">' + esc(meta) + '</div></div>' +
+      '<div class="ht">' + esc(it.name) + '</div>' +
       '</div></div>';
   }
 
@@ -791,13 +911,26 @@
     if (c) openDetail(c.dataset.src, c.dataset.id, c.dataset.name, c.dataset.auto === '1',
       parseInt(c.dataset.ep || '0', 10) || 0);
   });
-  // 顶部横滑大卡：点卡片进详情，点右上角 ▶ 直接播
+  // 顶部大图轮播：点没选中的卡片 = 切到那部；点已选中的卡片 = 进详情
+  bindHeroStrip();
   $('heroStrip').addEventListener('click', function (e) {
     var c = e.target.closest('.hcard');
     if (!c) return;
-    var play = e.target.closest('[data-act="play"]');
-    openDetail(c.dataset.src, c.dataset.id, c.dataset.name, !!play, 0);
+    var i = -1;
+    for (var k = 0; k < $('heroStrip').children.length; k++) {
+      if ($('heroStrip').children[k] === c) { i = k; break; }
+    }
+    if (i >= 0 && i !== state.heroIdx) { heroSelect(i); return; }
+    openDetail(c.dataset.src, c.dataset.id, c.dataset.name, false, 0);
   });
+  $('heroPlay').onclick = function () {
+    var it = (state.heroItems || [])[state.heroIdx] || (state.heroItems || [])[0];
+    if (it) openDetail(it.src, it.vodId, it.name, true, 0);
+  };
+  $('heroInfo').onclick = function () {
+    var it = (state.heroItems || [])[state.heroIdx] || (state.heroItems || [])[0];
+    if (it) openDetail(it.src, it.vodId, it.name, false, 0);
+  };
 
   /* ---------------- 搜索 ---------------- */
   var searchOpen = false;
@@ -882,7 +1015,7 @@
     depth = depth || 0;
     $('detail').classList.add('on');
     lockScroll(true);
-    state.src = src || ''; state.vodId = id || ''; state.pic = '';
+    state.src = src || ''; state.vodId = id || ''; state.pic = ''; state.typeName = '';
     $('dTitle').textContent = name || '';
     $('dMeta').textContent = '';
     $('dPosterImg').removeAttribute('src');
@@ -908,6 +1041,7 @@
         }
         state.title = d.name || name || '';
         state.pic = d.pic || '';
+        state.typeName = d.typeName || '';
         $('dTitle').textContent = state.title;
         if (d.pic) { $('dHeadBg').style.backgroundImage = 'url("' + d.pic + '")'; $('dPosterImg').src = d.pic; }
         var meta = [d.year, d.area, d.typeName, d.remarks, d.srcName].filter(Boolean).join(' · ');
@@ -1104,6 +1238,18 @@
 
   /* ---------------- 播放器 ---------------- */
   var v = $('video'), dragging = false, attachKey = '', lastSave = 0, lastCont = 0;
+
+  // 视频还没出画面时的占位图：MFlixTV 字标（黑底），替代浏览器默认的白框播放图标
+  try {
+    var BRAND_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720">' +
+      '<rect width="1280" height="720" fill="#000000"/>' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#e50914"/><stop offset="0.55" stop-color="#ff5a63"/>' +
+      '<stop offset="1" stop-color="#ffb9bd"/></linearGradient></defs>' +
+      '<text x="640" y="392" font-family="Arial,Helvetica,sans-serif" font-size="84" font-weight="bold" opacity="0.3" ' +
+      'text-anchor="middle" fill="url(#g)">MFlixTV</text></svg>';
+    v.poster = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(BRAND_SVG);
+  } catch (e) {}
 
   function playEp(i) {
     var e = state.eps[i];

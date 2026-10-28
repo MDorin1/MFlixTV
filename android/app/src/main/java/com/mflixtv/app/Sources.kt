@@ -400,4 +400,67 @@ object Sources {
         dedup.values.forEach { arr.put(it) }
         return arr
     }
+
+    /**
+     * 首页顶部大图轮播（5–8 部）。
+     *
+     * 有观看记录时按「最近看的那部」推同类：先按片名搜同系列/同类型，同类型的排前面，
+     * 自己不算推荐；凑不满 5 部就用最近更新补足。没有观看记录就直接给最近更新。
+     */
+    fun hero(name: String, type: String): String {
+        val arr = JSONArray()
+        val seen = LinkedHashMap<String, Boolean>()
+        val want = name.trim()
+        val wantType = type.trim()
+
+        fun push(o: JSONObject?): Boolean {
+            if (o == null) return false
+            val n = o.optString("name").trim()
+            if (n.isEmpty()) return false
+            if (seen.containsKey(n)) return false
+            seen[n] = true
+            arr.put(o)
+            return arr.length() >= 8
+        }
+
+        if (want.length >= 2) {
+            try {
+                val found = JSONObject(search(want)).optJSONArray("list") ?: JSONArray()
+                val pool = ArrayList<JSONObject>()
+                for (i in 0 until found.length()) {
+                    val o = found.optJSONObject(i) ?: continue
+                    val n = o.optString("name").trim()
+                    // 自己（同名）不算推荐
+                    if (n.equals(want, true) || n.startsWith(want) || want.startsWith(n)) continue
+                    pool.add(o)
+                }
+                // 同类型的排前面，再按年份从新到旧
+                pool.sortWith(
+                    compareByDescending<JSONObject> {
+                        if (wantType.isNotBlank() && it.optString("typeName").contains(wantType)) 1 else 0
+                    }.thenByDescending { it.optString("year").toIntOrNull() ?: 0 }
+                )
+                for (o in pool) {
+                    if (push(o)) break
+                }
+            } catch (_: Exception) {
+            }
+        }
+
+        if (arr.length() < 5) {
+            try {
+                val latest = fetchRow(Row("latest", "最近更新", emptyList(), "", 4))
+                for (i in 0 until latest.length()) {
+                    if (push(latest.optJSONObject(i))) break
+                }
+            } catch (_: Exception) {
+            }
+        }
+
+        return JSONObject()
+            .put("list", arr)
+            .put("from", if (want.length >= 2 && arr.length() > 0) "like" else "latest")
+            .put("like", want)
+            .toString()
+    }
 }
