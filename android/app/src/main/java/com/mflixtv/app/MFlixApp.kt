@@ -17,6 +17,7 @@ class MFlixApp : Application() {
         // 源列表要尽早可用：前台服务、WebView、后台刷新都读同一份
         try {
             Sources.init(this)
+            Net.init(this)
         } catch (_: Throwable) {
         }
         val prev = Thread.getDefaultUncaughtExceptionHandler()

@@ -39,6 +39,7 @@ class ServerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         try {
             Sources.init(this)
+            Net.init(this)
         } catch (_: Throwable) {
         }
 

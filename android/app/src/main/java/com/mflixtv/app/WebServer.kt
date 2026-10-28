@@ -28,7 +28,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val ctx = context
 
     companion object {
-        const val VERSION = "android-0.4"
+        const val VERSION = "android-0.6"
     }
 
     override fun serve(session: IHTTPSession): Response {
@@ -55,6 +55,8 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 )
                 uri == "/api/sources/save" -> saveSources(session, p["json"]?.firstOrNull())
                 uri == "/api/sources/reset" -> json("{\"ok\":true,\"count\":" + Sources.reset() + "}")
+                uri == "/api/diag" -> json(Sources.probeJson(useCache = p["force"]?.firstOrNull() != "1"))
+                uri == "/api/netcfg" -> netcfg(p["proxy"]?.firstOrNull())
                 uri == "/api/proxy" -> proxy(session)
                 uri == "/" || uri == "/index.html" -> asset("index.html", "text/html; charset=utf-8")
                 uri == "/hls.min.js" -> asset("hls.min.js", "application/javascript; charset=utf-8")
@@ -117,6 +119,18 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         return n.replace(Regex("\\s{2,}"), " ").trim()
     }
 
+    /** 代理设置：GET 看当前值，带 proxy 参数就是设置（空字符串=清除）。 */
+    private fun netcfg(proxy: String?): Response {
+        if (proxy == null) {
+            return json("{\"proxy\":\"" + esc(Net.proxyString()) + "\"}")
+        }
+        val ok = Net.setProxy(ctx, proxy)
+        return json(
+            "{\"ok\":" + ok + ",\"proxy\":\"" + esc(Net.proxyString()) + "\"" +
+                (if (ok) "" else ",\"error\":\"格式要是 主机:端口\"") + "}"
+        )
+    }
+
     private fun saveSources(session: IHTTPSession, queryJson: String?): Response {
         val body = queryJson ?: try {
             val files = HashMap<String, String>()
@@ -153,22 +167,13 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             ?: return json("{\"error\":\"missing url\"}")
         val target = if (raw.startsWith("http")) raw else "https://" + raw
         val conn = try {
-            URL(target).openConnection() as HttpURLConnection
+            // 统一走 Net：证书宽容（采集站常缺中间证书，Java 校验比浏览器严）+ 可选代理
+            Net.open(target, 12000).also { it.readTimeout = 25000 }
         } catch (e: Exception) {
             return json("{\"error\":\"" + esc(e.message ?: "bad url") + "\"}")
         }
         return try {
-            conn.connectTimeout = 12000
-            conn.readTimeout = 25000
             conn.instanceFollowRedirects = true
-            conn.setRequestProperty("User-Agent", Sources.UA)
-            conn.setRequestProperty("Accept", "*/*")
-            // 采集站的图床、播放 CDN 大多按同域 Referer 放行，缺了就是 403
-            try {
-                val u = URL(target)
-                conn.setRequestProperty("Referer", u.protocol + "://" + u.host + "/")
-            } catch (_: Exception) {
-            }
             session.headers["range"]?.let { conn.setRequestProperty("Range", it) }
 
             val code = conn.responseCode

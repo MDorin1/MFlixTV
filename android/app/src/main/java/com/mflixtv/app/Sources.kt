@@ -20,9 +20,6 @@ object Sources {
 
     data class Src(val key: String, val name: String, val base: String)
 
-    const val UA =
-        "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
-
     /** 出厂源：实测能返回 JSON 列表的采集站。用户删光了也不会真的空着。 */
     val BUILTIN: List<Src> = listOf(
         Src("bdzy", "百度云", "https://api.apibdzy.com/api.php/provide/vod"),
@@ -32,8 +29,15 @@ object Sources {
         Src("lzi", "量子", "https://cj.lziapi.com/api.php/provide/vod"),
         Src("wujin", "无尽", "https://api.wujinapi.me/api.php/provide/vod"),
         Src("ffzy", "非凡", "https://api.ffzyapi.com/api.php/provide/vod"),
-        Src("zuid", "最大", "https://api.zuidapi.com/api.php/provide/vod")
+        Src("zuid", "最大", "https://api.zuidapi.com/api.php/provide/vod"),
+        // 下面是备选：有些地区前几个会被拦，多几个能提高命中；自检不通的可以一键删掉
+        Src("wolong", "卧龙", "https://wolongzyw.com/api.php/provide/vod"),
+        Src("rycj", "如意", "https://cj.rycjapi.com/api.php/provide/vod"),
+        Src("ikun", "iKun", "https://ikunzyapi.com/api.php/provide/vod"),
+        Src("360zy", "360", "https://360zy.com/api.php/provide/vod")
     )
+
+    val UA: String get() = Net.UA
 
     private const val SP = "mflixtv"
     private const val KEY_SOURCES = "sources_json"
@@ -134,26 +138,127 @@ object Sources {
         "src"
     }
 
-    /** 极简 GET：超时短、跟随重定向、强制 UTF-8。 */
-    fun get(url: String, timeoutMs: Int = 9000): String {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = timeoutMs
-        conn.readTimeout = timeoutMs
-        conn.instanceFollowRedirects = true
-        conn.setRequestProperty("User-Agent", UA)
-        conn.setRequestProperty("Accept", "application/json,text/plain,*/*")
-        val code = conn.responseCode
-        if (code !in 200..299) throw IOException("HTTP $code")
-        val stream = conn.inputStream ?: throw IOException("empty body")
-        return stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+    /**
+     * GET。https 失败自动退回同域 http：
+     * 有些采集站证书链不完整或只配了 http，Android 上 https 会直接失败，换 http 往往就通。
+     */
+    fun get(url: String, timeoutMs: Int = 6000): String {
+        return try {
+            Net.getText(url, timeoutMs)
+        } catch (e: Exception) {
+            if (url.startsWith("https://")) {
+                Net.getText("http://" + url.removePrefix("https://"), timeoutMs)
+            } else throw e
+        }
+    }
+
+    /* ---------------- 源自检 ---------------- */
+
+    private const val K_PROBE = "probe_json"
+    private const val K_PROBE_TS = "probe_ts"
+    private const val PROBE_TTL = 20 * 60 * 1000L
+
+    @Volatile private var probeCache: List<Probe>? = null
+
+    data class Probe(val base: String, val name: String, val ok: Boolean, val ms: Int, val err: String)
+
+    private fun readProbeCache(): List<Probe>? {
+        probeCache?.let { return it }
+        val p = sp ?: return null
+        if (System.currentTimeMillis() - p.getLong(K_PROBE_TS, 0L) > PROBE_TTL) return null
+        return try {
+            val arr = JSONArray(p.getString(K_PROBE, "[]"))
+            val out = ArrayList<Probe>()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                out.add(
+                    Probe(
+                        o.optString("base"), o.optString("name"), o.optBoolean("ok"),
+                        o.optInt("ms"), o.optString("err")
+                    )
+                )
+            }
+            if (out.isEmpty()) null else out.also { probeCache = it }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun writeProbeCache(list: List<Probe>) {
+        probeCache = list
+        val p = sp ?: return
+        val arr = JSONArray()
+        list.forEach {
+            arr.put(
+                JSONObject().put("base", it.base).put("name", it.name)
+                    .put("ok", it.ok).put("ms", it.ms).put("err", it.err)
+            )
+        }
+        p.edit().putString(K_PROBE, arr.toString())
+            .putLong(K_PROBE_TS, System.currentTimeMillis()).apply()
+    }
+
+    /** 逐个源打一次轻量请求（只要列表接口），拿回「通 / 不通 + 耗时 + 错误」。 */
+    fun probeAll(timeoutMs: Int = 6000, useCache: Boolean = false): List<Probe> {
+        if (useCache) readProbeCache()?.let { return it }
+        val out = Collections.synchronizedList(ArrayList<Probe>())
+        val workers = ALL.map { s ->
+            thread {
+                val t0 = System.currentTimeMillis()
+                var ok = false
+                var err = ""
+                try {
+                    val txt = get(s.base + "?ac=videolist&pg=1", timeoutMs)
+                    ok = txt.contains("\"list\"") || txt.contains("\\\"list\\\"")
+                    if (!ok) err = "返回不是列表（可能被拦截或换了接口）"
+                } catch (e: Exception) {
+                    err = Net.shortErr(e)
+                }
+                out.add(Probe(s.base, s.name, ok, (System.currentTimeMillis() - t0).toInt(), err))
+            }
+        }
+        workers.forEach { it.join((timeoutMs + 4000).toLong()) }
+        val list = out.toList().sortedBy { it.name }
+        writeProbeCache(list)
+        return list
+    }
+
+    /** 首页/搜索用的源池：优先用自检通过的；一个都不通时退回全部（让首页自己再试一次）。 */
+    fun usableSources(): List<Src> {
+        val probes = readProbeCache() ?: return ALL
+        val okBases = probes.filter { it.ok }.map { it.base }.toSet()
+        val picked = ALL.filter { it.base in okBases }
+        return if (picked.isEmpty()) ALL else picked
+    }
+
+    fun probeJson(useCache: Boolean = true): String {
+        val list = try {
+            probeAll(useCache = useCache)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        val arr = JSONArray()
+        list.forEach {
+            arr.put(
+                JSONObject().put("name", it.name).put("base", it.base)
+                    .put("ok", it.ok).put("ms", it.ms).put("err", it.err)
+            )
+        }
+        val okCount = list.count { it.ok }
+        return JSONObject()
+            .put("sources", arr)
+            .put("total", list.size)
+            .put("ok", okCount)
+            .put("proxy", Net.proxyString())
+            .toString()
     }
 
     fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
 
     data class Row(val key: String, val title: String, val type: String, val srcCount: Int)
 
-    /** 首页每一行要打哪几个源：行内前 N 个。 */
-    private fun pick(row: Row): List<Src> = ALL.take(row.srcCount)
+    /** 首页每一行要打哪几个源：优先用自检通过的源。 */
+    private fun pick(row: Row): List<Src> = usableSources().take(row.srcCount)
 
     /**
      * 搜索：并发查所有源，合并后按年份倒序（新片在前）。
@@ -162,10 +267,10 @@ object Sources {
     fun search(wd: String): String {
         if (wd.isBlank()) return JSONObject().put("list", JSONArray()).toString()
         val out = Collections.synchronizedList(ArrayList<JSONObject>())
-        val workers = ALL.map { s ->
+        val workers = usableSources().map { s ->
             thread {
                 try {
-                    val text = get(s.base + "?ac=videolist&wd=" + enc(wd), 9000)
+                    val text = get(s.base + "?ac=videolist&wd=" + enc(wd), 7000)
                     val json = JSONObject(text)
                     val arr = json.optJSONArray("list") ?: return@thread
                     for (i in 0 until arr.length()) {

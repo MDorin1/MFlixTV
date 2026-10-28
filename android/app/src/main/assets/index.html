@@ -367,7 +367,10 @@
       <input class="inp" id="sNewBase" placeholder="接口地址，例如：https://api.example.com/api.php/provide/vod">
       <div class="row-btns">
         <button id="sAdd">加到列表</button>
-        <button id="sReset">恢复默认</button>
+        <button id="sKeepOk">只留能通的</button>
+      </div>
+      <div class="row-btns">
+        <button id="sReset">恢复默认源</button>
       </div>
       <div class="row-btns">
         <button class="primary" id="sSave">保存并生效</button>
@@ -379,6 +382,19 @@
       <div class="kv"><span>继续观看 / 我的列表</span><b id="sRecCnt">—</b></div>
       <div class="row-btns"><button id="sClear">清空本机记录</button></div>
       <div class="hint">记录只存在这台设备上，清空不影响别的设备。</div>
+    </div>
+
+    <div class="card-box">
+      <div class="box-t">网络 <span class="s">手机直连采集站常被拦，可填代理</span></div>
+      <div class="kv"><span>当前代理</span><b id="sProxy">未设置</b></div>
+      <input class="inp" id="sProxyIn" placeholder="HTTP 代理 主机:端口，例如 192.168.1.5:7890">
+      <div class="row-btns">
+        <button id="sProxySave">保存代理</button>
+        <button id="sProxyClear">清除</button>
+      </div>
+      <div class="row-btns"><button class="primary" id="sDiag">源站自检</button></div>
+      <div id="sDiagBox"></div>
+      <div class="hint">代理填手机上梯子的 HTTP 端口（v2ray / Clash 都可）。留空表示直连；改完会重新取一次片单。</div>
     </div>
 
     <div class="card-box">
@@ -493,6 +509,15 @@
   function skeleton() {
     $('loading').style.display = 'block';
     $('err').style.display = 'none';
+    $('loading').innerHTML = '<div class="spin"></div>正在载入片单…';
+    clearTimeout(skeleton._t);
+    // 源站慢的时候别让用户以为死机：8 秒后换一句更具体的提示
+    skeleton._t = setTimeout(function () {
+      if ($('loading').style.display !== 'none') {
+        $('loading').innerHTML = '<div class="spin"></div>源站响应慢，再等十几秒…' +
+          '<br><span style="font-size:11.5px;color:#666">一直不动的话，失败页可以点「逐个源自检」</span>';
+      }
+    }, 8000);
   }
   function loadHome(force) {
     skeleton();
@@ -502,19 +527,60 @@
         state.rows = d.rows || [];
         $('loading').style.display = 'none';
         render();
-        if (!state.rows.length) {
-          $('err').style.display = 'block';
-          $('err').innerHTML = '片单暂时没拿到，可能源站慢或网络不好。<br><button id="retry">重新载入</button>';
-          var b = $('retry'); if (b) b.onclick = function () { $('err').style.display = 'none'; loadHome(true); };
-          return;
-        }
+        if (d.stale) toast('源站暂时不通，先显示上次的片单');
+        if (!state.rows.length) showFail(d);
       })
-      .catch(function (e) {
-        $('loading').style.display = 'none';
-        $('err').style.display = 'block';
-        $('err').innerHTML = '载入失败：' + esc(e.message) + '<br><button id="retry">重新载入</button>';
-        var b = $('retry'); if (b) b.onclick = function () { loadHome(true); };
-      });
+      .catch(function (e) { $('loading').style.display = 'none'; showFail({ error: e.message }); });
+  }
+
+  /** 失败页：说清「为什么」+ 一键逐个源自检（不要在手机上只能干瞪眼）。 */
+  function showFail(d) {
+    d = d || {};
+    var diag = d.diag || null;
+    var head = d.error === 'all_sources_failed'
+      ? ((diag ? diag.total : 0) || '全部') + ' 个源都没通'
+      : '片单没拿到';
+    var box = $('err');
+    box.style.display = 'block';
+    box.innerHTML = '<div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:10px">' + esc(head) + '</div>' +
+      '<div class="hint" style="text-align:left">这些采集站在手机网络上经常被拦（电脑端能跑，多半是电脑走了系统代理）。' +
+      '可以先在设置里填一个 HTTP 代理，或者点下面「逐个源自检」看每个源的真实报错。</div>' +
+      '<div class="row-btns" style="margin-top:14px">' +
+      '<button id="retry">重试</button><button id="diagBtn">逐个源自检</button></div>' +
+      '<div class="row-btns" style="margin-top:9px">' +
+      '<button id="searchAnyway">直接搜片</button><button id="toSettings">去设置</button></div>' +
+      '<div id="diagBox"></div>';
+    $('retry').onclick = function () { $('err').style.display = 'none'; loadHome(true); };
+    $('toSettings').onclick = openSettings;
+    $('searchAnyway').onclick = function () { startSearch(''); };
+    $('diagBtn').onclick = function () {
+      $('diagBox').innerHTML = '<div class="hint" style="text-align:left">正在逐个探测（最多十几秒）…</div>';
+      fetch('/api/diag?force=1')
+        .then(function (r) { return r.json(); })
+        .then(renderDiag)
+        .catch(function (e) { $('diagBox').innerHTML = '<div class="hint">自检失败：' + esc(e.message) + '</div>'; });
+    };
+    if (diag) renderDiag(diag);
+  }
+
+  function renderDiag(d) {
+    var list = (d && d.sources) || [];
+    var head = (d && d.ok ? d.ok : 0) + '/' + list.length + ' 个源可用' +
+      (d && d.proxy ? ('　代理：' + d.proxy) : '　未设代理');
+    var html = '<div class="hint" style="text-align:left;margin-top:12px">' + esc(head) + '</div>';
+    if (!list.length) {
+      html += '<div class="hint" style="text-align:left">没有源可探测，去设置里加点。</div>';
+    }
+    list.forEach(function (s) {
+      var color = s.ok ? '#3ddc84' : '#e5a100';
+      html += '<div class="src-item" style="border-color:#1a1a1a">' +
+        '<div style="flex:1;min-width:0">' +
+        '<div class="nm">' + esc(s.name) +
+        ' <span style="color:' + color + ';font-size:11px">' + (s.ok ? '通' : '不通') + ' · ' + (s.ms | 0) + 'ms</span></div>' +
+        '<div class="bs">' + esc(s.base) + (s.err ? ('<br><span style="color:#8a6d3b">' + esc(s.err) + '</span>') : '') + '</div>' +
+        '</div></div>';
+    });
+    $('diagBox').innerHTML = html;
   }
 
   function badgeText(r) {
@@ -969,6 +1035,7 @@
     renderSources();
     refreshRecCnt();
     refreshBattery();
+    loadNetcfg();
     fetch('/api/sources').then(function (r) { return r.json(); }).then(function (d) {
       SET.list = d.list || [];
       SET.builtin = d.builtin || [];
@@ -985,8 +1052,7 @@
   function refreshRecCnt() {
     $('sRecCnt').textContent = contAll().length + ' 部在看 · ' + listAll().length + ' 部收藏';
   }
-  function refreshBattery() {
-    var ok = false;
+  function refreshBattery() {    var ok = false;
     try { if (window.MFlixNative && window.MFlixNative.batteryOk) ok = !!window.MFlixNative.batteryOk(); } catch (e) {}
     var b = $('sBat'), btn = $('sBatBtn');
     b.textContent = ok ? '已允许' : '未允许';
@@ -998,6 +1064,49 @@
   $('sBatBtn').onclick = function () {
     try { if (window.MFlixNative && window.MFlixNative.battery) window.MFlixNative.battery(); } catch (e) {}
     setTimeout(refreshBattery, 1500);
+  };
+
+  /* ---- 网络：代理 + 源自检 ---- */
+  function loadNetcfg() {
+    fetch('/api/netcfg').then(function (r) { return r.json(); }).then(function (d) {
+      $('sProxy').textContent = d.proxy || '未设置';
+      $('sProxyIn').value = d.proxy || '';
+    }).catch(function () {});
+  }
+  function saveProxy(v) {
+    fetch('/api/netcfg?proxy=' + encodeURIComponent(v || ''))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          $('sProxy').textContent = d.proxy || '未设置';
+          $('sProxyIn').value = d.proxy || '';
+          toast('代理已保存：' + (d.proxy || '直连'));
+          loadHome(true);
+        } else toast('格式不对，要写成 主机:端口');
+      })
+      .catch(function (e) { toast('保存失败：' + e.message); });
+  }
+  $('sProxySave').onclick = function () { saveProxy(($('sProxyIn').value || '').trim()); };
+  $('sProxyClear').onclick = function () { $('sProxyIn').value = ''; saveProxy(''); };
+  $('sDiag').onclick = function () {
+    $('sDiagBox').innerHTML = '<div class="hint">正在逐个探测（最多十几秒）…</div>';
+    fetch('/api/diag?force=1')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var list = d.sources || [];
+        var html = '<div class="hint">' + (d.ok || 0) + '/' + list.length + ' 个源可用' +
+          (d.proxy ? ('　代理：' + esc(d.proxy)) : '　未设代理') + '</div>';
+        list.forEach(function (s) {
+          var color = s.ok ? '#3ddc84' : '#e5a100';
+          html += '<div class="src-item" style="border-color:#161616"><div style="flex:1;min-width:0">' +
+            '<div class="nm">' + esc(s.name) + ' <span style="color:' + color + ';font-size:11px">' +
+            (s.ok ? '通' : '不通') + ' · ' + (s.ms | 0) + 'ms</span></div>' +
+            '<div class="bs">' + esc(s.base) + (s.err ? ('<br><span style="color:#8a6d3b">' + esc(s.err) + '</span>') : '') +
+            '</div></div></div>';
+        });
+        $('sDiagBox').innerHTML = html;
+      })
+      .catch(function (e) { $('sDiagBox').innerHTML = '<div class="hint">自检失败：' + esc(e.message) + '</div>'; });
   };
   function renderSources() {
     var list = SET.list;
@@ -1054,6 +1163,20 @@
         loadHome(true);
       })
       .catch(function (e) { toast('恢复失败：' + e.message); });
+  };
+  $('sKeepOk').onclick = function () {
+    toast('正在探测，十几秒…');
+    fetch('/api/diag?force=1')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var okBases = (d.sources || []).filter(function (s) { return s.ok; })
+          .map(function (s) { return s.base; });
+        if (!okBases.length) { toast('一个源都不通，先解决网络（可填代理）'); return; }
+        SET.list = SET.list.filter(function (s) { return okBases.indexOf(s.base) >= 0; });
+        renderSources();
+        toast('保留 ' + SET.list.length + ' 个能通的源，记得点保存');
+      })
+      .catch(function (e) { toast('探测失败：' + e.message); });
   };
   $('sSave').onclick = function () {
     if (!SET.list.length) { toast('至少留一个源'); return; }
