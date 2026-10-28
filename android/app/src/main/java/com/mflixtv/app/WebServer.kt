@@ -34,7 +34,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val portNum = port
 
     companion object {
-        const val VERSION = "android-0.13"
+        const val VERSION = "android-0.14"
     }
 
     /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
@@ -46,9 +46,20 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri ?: "/"
         val p = session.parameters
+        // 每条请求都续一下 CPU 唤醒锁：锁屏后别的设备来拉分片也能被立刻应答
+        KeepAlive.touch(ctx)
         return try {
             when {
                 uri == "/api/status" -> json(status())
+                // 息屏常驻开关：?on=1 / ?on=0，不带参数就只读当前状态
+                uri == "/api/wakelock" -> {
+                    val on = p["on"]?.firstOrNull()
+                    if (on != null) KeepAlive.setAlwaysOn(ctx, on == "1" || on == "true")
+                    json(
+                        "{\"wakeAlways\":" + KeepAlive.alwaysOn(ctx) +
+                            ",\"wake\":" + KeepAlive.isHeld() + "}"
+                    )
+                }
                 uri == "/api/home" -> home(session, p["force"]?.firstOrNull() == "1")
                 uri == "/api/search" -> json(Sources.search(p["wd"]?.firstOrNull() ?: ""))
                 uri == "/api/series" -> json(series(p["name"]?.firstOrNull() ?: ""))
@@ -268,6 +279,9 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             put("wifi", LanIp.wifiUp())
             // 端口不一定是 8080（被占时会自动换），页面与设置页都读这个值
             put("port", portNum)
+            // 息屏常驻：wake=是否持着 CPU 唤醒锁，wakeAlways=用户选的策略
+            put("wake", KeepAlive.isHeld())
+            put("wakeAlways", KeepAlive.alwaysOn(ctx))
             // 机型指纹 + 最近一次崩溃：别人反馈闪退时，让用户截设置页就能拿到真因
             put("device", CrashLog.deviceLine(ctx))
             put("lastCrash", CrashLog.lastSummary(ctx))

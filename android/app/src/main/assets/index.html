@@ -610,7 +610,9 @@
       <div class="box-t">后台常驻 <span class="s">息屏 / 切后台后别的设备还要能连</span></div>
       <div class="kv"><span>电池优化白名单</span><b id="sBat">检查中…</b></div>
       <div class="row-btns"><button id="sBatBtn">允许后台常驻</button></div>
-      <div class="hint">国产 ROM（MIUI / ColorOS / EMUI / 鸿蒙）还要在系统设置里给 MFlixTV 打开「自启动」和「后台允许运行」，否则杀后台会把服务一起带走。</div>
+      <div class="kv"><span>息屏常驻（CPU 不休眠）</span><b id="sWake">检查中…</b></div>
+      <div class="row-btns"><button id="sWakeBtn">切换省电模式</button></div>
+      <div class="hint">手机锁屏后网卡能连、CPU 却被系统挂起时，别的设备来拉分片就没人应答——表现是「一开始能播，手机一锁屏就卡住」。<b>息屏常驻</b>会一直持着 CPU 唤醒锁（不亮屏，只醒着），最稳；嫌耗电可以切省电模式：只在有播放流量时醒着。国产 ROM（MIUI / ColorOS / EMUI / 鸿蒙）还要在系统设置里给 MFlixTV 打开「自启动」和「后台允许运行」。</div>
     </div>
 
     <div class="card-box">
@@ -1723,6 +1725,7 @@
     renderSources();
     refreshRecCnt();
     refreshBattery();
+    refreshWake();
     loadNetcfg();
     fetch('/api/sources').then(function (r) { return r.json(); }).then(function (d) {
       SET.list = d.list || [];
@@ -1736,6 +1739,7 @@
       $('sLocal').textContent = LOCAL || (location.protocol + '//' + (location.host || ''));
       if (d.port) $('sAddr').textContent = 'NanoHTTPD · 0.0.0.0:' + d.port;
       if (d.device) $('sDev').textContent = String(d.device).split(' | ')[0];
+      if (d.wake !== undefined || d.wakeAlways !== undefined) paintWake(d);
       // 上次崩溃（有才显示）：机型 + 堆栈都在 crash.log，反馈闪退时直接截这一行
       if (d.lastCrash) {
         $('sCrashRow').style.display = 'flex';
@@ -1772,6 +1776,28 @@
   $('sBatBtn').onclick = function () {
     try { if (window.MFlixNative && window.MFlixNative.battery) window.MFlixNative.battery(); } catch (e) {}
     setTimeout(refreshBattery, 1500);
+  };
+
+  /* ---- 息屏常驻（CPU 唤醒锁）：手机锁屏后，别的设备来拉分片也得有人应答 ---- */
+  function paintWake(d) {
+    var always = d ? d.wakeAlways !== false : true;
+    var held = !!(d && d.wake);
+    $('sWake').textContent = (always ? '常驻（最稳）' : '省电（仅在播放时）') + (held ? ' · 已持锁' : '');
+    $('sWake').style.color = always ? '#3ddc84' : '#e5a100';
+    $('sWakeBtn').textContent = always ? '切换省电模式' : '切换常驻模式';
+  }
+  function refreshWake() {
+    fetch('/api/wakelock').then(function (r) { return r.json(); }).then(paintWake)
+      .catch(function () { $('sWake').textContent = '查询失败'; });
+  }
+  $('sWakeBtn').onclick = function () {
+    fetch('/api/wakelock').then(function (r) { return r.json(); }).then(function (d) {
+      var turnOn = !(d && d.wakeAlways === false);
+      return fetch('/api/wakelock?on=' + (turnOn ? '0' : '1')).then(function (r) { return r.json(); });
+    }).then(function (d) {
+      paintWake(d);
+      toast(d.wakeAlways ? '已开启息屏常驻（锁屏也能播）' : '已切到省电模式（只在播放时醒着）');
+    }).catch(function () { toast('设置失败，稍后再试'); });
   };
 
   /* ---- 网络：代理 + 源自检 ---- */

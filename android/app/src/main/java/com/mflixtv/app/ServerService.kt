@@ -28,6 +28,7 @@ class ServerService : Service() {
     private var server: WebServer? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var netCallback: ConnectivityManager.NetworkCallback? = null
+    private var watchdogPosted = false
 
     companion object {
         private const val CH_ID = "mflixtv-service"
@@ -72,8 +73,66 @@ class ServerService : Service() {
 
         startServer()
         acquireWifiLock()
+        // 关键：锁屏后 CPU 不能被挂起，否则局域网里的播放请求没人应答
+        KeepAlive.applyPolicy(this)
+        startWatchdog()
         watchNetwork()
         return START_STICKY
+    }
+
+    /**
+     * 看门狗：HTTP 服务线程万一挂了（内存紧张被杀、端口被半路抢走），
+     * 前台服务还在、通知还亮着，但页面已经打不开了。每 60 秒查一次，挂了就重建。
+     */
+    private fun startWatchdog() {
+        if (watchdogPosted) return
+        watchdogPosted = true
+        handler.postDelayed(watchdogTask, 60_000)
+    }
+
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private val watchdogTask = object : Runnable {
+        override fun run() {
+            try {
+                val s = server
+                val alive = try {
+                    s != null && s.isAlive
+                } catch (_: Throwable) {
+                    s != null
+                }
+                if (!alive) {
+                    Log.w("MFlixTV", "http server not alive, restarting")
+                    try {
+                        s?.stop()
+                    } catch (_: Throwable) {
+                    }
+                    server = null
+                    startServer()
+                }
+                if (KeepAlive.alwaysOn(this@ServerService) && !KeepAlive.isHeld()) {
+                    KeepAlive.hold(this@ServerService)
+                }
+            } catch (_: Throwable) {
+            }
+            handler.postDelayed(this, 60_000)
+        }
+    }
+
+    /** 从最近任务里划掉 App 时，服务继续跑（很多 ROM 默认会顺手杀服务）。 */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        try {
+            val restart = Intent(applicationContext, ServerService::class.java)
+            val pi = PendingIntent.getService(
+                this, 1, restart,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                    (if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
+            )
+            val am = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            am.set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 1000, pi)
+        } catch (_: Throwable) {
+        }
+        super.onTaskRemoved(rootIntent)
     }
 
     /**
@@ -138,17 +197,36 @@ class ServerService : Service() {
         }
     }
 
-    /** 息屏后不让 WiFi 掉线：没有它，屏幕一黑别的设备就连不上 8080。 */
+    /**
+     * 息屏后不让 WiFi 掉线：没有它，屏幕一黑网卡就进省电状态，别的设备连不上。
+     * Android 10+ 用 LOW_LATENCY 模式（延迟更低、更适合边下边播），不支持就退回 HIGH_PERF。
+     */
     private fun acquireWifiLock() {
         if (wifiLock?.isHeld == true) return
+        val wm = try {
+            applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        } catch (e: Throwable) {
+            Log.w("MFlixTV", "wifi manager unavailable", e)
+            return
+        }
+        if (Build.VERSION.SDK_INT >= 29) {
+            try {
+                val ll = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "MFlixTV:server")
+                ll.setReferenceCounted(false)
+                ll.acquire()
+                wifiLock = ll
+                Log.i("MFlixTV", "wifi lock acquired (low latency)")
+                return
+            } catch (_: Throwable) {
+            }
+        }
         try {
-            val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
             @Suppress("DEPRECATION")
             val lock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MFlixTV:server")
             lock.setReferenceCounted(false)
             lock.acquire()
             wifiLock = lock
-            Log.i("MFlixTV", "wifi lock acquired")
+            Log.i("MFlixTV", "wifi lock acquired (high perf)")
         } catch (e: Throwable) {
             Log.w("MFlixTV", "wifi lock failed", e)
         }
@@ -195,7 +273,13 @@ class ServerService : Service() {
         } catch (_: Throwable) {
         }
         netCallback = null
+        watchdogPosted = false
+        try {
+            handler.removeCallbacks(watchdogTask)
+        } catch (_: Throwable) {
+        }
         releaseWifiLock()
+        KeepAlive.release()
         try {
             server?.stop()
         } catch (_: Throwable) {
