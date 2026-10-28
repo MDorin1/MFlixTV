@@ -294,7 +294,7 @@ class MainActivity : AppCompatActivity() {
                 w.loadUrl(url)
             } catch (_: Throwable) {
             }
-        }, if (retries == 0) 420L else 0L)
+        }, if (retries == 0) 700L else 0L)
     }
 
     private fun retryLoad(view: WebView) {
@@ -311,7 +311,10 @@ class MainActivity : AppCompatActivity() {
         }
         view.postDelayed({
             try {
-                view.loadUrl(loadingUrl.ifEmpty { baseUrl() })
+                // 每次重试都重新读端口：8080 被占时服务端可能已经换到 8081，
+                // 沿用第一次那个地址会一直打在错的端口上（表现就是永远白屏）。
+                loadingUrl = baseUrl()
+                view.loadUrl(loadingUrl)
             } catch (_: Throwable) {
             }
         }, delay)
