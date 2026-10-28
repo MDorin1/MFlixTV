@@ -1,67 +1,220 @@
-﻿package com.mflixtv.app
+package com.mflixtv.app
 
 import android.content.Context
 import fi.iki.elonen.NanoHTTPD
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * 手机上的极简服务端：先只做三件事，把「手机起服务、局域网能访问」跑通。
- *  - GET /               占位页（后续换成本地打包的前端）
- *  - GET /api/status     连通性与版本
- *  - GET /api/proxy?url= 图片/视频直通，Range 透传（视频要它才能拖动）
+ * 手机上的服务端（NanoHTTPD，绑 0.0.0.0:8080）。
+ *
+ * 路由：
+ *  - GET  /                     内置前端 assets/index.html（Netflix 风格首页）
+ *  - GET  /hls.min.js           HLS 播放内核（离线内置，不依赖 CDN）
+ *  - GET  /api/home             首页片单（10 分钟缓存；?force=1 强制重建）
+ *  - GET  /api/search?wd=       多源搜索（片名 / 演员都命中）
+ *  - GET  /api/detail?src=&id=  详情 + 全部播放组
+ *  - GET  /api/series?name=     同名的其它季/部（资料页「同系列」）
+ *  - GET  /api/proxy?url=       转发（图片 / m3u8 / 分片，Range 透传、m3u8 重写）
+ *  - GET  /api/sources          当前源列表
+ *  - POST /api/sources/save     保存源列表（body: JSON 数组）
+ *  - POST /api/sources/reset    恢复出厂源
+ *  - GET  /api/status           版本与状态
  */
 class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val ctx = context
 
+    companion object {
+        const val VERSION = "android-0.4"
+    }
+
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri ?: "/"
-        return when {
-            uri == "/api/status" -> json("{\"passwordRequired\":false,\"verified\":true,\"version\":\"android-0.1\"}")
-            uri == "/api/search" -> json(SourceSearch.search(session.parameters["wd"]?.firstOrNull() ?: ""))
-            uri == "/api/proxy" -> proxy(session)
-            uri == "/" || uri == "/index.html" -> assetPage()
-            else -> newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "not found")
+        val p = session.parameters
+        return try {
+            when {
+                uri == "/api/status" -> json(
+                    "{\"passwordRequired\":false,\"verified\":true,\"version\":\"$VERSION\",\"sources\":" +
+                        Sources.ALL.size + "}"
+                )
+                uri == "/api/home" -> home(session, p["force"]?.firstOrNull() == "1")
+                uri == "/api/search" -> json(Sources.search(p["wd"]?.firstOrNull() ?: ""))
+                uri == "/api/series" -> json(series(p["name"]?.firstOrNull() ?: ""))
+                uri == "/api/detail" -> json(
+                    SourceDetail.detail(
+                        p["src"]?.firstOrNull() ?: "",
+                        p["id"]?.firstOrNull() ?: ""
+                    )
+                )
+                uri == "/api/sources" -> json(
+                    "{\"list\":" + Sources.toJson(Sources.ALL) +
+                        ",\"builtin\":" + Sources.toJson(Sources.BUILTIN) + "}"
+                )
+                uri == "/api/sources/save" -> saveSources(session, p["json"]?.firstOrNull())
+                uri == "/api/sources/reset" -> json("{\"ok\":true,\"count\":" + Sources.reset() + "}")
+                uri == "/api/proxy" -> proxy(session)
+                uri == "/" || uri == "/index.html" -> asset("index.html", "text/html; charset=utf-8")
+                uri == "/hls.min.js" -> asset("hls.min.js", "application/javascript; charset=utf-8")
+                uri == "/favicon.ico" -> newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "")
+                else -> newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "not found")
+            }
+        } catch (e: Exception) {
+            json("{\"error\":\"" + esc(e.message ?: "server error") + "\"}")
         }
     }
 
-    /** 首页：直接读 APK 内置的 assets/index.html，相对路径请求才会打到本机服务。 */
-    private fun assetPage(): Response = try {
-        val text = ctx.assets.open("index.html").bufferedReader().use { it.readText() }
-        html(text)
+    /**
+     * 首页：有缓存先给缓存；客户端点「重新载入」时强制重建。
+     * 重建很慢（多源并发抓），所以这里从不阻塞太久的重复请求。
+     */
+    private fun home(session: IHTTPSession, force: Boolean): Response {
+        if (!force) {
+            HomeFeed.cached(ctx)?.let { return json(it.toString()) }
+            HomeFeed.stale(ctx)?.let {
+                HomeFeed.refreshAsync(ctx)
+                return json(it)
+            }
+        }
+        return json(HomeFeed.home(ctx, force))
+    }
+
+    /** 同名的其它季：把「第 3 季」「Season 2」这类后缀去掉，再跨源搜基名。 */
+    private fun series(name: String): String {
+        val base = baseName(name)
+        val out = JSONObject()
+        val arr = JSONArray()
+        if (base.length >= 2) {
+            try {
+                val found = JSONObject(Sources.search(base)).optJSONArray("list") ?: JSONArray()
+                val seen = HashSet<String>()
+                for (i in 0 until found.length()) {
+                    val o = found.optJSONObject(i) ?: continue
+                    val n = o.optString("name").trim()
+                    if (n.length < base.length) continue
+                    if (!n.startsWith(base) && !n.contains(base)) continue
+                    val key = n + "|" + o.optString("year")
+                    if (!seen.add(key)) continue
+                    arr.put(o)
+                }
+            } catch (_: Exception) {
+            }
+        }
+        out.put("base", base)
+        out.put("list", arr)
+        return out.toString()
+    }
+
+    private fun baseName(name: String): String {
+        var n = name.trim()
+        n = n.replace(Regex("[（(]\\s*[^（()）]{0,8}(版|配音|国语|粤语|普通话|字幕)\\s*[)）]"), " ")
+        n = n.replace(Regex("(第[一二三四五六七八九十0-9]{1,3}[季部期篇])"), " ")
+        n = n.replace(Regex("(?i)\\bseason\\s*\\d{1,2}\\b"), " ")
+        n = n.replace(Regex("(?i)\\bs\\d{1,2}\\b"), " ")
+        n = n.replace(Regex("[\\s·\\-_:：]+$"), " ")
+        return n.replace(Regex("\\s{2,}"), " ").trim()
+    }
+
+    private fun saveSources(session: IHTTPSession, queryJson: String?): Response {
+        val body = queryJson ?: try {
+            val files = HashMap<String, String>()
+            session.parseBody(files)
+            files["postData"].orEmpty()
+        } catch (_: Exception) {
+            ""
+        }
+        if (body.isBlank()) return json("{\"ok\":false,\"error\":\"empty\"}")
+        val n = Sources.save(body)
+        return if (n < 0) json("{\"ok\":false,\"error\":\"bad json\"}")
+        else json("{\"ok\":true,\"count\":$n}")
+    }
+
+    private fun asset(name: String, mime: String): Response = try {
+        val bytes = ctx.assets.open(name).use { it.readBytes() }
+        newFixedLengthResponse(Response.Status.OK, mime, ByteArrayInputStream(bytes), bytes.size.toLong())
     } catch (e: Exception) {
-        html("<h1>MFlixTV</h1><p>assets/index.html 缺失</p>")
+        newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "asset missing: $name")
     }
 
     private fun json(body: String): Response =
         newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", body)
 
-    private fun html(body: String): Response =
-        newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", body)
+    private fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "'").replace("\n", " ").replace("\r", " ")
 
-    /** 代理：原样转发，Range/Content-Range 透传，保证播放器能拖动。 */
+    /**
+     * 代理：图片、m3u8、分片全走这里。
+     *  - Range / Content-Range 透传（拖动进度条、分片并发下载要靠它）
+     *  - 内容是 m3u8 时把里面的 URI 重写成代理地址，跨域/防盗链都绕开
+     */
     private fun proxy(session: IHTTPSession): Response {
-        val target = session.parameters["url"]?.firstOrNull()
+        val raw = session.parameters["url"]?.firstOrNull()
             ?: return json("{\"error\":\"missing url\"}")
+        val target = if (raw.startsWith("http")) raw else "https://" + raw
+        val conn = try {
+            URL(target).openConnection() as HttpURLConnection
+        } catch (e: Exception) {
+            return json("{\"error\":\"" + esc(e.message ?: "bad url") + "\"}")
+        }
         return try {
-            val conn = URL(target).openConnection() as HttpURLConnection
-            conn.connectTimeout = 15000
-            conn.readTimeout = 30000
+            conn.connectTimeout = 12000
+            conn.readTimeout = 25000
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("User-Agent", Sources.UA)
+            conn.setRequestProperty("Accept", "*/*")
+            // 采集站的图床、播放 CDN 大多按同域 Referer 放行，缺了就是 403
+            try {
+                val u = URL(target)
+                conn.setRequestProperty("Referer", u.protocol + "://" + u.host + "/")
+            } catch (_: Exception) {
+            }
             session.headers["range"]?.let { conn.setRequestProperty("Range", it) }
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+
             val code = conn.responseCode
+            val contentType = conn.contentType ?: "application/octet-stream"
+            val isM3u8 = target.contains(".m3u8", true) ||
+                contentType.contains("mpegurl", true) ||
+                contentType.contains("x-mpegURL", true)
+
+            if (isM3u8) {
+                val text = (if (code in 200..299) conn.inputStream else conn.errorStream)
+                    ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+                if (!text.contains("#EXTM3U")) {
+                    return json("{\"error\":\"not a manifest\",\"code\":" + code + "}")
+                }
+                val bytes = M3u8Rewriter.rewrite(text, target).toByteArray(Charsets.UTF_8)
+                return newFixedLengthResponse(
+                    Response.Status.OK, "application/vnd.apple.mpegurl", ByteArrayInputStream(bytes), bytes.size.toLong()
+                ).apply {
+                    addHeader("Access-Control-Allow-Origin", "*")
+                    addHeader("Cache-Control", "no-cache")
+                }
+            }
+
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-            val resp = newChunkedResponse(
-                if (code in 200..299) Response.Status.OK else Response.Status.INTERNAL_ERROR,
-                conn.contentType ?: "application/octet-stream",
-                stream
-            )
+                ?: return json("{\"error\":\"no body\",\"code\":" + code + "}")
+
+            // 上游给 206 就必须原样回 206，否则拖动进度条会重新下载整个文件；
+            // 有 Content-Length 时用定长响应，没有才退回 chunked。
+            val status = when {
+                code == 206 -> Response.Status.PARTIAL_CONTENT
+                code in 200..299 -> Response.Status.OK
+                else -> Response.Status.INTERNAL_ERROR
+            }
+            val declared = conn.getHeaderField("Content-Length")?.toLongOrNull()
+                ?: conn.contentLengthLong.takeIf { it > 0 }
+            val resp = if (declared != null && declared > 0) {
+                newFixedLengthResponse(status, contentType, stream, declared)
+            } else {
+                newChunkedResponse(status, contentType, stream)
+            }
             conn.getHeaderField("Content-Range")?.let { resp.addHeader("Content-Range", it) }
-            conn.getHeaderField("Content-Length")?.let { resp.addHeader("Content-Length", it) }
             resp.addHeader("Accept-Ranges", "bytes")
+            resp.addHeader("Access-Control-Allow-Origin", "*")
             resp
         } catch (e: Exception) {
-            json("{\"error\":\"" + (e.message ?: "proxy failed").replace("\"", "'") + "\"}")
+            json("{\"error\":\"" + esc(e.message ?: "proxy failed") + "\"}")
         }
     }
 }

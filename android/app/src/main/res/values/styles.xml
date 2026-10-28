@@ -1,0 +1,11 @@
+<resources>
+    <!-- AppCompatActivity 必须配 AppCompat 主题，否则一启动就抛
+         IllegalStateException: You need to use a Theme.AppCompat theme —— 表现就是点开立刻闪退。 -->
+    <style name="Theme.MFlixTV" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">#000000</item>
+        <item name="android:colorBackground">#000000</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

@@ -39,3 +39,15 @@ installer/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Android 构建产物与本地签名（keystore 绝不进仓库）
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/keystore/
+android/.kotlin/
+*.apk
+*.aab
+*.jks
+*.keystore
