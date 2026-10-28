@@ -352,10 +352,11 @@
   </div>
   <div id="sBody">
     <div class="card-box">
-      <div class="box-t">这台手机 <span class="s">局域网里的其它设备用这个地址</span></div>
-      <div class="kv"><span>访问地址</span><b id="sLan">—</b></div>
-      <div class="row-btns"><button id="sCopy">复制地址</button></div>
-      <div class="hint">手机开着 App，同一 WiFi 的手机 / 电脑 / 电视浏览器打开上面的地址，看到的就是同一套界面。</div>
+      <div class="box-t">这台手机 <span class="s">局域网里的其它设备用哪个地址</span></div>
+      <div class="kv"><span>局域网地址</span><b id="sLan">查询中…</b></div>
+      <div class="kv"><span>本机地址</span><b id="sLocal">—</b></div>
+      <div class="row-btns"><button id="sCopy">复制局域网地址</button></div>
+      <div class="hint" id="sLanHint">手机开着 App，同一 WiFi 的手机 / 电脑 / 电视浏览器打开「局域网地址」就能看到同一套界面。127.0.0.1 只在这台手机上有效，别的设备打不开。</div>
     </div>
 
     <div class="card-box">
@@ -1059,15 +1060,23 @@
 
   /* ---------------- 设置 ---------------- */
   var SET = { list: [], builtin: [] };
+  var LAN = '', LOCAL = '';
 
+  /**
+   * App 里的页面自己跑在 127.0.0.1 上，location.host 永远是回环地址，
+   * 所以局域网地址只能问服务端（Android 那边查网卡算出来的）。
+   */
   function lanUrl() {
-    var h = location.host || '127.0.0.1:8080';
-    return 'http://' + h + '/';
+    if (LAN) return LAN + '/';
+    var h = location.host || '';
+    if (h && h.indexOf('127.0.0.1') !== 0 && h.indexOf('localhost') !== 0) return 'http://' + h + '/';
+    return LOCAL ? (LOCAL + '/') : 'http://127.0.0.1:8080/';
   }
   function openSettings() {
     $('settings').classList.add('on');
     lockScroll(true);
-    $('sLan').textContent = lanUrl();
+    $('sLan').textContent = '查询中…';
+    $('sLocal').textContent = location.protocol + '//' + (location.host || '127.0.0.1:8080');
     SET.list = []; SET.builtin = [];
     renderSources();
     refreshRecCnt();
@@ -1079,8 +1088,21 @@
       renderSources();
     }).catch(function () {});
     fetch('/api/status').then(function (r) { return r.json(); }).then(function (d) {
+      LAN = d.lan || '';
+      LOCAL = d.local || '';
       $('sVer').textContent = d.version || '—';
-    }).catch(function () { $('sVer').textContent = '—'; });
+      $('sLocal').textContent = LOCAL || (location.protocol + '//' + (location.host || ''));
+      if (LAN) {
+        $('sLan').textContent = LAN;
+        $('sLan').style.color = LAN ? '#3ddc84' : '#fff';
+      } else {
+        $('sLan').textContent = '没查到 WiFi 地址';
+        $('sLan').style.color = '#e5a100';
+      }
+      if (!d.wifi) {
+        $('sLanHint').innerHTML = '手机现在<b>没有连 WiFi</b>（或只开了移动数据）：这样局域网里的设备访问不到。先连上和电脑同一个 WiFi，地址会自动更新。';
+      }
+    }).catch(function () { $('sLan').textContent = '查询失败'; });
   }
   function closeSettings() {
     $('settings').classList.remove('on');
@@ -1231,7 +1253,8 @@
     toast('本机记录已清空');
   };
   $('sCopy').onclick = function () {
-    var t = lanUrl(), done = function () { toast('已复制：' + t); };
+    if (!LAN) { toast('还没查到局域网地址，先连上 WiFi'); return; }
+    var t = LAN + '/', done = function () { toast('已复制：' + t); };
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(t).then(done, function () { fallbackCopy(t, done); });

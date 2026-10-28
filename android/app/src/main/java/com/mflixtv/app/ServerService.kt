@@ -47,7 +47,7 @@ class ServerService : Service() {
         // Android 8.0+ 要求 startForegroundService 之后 5 秒内 startForeground，
         // 所以先亮通知，再起 HTTP 服务（绑定端口放到后面，慢也不会被系统判 ANR）。
         try {
-            val n = buildNotification(lanIp())
+            val n = buildNotification(LanIp.ip())
             val type = if (Build.VERSION.SDK_INT >= 34)
                 android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
             else android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
@@ -55,7 +55,7 @@ class ServerService : Service() {
         } catch (e: Throwable) {
             // 少数 ROM 对 specialUse 不认，退回不带类型的 startForeground 也要能跑起来
             try {
-                startForeground(NOTI_ID, buildNotification(lanIp()))
+                startForeground(NOTI_ID, buildNotification(LanIp.ip()))
             } catch (e2: Throwable) {
                 Log.w("MFlixTV", "startForeground failed", e2)
             }
@@ -66,7 +66,7 @@ class ServerService : Service() {
                 server = WebServer(this, 8080).also {
                     it.start(fi.iki.elonen.NanoHTTPD.SOCKET_READ_TIMEOUT, false)
                 }
-                Log.i("MFlixTV", "http server listening on 0.0.0.0:8080, lan ip=${lanIp()}")
+                Log.i("MFlixTV", "http server listening on 0.0.0.0:8080, lan ip=${LanIp.ip()}")
             } catch (e: Throwable) {
                 Log.e("MFlixTV", "http server failed to start", e)
             }
@@ -105,7 +105,7 @@ class ServerService : Service() {
     private fun refreshNotification() {
         try {
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.notify(NOTI_ID, buildNotification(lanIp()))
+            nm.notify(NOTI_ID, buildNotification(LanIp.ip()))
         } catch (_: Throwable) {
         }
     }
@@ -175,28 +175,5 @@ class ServerService : Service() {
         server = null
         super.onDestroy()
     }
-
-    /** 取本机局域网 IPv4（WiFi 优先，其次任意非回环网卡）。 */
-    private fun lanIp(): String {
-        return try {
-            val en = NetworkInterface.getNetworkInterfaces() ?: return "手机IP"
-            val all = en.toList()
-            if (all.isEmpty()) return "手机IP"
-            val ordered = all.sortedByDescending {
-                val n = it.name.lowercase()
-                if (n.startsWith("wlan")) 2 else if (n.startsWith("ap")) 1 else 0
-            }
-            for (nic in ordered) {
-                if (!nic.isUp || nic.isLoopback) continue
-                for (addr in nic.inetAddresses) {
-                    if (addr is java.net.Inet4Address && !addr.isLoopbackAddress) {
-                        return addr.hostAddress ?: continue
-                    }
-                }
-            }
-            "手机IP"
-        } catch (e: Throwable) {
-            "手机IP"
-        }
-    }
 }
+

@@ -26,9 +26,10 @@ import java.net.URL
  */
 class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val ctx = context
+    private val portNum = port
 
     companion object {
-        const val VERSION = "android-0.7"
+        const val VERSION = "android-0.8"
     }
 
     override fun serve(session: IHTTPSession): Response {
@@ -36,10 +37,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         val p = session.parameters
         return try {
             when {
-                uri == "/api/status" -> json(
-                    "{\"passwordRequired\":false,\"verified\":true,\"version\":\"$VERSION\",\"sources\":" +
-                        Sources.ALL.size + "}"
-                )
+                uri == "/api/status" -> json(status())
                 uri == "/api/home" -> home(session, p["force"]?.firstOrNull() == "1")
                 uri == "/api/search" -> json(Sources.search(p["wd"]?.firstOrNull() ?: ""))
                 uri == "/api/series" -> json(series(p["name"]?.firstOrNull() ?: ""))
@@ -119,6 +117,25 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         n = n.replace(Regex("(?i)\\bs\\d{1,2}\\b"), " ")
         n = n.replace(Regex("[\\s·\\-_:：]+$"), " ")
         return n.replace(Regex("\\s{2,}"), " ").trim()
+    }
+
+    /**
+     * 状态 + 访问地址。
+     * 页面自己跑在 127.0.0.1 上，读 location.host 只能拿到回环地址，
+     * 所以局域网地址必须由这里查网卡后告诉它。
+     */
+    private fun status(): String {
+        val ip = LanIp.ip()
+        return JSONObject().apply {
+            put("passwordRequired", false)
+            put("verified", true)
+            put("version", VERSION)
+            put("sources", Sources.ALL.size)
+            put("ip", ip)
+            put("lan", if (ip.isEmpty()) "" else "http://$ip:$portNum")
+            put("local", "http://127.0.0.1:$portNum")
+            put("wifi", LanIp.wifiUp())
+        }.toString()
     }
 
     /** 代理设置：GET 看当前值，带 proxy 参数就是设置（空字符串=清除）。 */
