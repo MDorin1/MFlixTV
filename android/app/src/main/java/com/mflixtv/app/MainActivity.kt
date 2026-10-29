@@ -437,6 +437,14 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun applySettings(w: WebView) {
+        // 允许远程调试（chrome://inspect / adb forward）：电视端排版和播放器尺寸
+        // 在真机上只能靠这个量，不然只能猜。只在本地回环页面上用，不涉及外部数据。
+        // 只对 debuggable 包开，正式包一律关闭，避免家里局域网里谁都能挂上来看。
+        try {
+            val dbg = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            if (dbg) WebView.setWebContentsDebuggingEnabled(true)
+        } catch (_: Throwable) {
+        }
         w.settings.apply {
             try {
                 javaScriptEnabled = true

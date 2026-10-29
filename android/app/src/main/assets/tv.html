@@ -306,6 +306,100 @@
     .st-box{background:rgba(22,22,22,.78);backdrop-filter:blur(20px)}
   }
 
+  /* ============ Netflix TV 精修层（0.21） ============
+     对照 Netflix 电视版逐个校准：
+       · 顶部导航是纯文字，焦点项变白、其余灰，没有色块胶囊
+       · 焦点是干净的白描边，不用红色辉光
+       · billboard 更高更压黑，标题更大，按钮方角
+       · 行距更松、行标题更醒目、卡片圆角更小（Netflix 接近直角）
+       · 字体换成更圆润的中文无衬线骨架 */
+  body{font-family:"HarmonyOS Sans SC","MiSans","PingFang SC","Noto Sans SC","Source Han Sans SC","Microsoft YaHei",sans-serif}
+
+  /* ---- 顶栏：纯文字导航 ---- */
+  #nav{padding:1.05rem 4rem 3.6rem;gap:2.1rem}
+  .logo{font-size:1.66rem;letter-spacing:.055em;text-shadow:0 .08rem 1.1rem rgba(229,9,20,.42)}
+  #navItems{gap:1.55rem}
+  .nv{border-radius:0;padding:.28rem 0;background:none;box-shadow:none;
+    font-size:.98rem;font-weight:600;color:#9a9a9a;letter-spacing:.015em}
+  .nv.active{color:#e9e9e9;font-weight:700}
+  .nv.fx.on{background:none;box-shadow:none;color:#fff;font-weight:800;transform:scale(1.06);
+    text-shadow:0 0 1.1rem rgba(255,255,255,.38)}
+  /* 右上角：同样纯文字，只是靠右 */
+  #navr{gap:1.5rem}
+  #navr .nv{height:auto;border-radius:0;background:none;padding:.28rem 0;
+    font-size:.94rem;font-weight:600;color:#9a9a9a}
+  #navr .nv .ic{font-size:1.02rem;opacity:.9}
+  #navr .nv.fx.on{background:none;box-shadow:none;color:#fff;transform:scale(1.06);
+    text-shadow:0 0 1.1rem rgba(255,255,255,.38)}
+  #clock{font-size:.8rem;color:#787878;margin-left:.2rem}
+  /* 滚下去以后顶栏必须压得住内容：Netflix 滚动后是一条实底，不是渐变 */
+  #nav.solid,#nav.up{background:linear-gradient(180deg,rgba(0,0,0,.97) 0%,rgba(0,0,0,.97) 56%,rgba(0,0,0,0) 100%)}
+  @supports (backdrop-filter: blur(2px)){
+    #nav.solid,#nav.up{background:linear-gradient(180deg,rgba(0,0,0,.93) 0%,rgba(0,0,0,.93) 56%,rgba(0,0,0,0) 100%);
+      backdrop-filter:blur(20px) saturate(1.12)}
+  }
+
+  /* ---- Billboard ---- */
+  #hero{height:68vh;min-height:27rem}
+  .hb{filter:blur(24px) saturate(1.22) brightness(.68) contrast(1.04)}
+  .hero-in{bottom:3.7rem;max-width:48%}
+  #heroTitle{font-size:3.35rem;letter-spacing:-.02em;margin-bottom:.55rem}
+  .hero-meta{font-size:.88rem;color:#cfcfcf}
+  .hero-desc{font-size:.95rem;color:#c9c9c9}
+  .hero-poster{bottom:3.9rem;border-radius:.35rem}
+  .btn{border-radius:.28rem;font-size:.92rem;padding:.68rem 1.5rem}
+  .btn.primary{background:#fff;color:#000}
+  .btn:not(.primary){background:rgba(109,109,110,.62)}
+  .btn.fx.on{transform:scale(1.05);box-shadow:0 0 0 .09rem #fff}
+  .hero-dots i{width:1.15rem;height:.17rem;background:rgba(255,255,255,.28)}
+  .hero-dots i.on{background:#fff}
+
+  /* ---- 片单横排 ---- */
+  #rails{padding-bottom:3rem}
+  .rail{margin-bottom:2.9rem}
+  .rail-h{padding-bottom:.7rem}
+  .rail-h .t{font-size:1.32rem;font-weight:800;letter-spacing:-.005em}
+  .rail-h .s{font-size:.72rem;color:#767676}
+  .strip{gap:.8rem;padding:.65rem 4rem 1.35rem}
+  .card{width:9.7rem}
+  .card .poster{border-radius:.28rem;box-shadow:0 .4rem 1rem rgba(0,0,0,.5)}
+  .card .shade{height:58%}
+  .card .name{font-size:.84rem;bottom:.34rem}
+  .card.on{transform:scale(1.13) translateY(-.3rem);
+    box-shadow:0 0 0 .12rem #fff,0 1.3rem 2.5rem rgba(0,0,0,.86)}
+  .strip.focusing .card{opacity:.48}
+
+  /* ---- 详情页 / 剧集卡 ---- */
+  .dt-in{padding-top:8.8rem}
+  #dtTitle{font-size:3rem}
+  .dt-h .t{font-size:1.22rem;font-weight:800;letter-spacing:-.005em}
+  .epstrip{gap:.85rem}
+  .epc{border-radius:.3rem}
+  .epc.on{transform:scale(1.06);box-shadow:0 0 0 .12rem #fff,0 1.1rem 2rem rgba(0,0,0,.8)}
+  .epstrip.focusing .epc{opacity:.52}
+
+  /* ---- 屏幕适配：视口溢出根治 ----
+     详情页和大图背景原来是 left/right:-6% 外扩，会把文档横向撑宽约 90px。
+     文档一宽，window.innerWidth 就从 960 涨到 1050，而 position:fixed 的播放器
+     是按 innerWidth 铺的 → 播放器变成 1050×591，超出可视区 960×540：
+     右边少一截、底部按钮组（y 549~572）直接被裁掉。
+     改法：外扩一律交给 transform（不参与布局），视觉不变但不再撑宽文档。 */
+  html{overflow-x:hidden}
+  .hb{top:0;right:0;bottom:0;left:0;transform:scale(1.12)}
+  #dtBg{left:0;right:0;top:0;transform:scale(1.12) translateY(-5%)}
+  /* 小屏保护：4:3 老电视 / 720p 盒子上 vw 会把字号压得太小，给个下限。
+     用 @supports 包住，不认的旧内核仍旧走原来的 1.0416667vw。 */
+  @supports (font-size: max(8px, 1vw)){
+    html{font-size:max(8px, 1.0416667vw)}
+  }
+  /* ---- 其它控件：方角、去掉过度圆润 ---- */
+  .pb{border-radius:.28rem}
+  .ep{border-radius:.26rem}
+  .chip{border-radius:.26rem}
+  .key{border-radius:.3rem}
+  .sc-in{border-radius:.3rem}
+  .st-row{border-radius:.35rem}
+
   /* ---------- 老内核兜底：斐讯 N1 这类 Android 7.1 盒子，WebView 可能是 5x–8x，
                  不认 aspect-ratio / flex 的 gap / inset 简写。这里逐个补上 ---------- */
   @supports not (aspect-ratio: 2 / 3){
