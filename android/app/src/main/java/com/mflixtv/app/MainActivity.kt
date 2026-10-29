@@ -351,7 +351,14 @@ class MainActivity : AppCompatActivity() {
      * 电视上方向键 / 确定键不交给 WebView（它会拿去滚页面，焦点会乱跳），
      * 由这里统一翻译成动作再注入页面：一次按键只动一格。
      * BACK 不拦，交给 onBackPressed（页面能处理就先处理，处理不了才退出）。
+     *
+     * 长按确定键 = 呼出播放页按钮条（倍速 / 选集 / 外部播放器）：
+     * Shield 这类遥控器根本没有 MENU 键，只靠 82 的话按钮条永远摸不到。
+     * 按住时系统连续送 ACTION_DOWN（repeatCount 递增），数到第 3 个算长按，
+     * 每个按住周期只发一次，松手（ACTION_UP）复位。
      */
+    private var okLongFired = false
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (!tvMode) return super.dispatchKeyEvent(event)
         val action = when (event.keyCode) {
@@ -366,6 +373,22 @@ class MainActivity : AppCompatActivity() {
             else -> null
         }
         if (action == null) return super.dispatchKeyEvent(event)
+        if (action == "ok") {
+            if (event.action == KeyEvent.ACTION_UP) {
+                okLongFired = false
+                return true
+            }
+            val rc = event.repeatCount
+            if (rc >= 1) {
+                if (!okLongFired) {
+                    okLongFired = true
+                    sendKey("menulong")
+                }
+                return true
+            }
+            if (rc == 0) sendKey("ok")
+            return true
+        }
         if (event.action == KeyEvent.ACTION_DOWN) sendKey(action)
         return true
     }

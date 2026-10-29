@@ -257,6 +257,25 @@
   #ptop{display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 10px) 12px 0}
   #ptitle{font-size:13.5px;font-weight:700;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   #pbot{padding:0 14px calc(env(safe-area-inset-bottom) + 14px)}
+  /* 拖动进度条时冒出来的时间气泡（跟着拇指走） */
+  #pdrag{position:absolute;bottom:96px;left:0;transform:translateX(-50%);z-index:6;
+    background:rgba(0,0,0,.9);color:#fff;font-size:12px;font-weight:800;letter-spacing:.02em;
+    padding:5px 9px;border-radius:7px;font-variant-numeric:tabular-nums;white-space:nowrap;
+    opacity:0;transition:opacity .12s linear;pointer-events:none;
+    box-shadow:0 4px 14px rgba(0,0,0,.55)}
+  #pdrag.on{opacity:1}
+  /* 倍速选择面板：点 1.0x 弹出，别让用户一下一下轮 */
+  #pratepop{position:absolute;right:14px;bottom:96px;z-index:7;display:none;
+    background:rgba(20,20,20,.97);border-radius:12px;padding:8px;width:232px;
+    box-shadow:0 8px 26px rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.12)}
+  #pratepop.on{display:block}
+  #pratepop .rp-h{font-size:11px;color:#9a9a9a;font-weight:800;letter-spacing:.08em;padding:4px 4px 8px}
+  /* 四列铺开：7 档两行放下，横屏只占 390px 高度里的 90px，不会顶到屏幕顶 */
+  #rpList{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  #pratepop .rp{display:flex;align-items:center;justify-content:center;
+    padding:9px 4px;border-radius:8px;font-size:12.5px;font-weight:700;color:#eee;text-align:center}
+  #pratepop .rp.on{background:var(--accent);color:#fff}
+  #pratepop .rp:active{background:rgba(255,255,255,.16)}
   #pbar{width:100%;-webkit-appearance:none;appearance:none;height:22px;background:none;margin:0}
   #pbar::-webkit-slider-runnable-track{height:3px;background:#5a5a5a;border-radius:2px}
   #pbar::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;
@@ -604,6 +623,8 @@
       <button class="icon-btn" id="pRotate">&#8635;</button>
     </div>
     <div id="pbot">
+      <div id="pdrag"><span id="pdragT">00:00</span></div>
+      <div id="pratepop"><div class="rp-h">播放速度</div><div id="rpList"></div></div>
       <input type="range" id="pbar" min="0" max="1000" value="0" step="1">
       <div id="ptime"><span id="pcur">00:00</span><span id="pdur">00:00</span></div>
       <div id="pbtns">
@@ -1742,6 +1763,11 @@
     natWide = true;
     paintFullBtns();
     if (!wasOpen) showBrand();   // 只有刚进播放器才亮品牌，连播下一集不重复闪
+    /* 上次选的倍速接着用（写 defaultPlaybackRate，load 之后也不会回 1x） */
+    var rr = savedRate();
+    try { v.defaultPlaybackRate = rr || 1; } catch (e) {}
+    if (rr) { try { v.playbackRate = rr; } catch (e) {} }
+    var rl = $('pRate'); if (rl) rl.textContent = rateText(rr || 1);
     attach(e.url, 'mfl:t:' + state.title + '|' + (e.label || i));
     showCtl();
   }
@@ -1967,24 +1993,82 @@
     if (!autoNextOn()) { toast('已关闭自动连播'); return; }
     if (state.ep + 1 < state.eps.length) playEp(state.ep + 1);
   });
-  $('pbar').addEventListener('input', function () { dragging = true; });
+  /* ---- 进度条：拖动时冒时间气泡（拇指跟到哪、时间跟到哪） ---- */
+  var pdragT = null;
+  function pdragShow(sec) {
+    var bar = $('pbar'), b = $('pdrag');
+    if (!bar || !b) return;
+    var r = bar.getBoundingClientRect();
+    var d = v.duration || 0;
+    var pct = d ? Math.max(0, Math.min(1, sec / d)) : 0;
+    $('pdragT').textContent = fmt(sec) + ' / ' + fmt(d || 0);
+    b.classList.add('on');
+    /* 气泡按自身中心定位：拖到两头会顶出屏幕，先亮再量宽把中心夹回来 */
+    var half = (b.offsetWidth || 90) / 2;
+    var x = r.left + r.width * pct;
+    var lo = half + 6, hi = (window.innerWidth || document.documentElement.clientWidth) - half - 6;
+    if (hi > lo) x = Math.max(lo, Math.min(hi, x));
+    b.style.left = Math.round(x) + 'px';
+    /* 竖向贴着进度条上沿（横屏/竖屏、有没有安全区都不会压到时间显示） */
+    b.style.bottom = Math.round((window.innerHeight || document.documentElement.clientHeight) - r.top + 8) + 'px';
+    clearTimeout(pdragT);
+    pdragT = setTimeout(function () { b.classList.remove('on'); }, 1400);
+  }
+  $('pbar').addEventListener('input', function () {
+    dragging = true;
+    if (v.duration) {
+      var sec = $('pbar').value / 1000 * v.duration;
+      $('pcur').textContent = fmt(sec);
+      pdragShow(sec);
+    }
+  });
   $('pbar').addEventListener('change', function () {
     dragging = false;
     if (v.duration) v.currentTime = $('pbar').value / 1000 * v.duration;
+    pdragShow(v.currentTime || 0);
   });
-  var rates = [1, 1.25, 1.5, 2, 0.75], ri = 0;
-  /** 倍速统一切换：控制条上的 1.0x 和设置面板里的速度共用同一份状态。 */
+  var rates = [0.5, 0.75, 1, 1.25, 1.5, 2, 3], ri = 0;
+  function rateText(r) { return String(r).replace(/(\.\d)0$/, '$1') + 'x'; }
+  /** 上次选的倍速：换集、换源、重开 App 都接着用 */
+  function savedRate() {
+    var r = Number(ls('mfl:rate') || 0);
+    return (r >= 0.25 && r <= 4) ? r : 0;
+  }
+  /** 倍速统一切换：控制条上的 1.0x 和设置面板里的速度共用同一份状态。
+   *  defaultPlaybackRate 一起写，换集 / 换源 load() 之后速度不会打回 1x。 */
   function setRate(r) {
-    v.playbackRate = r;
+    try { v.defaultPlaybackRate = r; v.playbackRate = r; } catch (e) {}
     ri = Math.max(0, rates.indexOf(r));
-    var t = String(r).replace(/(\.\d)0$/, '$1') + 'x';
+    var t = rateText(r);
     $('pRate').textContent = t;
+    ls('mfl:rate', r);
+    var cells = document.querySelectorAll('#rpList .rp');
+    for (var i = 0; i < cells.length; i++) cells[i].classList.toggle('on', Number(cells[i].dataset.r) === r);
     return t;
   }
-  $('pRate').onclick = function () {
-    ri = (ri + 1) % rates.length;
-    setRate(rates[ri]);
+  function rpBuild() {
+    var box = $('rpList');
+    if (!box) return;
+    box.innerHTML = '';
+    rates.forEach(function (r) {
+      var d = document.createElement('div');
+      d.className = 'rp';
+      d.dataset.r = r;
+      d.textContent = rateText(r);
+      if (Math.abs((v.playbackRate || 1) - r) < 0.01) d.classList.add('on');
+      d.onclick = function () { setRate(r); rpClose(); };
+      box.appendChild(d);
+    });
+  }
+  function rpOpen() { rpBuild(); $('pratepop').classList.add('on'); }
+  function rpClose() { $('pratepop').classList.remove('on'); }
+  $('pRate').onclick = function (e) {
+    try { e.stopPropagation(); } catch (err) {}
+    if ($('pratepop').classList.contains('on')) rpClose(); else rpOpen();
   };
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest || !e.target.closest('#pratepop')) { if ($('pratepop')) rpClose(); }
+  }, true);
   $('pNext').onclick = function () {
     if (state.ep + 1 < state.eps.length) playEp(state.ep + 1);
     else toast('已经是最后一集');

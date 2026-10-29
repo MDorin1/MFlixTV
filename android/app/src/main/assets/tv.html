@@ -206,6 +206,16 @@
   .hide{opacity:0;pointer-events:none}
   #track{height:.2rem;background:rgba(255,255,255,.26);border-radius:.2rem;overflow:hidden;margin-bottom:.55rem}
   #played{height:100%;width:0;background:linear-gradient(90deg,var(--red),var(--red2));transition:width .2s linear}
+  /* 拖动 / 快进快退时的时间气泡（图1 那种） */
+  #tbub{position:absolute;bottom:2.05rem;left:0;transform:translateX(-50%);z-index:8;
+    background:rgba(0,0,0,.88);color:#fff;font-size:.76rem;font-weight:800;letter-spacing:.02em;
+    padding:.2rem .55rem;border-radius:.32rem;font-variant-numeric:tabular-nums;white-space:nowrap;
+    opacity:0;transition:opacity .12s linear;pointer-events:none;
+    box-shadow:0 0 .6rem rgba(0,0,0,.6)}
+  #tbub.on{opacity:1}
+  #track{cursor:pointer}
+  /* 进度条的点击/拖动热区比那 2px 高得多，手指和鼠标都好按 */
+  #track:after{content:'';position:absolute;left:0;right:0;top:-.75rem;bottom:-.75rem}
   .ptime{display:flex;justify-content:space-between;font-size:.74rem;color:#cfcfcf;font-variant-numeric:tabular-nums}
   #pbtns{display:flex;align-items:center;gap:.55rem;margin-top:.9rem;flex-wrap:wrap}
   #eps-sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;background:rgba(6,6,6,.98);
@@ -213,6 +223,17 @@
   #eps-sheet.on{display:block}
   #eps-sheet .hd{font-size:.74rem;color:var(--dim2);font-weight:900;letter-spacing:.16em;margin-bottom:.7rem}
   #eps-sheet .grid{display:flex;flex-wrap:wrap;gap:.5rem;max-width:none}
+  /* 倍速面板：和选集同一套皮，速度值比「点一下轮一个」好用得多 */
+  #spd-sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;background:rgba(6,6,6,.98);
+    border-top:1px solid rgba(255,255,255,.1);padding:1.3rem 4rem 1.6rem;display:none}
+  #spd-sheet.on{display:block}
+  #spd-sheet .hd{font-size:.74rem;color:var(--dim2);font-weight:900;letter-spacing:.16em;margin-bottom:.7rem}
+  #spd-sheet .grid{display:flex;flex-wrap:wrap;gap:.5rem;max-width:none}
+  #spd-sheet .sp{min-width:5rem;height:2.4rem;padding:0 .75rem;border-radius:.35rem;
+    background:rgba(255,255,255,.1);font-size:.86rem;font-weight:800;color:#e2e2e2;
+    display:flex;align-items:center;justify-content:center}
+  #spd-sheet .sp.on{background:#fff;color:#111}
+  #spd-sheet .sp.fx.on{box-shadow:0 0 0 .1rem #fff,0 0 1rem rgba(229,9,20,.5);transform:none}
   .ep{min-width:5rem;height:2.4rem;padding:0 .75rem;border-radius:.35rem;background:rgba(255,255,255,.1);
     font-size:.82rem;font-weight:700;color:#e2e2e2;display:flex;align-items:center;justify-content:center}
   .ep.on{background:#fff;color:#111}
@@ -627,6 +648,7 @@
     </div>
   </div>
   <div id="pbotbar">
+    <div id="tbub">00:00</div>
     <div id="track"><div id="played"></div></div>
     <div class="ptime"><span id="pcur">00:00</span><span id="pdur">00:00</span></div>
     <div id="pbtns">
@@ -642,6 +664,10 @@
   <div id="eps-sheet">
     <div class="hd">选集 · 方向键选择 · 回车播放 · 返回键收起</div>
     <div class="grid" id="pEpsGrid"></div>
+  </div>
+  <div id="spd-sheet">
+    <div class="hd">播放速度 · 方向键选择 · 回车确认 · 返回键收起</div>
+    <div class="grid" id="spdGrid"></div>
   </div>
 </section>
 
@@ -749,6 +775,7 @@
     if ($('player').classList.contains('on')) {
       list = visibleIn($('player'), '.fx');
       if ($('eps-sheet').classList.contains('on')) list = visibleIn($('eps-sheet'), '.fx');
+      if ($('spd-sheet').classList.contains('on')) list = visibleIn($('spd-sheet'), '.fx');
     }
     return list;
   }
@@ -1233,11 +1260,14 @@
     try { v.setAttribute('poster', 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)); } catch (e) {}
   })();
 
+  var seeking = false;
   function bars(show) {
     $('ptopbar').classList.toggle('hide', !show);
     $('pbotbar').classList.toggle('hide', !show);
     clearTimeout(hideT);
-    if (show) hideT = setTimeout(function () { if (!v.paused && !barFocus) bars(false); }, 4500);
+    if (show) hideT = setTimeout(function () {
+      if (!v.paused && !barFocus && !seeking) bars(false);
+    }, 4500);
   }
   function showBrand(txt) {
     var b = $('pbrand');
@@ -1300,6 +1330,7 @@
     barFocus = false;
     cancelNext();
     $('eps-sheet').classList.remove('on');
+    $('spd-sheet').classList.remove('on');
     $('player').classList.add('on');
     $('nav').style.display = 'none';
     $('peek').classList.remove('on');
@@ -1307,6 +1338,14 @@
     $('psub').textContent = (e.label || ('第' + (i + 1) + '集')) + (g.name ? ' · ' + g.name : '');
     $('pcur').textContent = '00:00'; $('pdur').textContent = '00:00'; $('played').style.width = '0%';
     $('pbPlay').textContent = '⏸ 暂停';
+    /* 上次选的倍速接着用：换集、换片、重开 App 都保持，别每集都回 1x */
+    var rr = savedRate();
+    if (rr) {
+      try { v.defaultPlaybackRate = rr; v.playbackRate = rr; } catch (e) {}
+      $('pbRate').textContent = rateLabel(rr);
+    } else {
+      $('pbRate').textContent = '1.0x';
+    }
     /* 设置里选了「外部播放器」就直接交给系统播放器硬解，本页只留个说明 */
     if (extMode()) {
       showBrand('已在外部播放器打开');
@@ -1316,6 +1355,13 @@
     }
     bars(true);
     paintFocus($('pbPlay'));
+    /* 第一次进播放页教一次：按钮条藏在哪、怎么叫出来（只提示一次，别每集烦人） */
+    try {
+      if (!localStorage.getItem('mfl:barhint')) {
+        localStorage.setItem('mfl:barhint', '1');
+        setTimeout(function () { toast('长按「确定」键呼出按钮条：倍速 · 选集 · 外部播放器'); }, 1800);
+      }
+    } catch (err) {}
     // 从上次位置继续
     try {
       var key = 'mfl:tv:' + S.title + '|' + (e.label || i);
@@ -1333,6 +1379,7 @@
     barFocus = false;
     $('player').classList.remove('on');
     $('eps-sheet').classList.remove('on');
+    $('spd-sheet').classList.remove('on');
     $('nav').style.display = '';
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     try { v.pause(); } catch (e) {}
@@ -1357,11 +1404,73 @@
       if (e) localStorage.setItem('mfl:tv:' + S.title + '|' + (e.label || S.ep), String(Math.floor(v.currentTime || 0)));
     } catch (err) {}
   }
+  /* 拖动 / 快进快退时在进度条上方显示目标时间（图1 那种气泡） */
+  var bubT = null;
+  function showBub(sec) {
+    var d = v.duration || 0, tr = $('track'), b = $('tbub');
+    if (!d || !tr || !b) return;
+    var r = tr.getBoundingClientRect();
+    var pct = Math.max(0, Math.min(1, sec / d));
+    b.textContent = fmt(sec) + ' / ' + fmt(d);
+    b.classList.add('on');
+    /* 气泡是以自身中心定位的，拖到 0% 或 100% 时会越出屏幕一边；
+       先亮再量宽，把中心夹在屏幕里，边角上也看得全。 */
+    var half = (b.offsetWidth || 70) / 2;
+    var x = r.left + pct * r.width;
+    var lo = half + 6, hi = (window.innerWidth || document.documentElement.clientWidth) - half - 6;
+    if (hi > lo) x = Math.max(lo, Math.min(hi, x));
+    b.style.left = Math.round(x) + 'px';
+    /* 竖向也别写死：贴着进度条上沿走（小屏上按钮会换行、进度条会抬高） */
+    b.style.bottom = Math.round((window.innerHeight || document.documentElement.clientHeight) - r.top + 8) + 'px';
+    clearTimeout(bubT);
+    bubT = setTimeout(function () { b.classList.remove('on'); }, 1200);
+  }
+  function seekTo(sec) {
+    if (!v.duration) return;
+    v.currentTime = Math.max(0, Math.min(v.duration - 0.4, sec));
+    $('pcur').textContent = fmt(v.currentTime);
+    $('played').style.width = (100 * v.currentTime / v.duration) + '%';
+    showBub(v.currentTime);
+  }
   function seekBy(s) {
     if (!v.duration) return;
-    v.currentTime = Math.max(0, Math.min(v.duration - 1, v.currentTime + s));
+    seekTo(v.currentTime + s);
     flashBig(s > 0 ? '⏩' : '⏪'); bars(true);
   }
+  /* 进度条本身可点可拖：电视带触摸的、盒子上接鼠标的、电脑浏览器里预览的都能用 */
+  (function dragSeek() {
+    var tr = $('track');
+    if (!tr) return;
+    var dragging = false;
+    function at(x) {
+      var r = tr.getBoundingClientRect();
+      var pct = Math.max(0, Math.min(1, (x - r.left) / Math.max(1, r.width)));
+      return pct * (v.duration || 0);
+    }
+    function down(x) {
+      if (!v.duration) return;
+      dragging = true; seeking = true; seekTo(at(x)); bars(true);
+    }
+    function move(x) { if (dragging) seekTo(at(x)); }
+    function up() { if (!dragging) return; dragging = false; seeking = false; bars(true); }
+    tr.addEventListener('mousedown', function (e) { down(e.clientX); try { e.preventDefault(); } catch (err) {} });
+    window.addEventListener('mousemove', function (e) {
+      /* 操作条藏着的时候是 pointer-events:none，鼠标根本摸不到进度条：
+         一动鼠标就把它叫出来，只在「从藏到显」那一下开，不每帧重置计时。 */
+      if (!dragging && $('player').classList.contains('on') && $('pbotbar').classList.contains('hide')) bars(true);
+      move(e.clientX);
+    });
+    window.addEventListener('mouseup', up);
+    tr.addEventListener('touchstart', function (e) {
+      if (e.touches && e.touches[0]) { down(e.touches[0].clientX); try { e.preventDefault(); } catch (err) {} }
+    }, false);
+    /* touchmove 挂在 window 上：手指滑出轨道也能继续拖 */
+    window.addEventListener('touchmove', function (e) {
+      if (e.touches && e.touches[0]) { move(e.touches[0].clientX); }
+    }, false);
+    window.addEventListener('touchend', up, false);
+    window.addEventListener('touchcancel', up, false);
+  })();
   function stepEp(d) {
     var g = S.groups[S.group] || {}, n = (g.episodes || []).length;
     var i = S.ep + d;
@@ -1417,12 +1526,51 @@
   $('pbNext').addEventListener('click', function () { stepEp(1); });
   $('pbEps').addEventListener('click', toggleEps);
   $('pbBack').addEventListener('click', closePlayer);
-  $('pbRate').addEventListener('click', function () {
-    rateIdx = (rateIdx + 1) % RATES.length;
-    v.playbackRate = RATES[rateIdx];
-    $('pbRate').textContent = (RATES[rateIdx] === 1 ? '1.0' : String(RATES[rateIdx])) + 'x';
-    toast('倍速 ' + RATES[rateIdx] + 'x');
-  });
+  /* 倍速：面板里一眼选，不再「点一下轮一个」 */
+  var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+  var RATE_KEY = 'mfl:rate';
+  function rateLabel(r) { return (r === 1 ? '1.0' : String(r)) + 'x'; }
+  function savedRate() {
+    try { var r = Number(localStorage.getItem(RATE_KEY) || 0); if (r >= 0.25 && r <= 4) return r; } catch (e) {}
+    return 0;
+  }
+  function setRate(r) {
+    // defaultPlaybackRate 一起设：换集 load() 之后速度不会被打回 1x
+    try { v.defaultPlaybackRate = r; v.playbackRate = r; } catch (e) {}
+    $('pbRate').textContent = rateLabel(r);
+    try { localStorage.setItem(RATE_KEY, String(r)); } catch (e) {}
+    var cells = document.querySelectorAll('#spdGrid .sp');
+    for (var i = 0; i < cells.length; i++) cells[i].classList.toggle('on', Number(cells[i].dataset.r) === r);
+    toast('倍速 ' + rateLabel(r));
+  }
+  function buildSpeeds() {
+    var box = $('spdGrid');
+    if (!box) return;
+    box.innerHTML = '';
+    SPEEDS.forEach(function (r) {
+      var b = el('button', 'sp fx');
+      b.dataset.r = r;
+      b.textContent = rateLabel(r);
+      if (Math.abs((v.playbackRate || 1) - r) < 0.01) b.classList.add('on');
+      b.addEventListener('click', function () { setRate(r); closeSpeeds(); });
+      box.appendChild(b);
+    });
+  }
+  function openSpeeds() {
+    buildSpeeds();
+    /* 面板盖住进度条，先把残留的时间气泡收掉，免得它骑在面板上 */
+    clearTimeout(bubT);
+    var tb = $('tbub'); if (tb) tb.classList.remove('on');
+    $('spd-sheet').classList.add('on');
+    barFocus = false;
+    var cur = document.querySelector('#spdGrid .sp.on') || document.querySelector('#spdGrid .sp');
+    if (cur) paintFocus(cur);
+  }
+  function closeSpeeds() {
+    $('spd-sheet').classList.remove('on');
+    paintFocus($('pbRate'));
+  }
+  $('pbRate').addEventListener('click', function () { openSpeeds(); });
 
   /* 播放页里的「外部播放器」键：菜单键进入按钮条后可选（见 handlePlayer） */
   $('pbExt').addEventListener('click', function () {
@@ -1620,6 +1768,11 @@
       if (a === 'back') { toggleEps(); return true; }
       move(a); return true;
     }
+    if ($('spd-sheet').classList.contains('on')) {
+      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
+      if (a === 'back') { closeSpeeds(); return true; }
+      move(a); return true;
+    }
     if (barFocus) {
       if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); bars(true); return true; }
       if (a === 'left' || a === 'right' || a === 'up' || a === 'down') { move(a); bars(true); return true; }
@@ -1651,6 +1804,14 @@
   }
 
   function handle(a) {
+    /* 长按确定键（原生侧识别）：Shield 一类遥控器没有菜单键，这条是主入口 */
+    if (a === 'menulong') {
+      if (!inPlayer()) return false;
+      if ($('nx').classList.contains('on') || $('eps-sheet').classList.contains('on')) return true;
+      if ($('spd-sheet').classList.contains('on')) { closeSpeeds(); return true; }
+      if (!barFocus) enterBar();
+      return true;
+    }
     if ($('extcard').classList.contains('on')) {
       if (a === 'back') { closeExtCard(); return true; }
       if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
