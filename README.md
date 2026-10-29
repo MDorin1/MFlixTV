@@ -99,6 +99,14 @@
 | --- |
 | ![手机首页](docs/images/home-mobile.png) |
 
+| 电视版首页（10 英尺界面 + 焦点头图联动） | 电视版详情（剧集 16:9 平铺） |
+| --- | --- |
+| ![电视版首页](docs/images/tv-home.png) | ![电视版详情](docs/images/tv-detail.png) |
+
+| 电视版搜索（方向键走字母键盘） | 电视版播放器（上一集 / 下一集 / 选集 / 倍速） |
+| --- | --- |
+| ![电视版搜索](docs/images/tv-search.png) | ![电视版播放器](docs/images/tv-player.png) |
+
 ## 快速开始
 
 ### Windows（推荐）
