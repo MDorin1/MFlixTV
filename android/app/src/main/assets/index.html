@@ -1767,26 +1767,15 @@
 
   /** 当前正在播的原始地址（设置面板里的「复制播放地址」要用） */
   var curMedia = '';
-  function attach(url, key) {
-    curMedia = url || '';
-    var isHls = url.indexOf('.m3u8') >= 0;
-    attachKey = key || '';
-    $('pmsg').classList.remove('on');
-    if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
-    v.removeAttribute('src');
-    try { v.load(); } catch (e) {}
-
-    if (!isHls) {
-      // mp4 也走本机代理：源站基本都按 Referer 放行，直连大概率 403
-      v.src = proxy(url);
-      v.play().catch(function () {});
-      return;
-    }
-    var src = proxy(url);
-    // iPhone / iPad：Safari、Chrome 都是 WebKit，原生 HLS 走硬件解码——比 hls.js 更快更省电，
-    // 而且只有原生播放的 <video> 才能用 webkitEnterFullscreen 进系统全屏，所以 iOS 上不挂 hls.js。
-    var iOSnative = isIOS() && !!v.canPlayType('application/vnd.apple.mpegurl');
-    if (!iOSnative && window.Hls && window.Hls.isSupported()) {
+  var nativeErrHook = null, nativeWatch = null;
+  /** 原生播放那条路只在 iOS 上试；一旦它报错，立刻拆掉监听换 hls.js，绝不把能播的变成不能播 */
+  function stopNativeWatch() {
+    if (nativeErrHook) { try { v.removeEventListener('error', nativeErrHook); } catch (e) {} nativeErrHook = null; }
+    if (nativeWatch) { clearTimeout(nativeWatch); nativeWatch = null; }
+  }
+  /** 挂 hls.js（安卓 App、电脑、安卓浏览器，以及 iOS 上原生播不了时的兜底） */
+  function hlsPlay(src) {
+    if (window.Hls && window.Hls.isSupported()) {
       hls = new window.Hls({
         maxBufferLength: 40,
         maxMaxBufferLength: 120,
@@ -1813,8 +1802,63 @@
       v.play().catch(function () {});
     } else {
       $('pmsg').classList.add('on');
-      $('pmsg').textContent = '这台设备的 WebView 不支持 HLS 播放';
+      $('pmsg').textContent = '这台设备的浏览器不支持 HLS 播放';
     }
+  }
+  /**
+   * iOS 上先让 Safari 自己放（硬解、快、省电，而且只有原生播放的 <video> 能进系统全屏）。
+   * Safari 的 AVFoundation 比 hls.js 挑得多：分片类型不对、清单有点毛病就整条报「地址播不了」。
+   * 所以这里挂了错误监听 + 5 秒看门狗：一报错就自动换回 hls.js，播放能力不比以前差。
+   */
+  function nativePlay(src) {
+    v.src = src;
+    v.play().catch(function () {});
+    stopNativeWatch();
+    nativeErrHook = function () { nativeFallback('error'); };
+    v.addEventListener('error', nativeErrHook);
+    nativeWatch = setTimeout(function () {
+      // 5 秒还停在「连元数据都没有」= 原生这条路走不通
+      if (v.readyState === 0 && !(v.currentTime > 0)) nativeFallback('timeout');
+    }, 5000);
+  }
+  function nativeFallback(reason) {
+    stopNativeWatch();
+    if (!curMedia) return;
+    var canHls = !!(window.Hls && window.Hls.isSupported());
+    try { v.removeAttribute('src'); v.load(); } catch (e) {}
+    if (canHls) {
+      hlsPlay(proxy(curMedia));
+    } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+      // 连 hls.js 都没有（老 iOS）：只能再试一次原生，并把原因说清楚
+      v.src = proxy(curMedia);
+      v.play().catch(function () {});
+      $('pmsg').classList.add('on');
+      $('pmsg').innerHTML = '这个源在 iOS 上直接拉不动（' + reason + '）<br>换一条线路试试';
+    } else {
+      $('pmsg').classList.add('on');
+      $('pmsg').textContent = '这台设备的浏览器不支持 HLS 播放';
+    }
+  }
+  function attach(url, key) {
+    curMedia = url || '';
+    var isHls = url.indexOf('.m3u8') >= 0;
+    attachKey = key || '';
+    $('pmsg').classList.remove('on');
+    stopNativeWatch();
+    if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    v.removeAttribute('src');
+    try { v.load(); } catch (e) {}
+
+    if (!isHls) {
+      // mp4 也走本机代理：源站基本都按 Referer 放行，直连大概率 403
+      v.src = proxy(url);
+      v.play().catch(function () {});
+      return;
+    }
+    var src = proxy(url);
+    // iOS（Safari / Chrome 同内核）：先原生，报错自动回退 hls.js；其它平台一律 hls.js，和以前完全一样
+    if (isIOS() && v.canPlayType('application/vnd.apple.mpegurl')) nativePlay(src);
+    else hlsPlay(src);
   }
 
   function closePlayer() {
@@ -1825,6 +1869,7 @@
     $('pmWeb').classList.remove('on');
     $('pmFull').classList.remove('on');
     hideBrand();
+    stopNativeWatch();
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     v.pause();
     v.removeAttribute('src');
@@ -1909,11 +1954,15 @@
   });
   v.addEventListener('error', function () {
     if (!$('player').classList.contains('on')) return;
+    // iOS 原生那条正在自动换 hls.js，这一下报错不算数，别先糊一句「播不了」在屏幕上
+    if (nativeErrHook) return;
     hideBrand();
     $('pmsg').classList.add('on');
     $('pmsg').innerHTML = '这个地址播不了<br><span style="font-size:11px;color:#8a8a8a">' +
       esc(String(v.currentSrc || '').slice(0, 120)) + '</span>';
   });
+  // 画面真的出来了就把错误提示撤掉（换源 / 原生降级成功之后不该留着旧提示）
+  v.addEventListener('playing', function () { $('pmsg').classList.remove('on'); });
   v.addEventListener('ended', function () {
     if (!autoNextOn()) { toast('已关闭自动连播'); return; }
     if (state.ep + 1 < state.eps.length) playEp(state.ep + 1);

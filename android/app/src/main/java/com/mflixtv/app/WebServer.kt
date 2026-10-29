@@ -35,7 +35,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val portNum = port
 
     companion object {
-        const val VERSION = "android-0.16"
+        const val VERSION = "android-0.17"
     }
 
     /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
@@ -338,6 +338,23 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
 
     private fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "'").replace("\n", " ").replace("\r", " ")
 
+    /** 分片 / MP4 的返回类型：上游给了 video/audio 就照用，否则按扩展名推断（iOS 认这个） */
+    private fun mediaType(target: String, upstream: String): String {
+        val t = upstream.lowercase()
+        if (t.startsWith("video/") || t.startsWith("audio/")) return upstream
+        val path = target.substringBefore('?').substringBefore('#').lowercase()
+        return when {
+            path.endsWith(".ts") || path.endsWith(".m2ts") -> "video/mp2t"
+            path.endsWith(".m4s") || path.endsWith(".mp4") || path.endsWith(".m4v") || path.endsWith(".cmfv") -> "video/mp4"
+            path.endsWith(".aac") -> "audio/aac"
+            path.endsWith(".mp3") -> "audio/mpeg"
+            path.endsWith(".jpg") || path.endsWith(".jpeg") -> "image/jpeg"
+            path.endsWith(".png") -> "image/png"
+            path.endsWith(".webp") -> "image/webp"
+            else -> if (t.isBlank()) "application/octet-stream" else upstream
+        }
+    }
+
     /**
      * 代理：图片、m3u8、分片全走这里。
      *  - Range / Content-Range 透传（拖动进度条、分片并发下载要靠它）
@@ -378,6 +395,10 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 }
             }
 
+            // 分片 / MP4 的类型按扩展名兜底：采集站常把 .ts 标成 octet-stream 甚至 text/plain，
+            // hls.js 不在乎，但 iOS 的 AVFoundation 认类型——不对就整条流报「地址播不了」。
+            val segType = mediaType(target, contentType)
+
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
                 ?: return json("{\"error\":\"no body\",\"code\":" + code + "}")
 
@@ -391,9 +412,9 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             val declared = conn.getHeaderField("Content-Length")?.toLongOrNull()
                 ?: conn.contentLengthLong.takeIf { it > 0 }
             val resp = if (declared != null && declared > 0) {
-                newFixedLengthResponse(status, contentType, stream, declared)
+                newFixedLengthResponse(status, segType, stream, declared)
             } else {
-                newChunkedResponse(status, contentType, stream)
+                newChunkedResponse(status, segType, stream)
             }
             conn.getHeaderField("Content-Range")?.let { resp.addHeader("Content-Range", it) }
             resp.addHeader("Accept-Ranges", "bytes")
