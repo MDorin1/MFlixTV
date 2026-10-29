@@ -43,6 +43,11 @@
   .nv.fx.on{background:#fff;color:#111;transform:none;box-shadow:0 0 .9rem rgba(255,255,255,.35)}
   #navr{display:flex;align-items:center;gap:1rem}
   #clock{font-size:.8rem;color:#8c8c8c;font-variant-numeric:tabular-nums}
+  /* 右上角「手机访问 192.168.x.x:8081」：让局域网地址一眼可见 */
+  #lanip{display:flex;align-items:center;gap:.32rem;font-size:.78rem;color:#8f8f8f;
+    white-space:nowrap;letter-spacing:.02em;font-variant-numeric:tabular-nums;
+    padding:.2rem .6rem;border-radius:999px;background:rgba(255,255,255,.05)}
+  #lanip b{color:#ededed;font-weight:800}
 
   /* ---------- 大图（billboard）：两层背景做交叉淡入 ---------- */
   #hero{position:relative;height:60vh;min-height:24rem;overflow:hidden}
@@ -496,6 +501,7 @@
   <div id="navr">
     <button class="nv fx nvr" id="btnSearch"><span class="ic">⌕</span>搜索</button>
     <button class="nv fx nvr" id="btnSet"><span class="ic">⚙</span>设置</button>
+    <div id="lanip"><span>未联网</span></div>
     <div id="clock">--:--</div>
   </div>
 </header>
@@ -793,6 +799,33 @@
     $('clock').textContent = p(d.getHours()) + ':' + p(d.getMinutes());
   }
   setInterval(tick, 20000); tick();
+
+  /* ================= 右上角：手机访问地址 =================
+     电视上永远看不到手机端那行「局域网地址」，所以直接把 IP:端口 挂在顶栏右上，
+     一眼就知道手机浏览器输什么。端口可能被别的 App 占了（盒子常见），所以取服务端回报的
+     真实端口，不写死 8080。每 60 秒跟一次，换网络后自己会更新。 */
+  (function lanBadge() {
+    var el = $('lanip');
+    if (!el) return;
+    function paint(host, port) {
+      if (!host) { el.innerHTML = '<span>未联网</span>'; return; }
+      el.innerHTML = '<span>手机访问</span><b>' + esc(host + (port ? ':' + port : '')) + '</b>';
+    }
+    function load() {
+      getJSON('/api/status').then(function (d) {
+        var lan = String((d && (d.lan || d.ip)) || '');
+        var host = lan.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+        var port = String((d && d.port) || lan.split(':')[1] || '');
+        paint(host, port);
+      }).catch(function () { paint('', ''); });
+    }
+    load();
+    setInterval(load, 60000);
+    el.addEventListener('click', function () {
+      var t = (el.querySelector('b') || {}).textContent || '';
+      toast(t ? ('同一 WiFi 下手机浏览器打开 ' + t) : '还没联上网');
+    });
+  })();
   window.addEventListener('scroll', function () {
     $('nav').classList.toggle('solid', window.scrollY > 24);
   }, { passive: true });
