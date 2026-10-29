@@ -257,6 +257,55 @@
     animation:bt 1.2s ease-in-out infinite}
   @keyframes bt{0%{transform:translateX(-110%)}100%{transform:translateX(330%)}}
 
+  /* ---------- 右上角：搜索 / 设置 ---------- */
+  #navr .nv{height:2.2rem;padding:0 .95rem;border-radius:999px;font-size:.92rem;font-weight:800;color:#e2e2e2;
+    background:rgba(255,255,255,.07);display:flex;align-items:center}
+  #navr .nv .ic{margin-right:.35rem;font-size:1rem;line-height:1}
+  #navr .nv.fx.on{background:rgba(255,255,255,.22);color:#fff;box-shadow:0 0 0 .08rem rgba(255,255,255,.5)}
+  #clock{font-size:.82rem;color:#b4b4b4;font-variant-numeric:tabular-nums;margin-left:.4rem}
+
+  /* ---------- 设置面板 ---------- */
+  #settings{position:fixed;top:0;right:0;bottom:0;left:0;z-index:120;display:none;align-items:center;
+    justify-content:center;background:rgba(0,0,0,.66)}
+  #settings.on{display:flex}
+  .st-box{width:54rem;max-width:86vw;background:rgba(22,22,22,.94);border:1px solid rgba(255,255,255,.12);
+    border-radius:1rem;padding:2rem 2.2rem 1.5rem;box-shadow:0 2rem 5rem rgba(0,0,0,.75)}
+  .st-h{font-size:1.2rem;font-weight:900;margin-bottom:1.15rem;letter-spacing:.02em}
+  .st-rows{display:flex;flex-direction:column;gap:.5rem}
+  .st-row{display:flex;justify-content:space-between;align-items:center;font-size:.88rem;color:#bdbdbd;
+    padding:.58rem .85rem;background:rgba(255,255,255,.05);border-radius:.55rem}
+  .st-row b{color:#fff;font-weight:800;margin-left:1.2rem;text-align:right}
+  .st-btns{display:flex;gap:.7rem;margin-top:1.3rem;flex-wrap:wrap}
+  .st-tip{font-size:.7rem;color:#777;margin-top:.85rem;letter-spacing:.1em}
+
+  /* ---------- 圆润 + 半透明（Netflix TV 的柔和手感） ---------- */
+  .nv{border-radius:999px;padding:.34rem .8rem}
+  .nv.fx.on{background:rgba(255,255,255,.18);color:#fff;transform:none;
+    box-shadow:0 0 0 .07rem rgba(255,255,255,.42)}
+  #nav{background:linear-gradient(180deg,rgba(0,0,0,.92),rgba(0,0,0,.52) 62%,rgba(0,0,0,0))}
+  #nav.solid,#nav.up{background:rgba(8,8,8,.72)}
+  .card .poster{border-radius:.6rem}
+  .card.on{box-shadow:0 0 0 .1rem rgba(255,255,255,.92),0 1.1rem 2.2rem rgba(0,0,0,.72)}
+  .btn{border-radius:.6rem}
+  .btn:not(.primary){background:rgba(70,70,70,.5)}
+  .pb{border-radius:999px}
+  .ep{border-radius:999px}
+  .chip{border-radius:999px}
+  .key{border-radius:.5rem}
+  .sc-in{border-radius:.7rem}
+  .epc{border-radius:.6rem}
+  .hero-poster{border-radius:.7rem}
+  #eps-sheet{background:rgba(10,10,10,.94);border-radius:1rem 1rem 0 0}
+  #nx{background:rgba(16,16,16,.9);border-radius:.7rem}
+  .dt-desc,.dt-meta{color:#c4c4c4}
+  /* 有能力的机器用毛玻璃，老机器自动忽略（不认就退回纯色） */
+  @supports (backdrop-filter: blur(2px)){
+    #nav.solid,#nav.up{background:rgba(8,8,8,.55);backdrop-filter:blur(16px) saturate(1.1)}
+    #eps-sheet{background:rgba(10,10,10,.72);backdrop-filter:blur(18px)}
+    #nx{background:rgba(16,16,16,.72);backdrop-filter:blur(18px)}
+    .st-box{background:rgba(22,22,22,.78);backdrop-filter:blur(20px)}
+  }
+
   /* ---------- 老内核兜底：斐讯 N1 这类 Android 7.1 盒子，WebView 可能是 5x–8x，
                  不认 aspect-ratio / flex 的 gap / inset 简写。这里逐个补上 ---------- */
   @supports not (aspect-ratio: 2 / 3){
@@ -286,6 +335,8 @@
     #pbtns > *{margin-right:.55rem}
     #eps-sheet .grid > *{margin:0 .5rem .5rem 0}
     #nx .r > *{margin-right:.5rem}
+    .st-rows > *{margin-bottom:.5rem}
+    .st-btns > *{margin-right:.7rem}
     #boot > *{margin-bottom:1rem}
   }
   /* 老 WebView 可能连 CSS Grid 都没有（Chrome 57 才有）：字母键盘 / 搜索结果退回 inline-block */
@@ -320,12 +371,28 @@
     <button class="nv fx" data-nav="movie">电影</button>
     <button class="nv fx" data-nav="tv">剧集</button>
     <button class="nv fx" data-nav="variety">综艺</button>
-    <button class="nv fx" data-nav="search">搜索</button>
   </nav>
-  <div id="navr"><div id="clock">--:--</div></div>
+  <div id="navr">
+    <button class="nv fx nvr" id="btnSearch"><span class="ic">⌕</span>搜索</button>
+    <button class="nv fx nvr" id="btnSet"><span class="ic">⚙</span>设置</button>
+    <div id="clock">--:--</div>
+  </div>
 </header>
 
 <div id="peek" style="display:none"></div>
+
+<section id="settings">
+  <div class="st-box">
+    <div class="st-h">设置</div>
+    <div class="st-rows" id="stRows"></div>
+    <div class="st-btns">
+      <button class="pb primary fx" id="stReload">重新载入</button>
+      <button class="pb fx" id="stClear">清空本机缓存</button>
+      <button class="pb fx" id="stClose">关闭</button>
+    </div>
+    <div class="st-tip">方向键选择 · 回车执行 · 返回键关闭</div>
+  </div>
+</section>
 
 <main id="home" class="view on">
   <section id="hero">
@@ -390,7 +457,7 @@
 
 <section id="player">
   <video id="video" playsinline webkit-playsinline preload="metadata"></video>
-  <div id="pbrand"><div class="w">MFlixTV</div><div class="b"></div><div class="s">PLEASE ENJOY</div></div>
+  <div id="pbrand"><div class="w">MFlixTV</div><div class="b"></div><div class="s" id="pbrandS">正在接通线路…</div></div>
   <div id="pbig"></div>
   <div id="pmsg"></div>
   <div id="ptopbar">
@@ -450,6 +517,20 @@
     });
   }
   function proxy(u) { return '/api/proxy?url=' + encodeURIComponent(u); }
+  /* 海报走本机服务端转发：采集站的图床大多拦外链（Referer / UA / http 混用），
+     直连在电视上就是一片灰。转发取不到时再退回直连，最后才留渐变占位。 */
+  function imgURL(u) {
+    var s = String(u || '').trim();
+    if (!s) return '';
+    if (s.indexOf('//') === 0) s = 'http:' + s;
+    if (/^https?:/i.test(s)) return proxy(s);
+    if (s.charAt(0) === '/') return s;   /* 已经是本机相对路径就直接用 */
+    return '';
+  }
+  function bgURL(u) {
+    var p = imgURL(u);
+    return p ? 'url("' + p + '")' : 'none';
+  }
   function fmt(t) {
     t = Math.max(0, Math.floor(t || 0));
     var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
@@ -479,8 +560,10 @@
     return out;
   }
   function pool() {
+    if ($('settings').classList.contains('on')) return visibleIn($('settings'), '.fx');
     var view = document.querySelector('.view.on');
     var list = visibleIn($('navItems'), '.nv');
+    list = list.concat(visibleIn($('navr'), '.nv'));
     if (view) list = list.concat(visibleIn(view, '.fx'));
     if ($('player').classList.contains('on')) {
       list = visibleIn($('player'), '.fx');
@@ -581,9 +664,16 @@
     b.dataset.name = it.name || '';
     b.__item = it;
     var p = el('div', 'poster');
-    if (it.pic) {
-      var im = el('img'); im.loading = 'lazy'; im.src = it.pic;
-      im.onerror = function () { try { im.remove(); } catch (e) {} };
+    var pic0 = imgURL(it.pic);
+    if (pic0) {
+      var im = el('img'); im.loading = 'lazy'; im.src = pic0;
+      im.onerror = function () {
+        // 依次退：代理 → 直连 → 只剩渐变底（绝不出现破图图标）
+        if (im.getAttribute('data-fb') !== '1' && /^https?:/i.test(String(it.pic || ''))) {
+          im.setAttribute('data-fb', '1'); im.src = it.pic; return;
+        }
+        try { im.remove(); } catch (e) {}
+      };
       p.appendChild(im);
     }
     p.appendChild(el('div', 'shade'));
@@ -601,19 +691,28 @@
     var a = $('hb1'), b = $('hb2');
     var cur = heroFront === 1 ? a : b;
     var nxt = heroFront === 1 ? b : a;
-    nxt.style.backgroundImage = pic ? 'url("' + cssURL(pic) + '")' : 'none';
-    nxt.style.background = pic
-      ? 'url("' + cssURL(pic) + '") center/cover no-repeat, #0b0b0b'
+    var pu = imgURL(pic);
+    nxt.style.backgroundImage = pu ? 'url("' + pu + '")' : 'none';
+    nxt.style.background = pu
+      ? 'url("' + pu + '") center/cover no-repeat, #0b0b0b'
       : 'radial-gradient(120% 90% at 20% 10%, #1a0608 0%, #0b0b0b 60%, #000 100%)';
     nxt.classList.add('on');
     cur.classList.remove('on');
     heroFront = heroFront === 1 ? 2 : 1;
     // 右边立一张真海报（源站只给竖版图，糊背景 + 立海报是最像样的处理）
-    if (pic) {
-      $('heroPosterImg').src = pic;
-      $('heroPoster').classList.add('on');
+    var hp = $('heroPoster'), hi = $('heroPosterImg');
+    if (pu) {
+      hi.onerror = function () {
+        if (hi.getAttribute('data-fb') !== '1' && /^https?:/i.test(String(pic || ''))) {
+          hi.setAttribute('data-fb', '1'); hi.src = pic; return;
+        }
+        hp.classList.remove('on');
+      };
+      hi.setAttribute('data-fb', '0');
+      hi.src = pu;
+      hp.classList.add('on');
     } else {
-      $('heroPoster').classList.remove('on');
+      hp.classList.remove('on');
     }
   }
   function paintHero(it) {
@@ -782,7 +881,7 @@
     $('dtMeta').innerHTML = [it.typeName, it.year, it.area, it.remarks, it.srcName]
       .filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('<span class="dot"></span>');
     $('dtDesc').textContent = it.content || '正在取简介…';
-    $('dtBg').style.backgroundImage = it.pic ? 'url("' + cssURL(it.pic) + '")' : 'none';
+    $('dtBg').style.backgroundImage = bgURL(it.pic);
     $('dtLines').innerHTML = '';
     $('dtLineCnt').textContent = '';
     $('dtEps').innerHTML = '<div class="hintline">正在取分集…</div>';
@@ -797,7 +896,7 @@
         }
         if (d.name) { S.title = d.name; $('dtTitle').textContent = d.name; }
         if (d.content) $('dtDesc').textContent = d.content;
-        if (d.pic) $('dtBg').style.backgroundImage = 'url("' + cssURL(d.pic) + '")';
+        if (d.pic) $('dtBg').style.backgroundImage = bgURL(d.pic);
         $('dtMeta').innerHTML = [d.typeName, d.year, d.area, d.remarks, d.srcName]
           .filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('<span class="dot"></span>');
         S.groups = d.groups || [];
@@ -839,7 +938,7 @@
       var b = el('button', 'epc fx');
       b.dataset.name = (e.label || ('第' + (i + 1) + '集'));
       var th = el('div', 'th');
-      if (pic) th.style.backgroundImage = 'url("' + cssURL(pic) + '")';
+      if (pic) th.style.backgroundImage = bgURL(pic);
       th.style.backgroundSize = 'cover';
       th.innerHTML = '<span class="num">' + (i + 1) + '</span><span class="play">▶</span>';
       b.appendChild(th);
@@ -859,6 +958,16 @@
   /* ================= 播放器 ================= */
   var v = $('video'), hls = null, hideT = null, rateIdx = 0;
   var RATES = [1, 1.25, 1.5, 2, 0.75];
+  /* 没画面时先铺一张 MFlixTV 字标：不铺的话 WebView 会把 <video> 画成白底 + 大播放三角 */
+  (function () {
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">' +
+      '<rect width="1920" height="1080" fill="#000"/>' +
+      '<text x="960" y="556" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="128" font-weight="900" fill="#e50914">MFlixTV</text>' +
+      '<rect x="870" y="606" width="180" height="7" rx="4" fill="#ff3d3d"/>' +
+      '<text x="960" y="672" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="26" letter-spacing="12" fill="#8b8b8b">TV EDITION</text>' +
+      '</svg>';
+    try { v.setAttribute('poster', 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)); } catch (e) {}
+  })();
 
   function bars(show) {
     $('ptopbar').classList.toggle('hide', !show);
@@ -866,17 +975,30 @@
     clearTimeout(hideT);
     if (show) hideT = setTimeout(function () { if (!v.paused) bars(false); }, 4500);
   }
-  function showBrand() {
-    var b = $('pbrand'); b.classList.add('on');
-    clearTimeout(showBrand.t);
-    showBrand.t = setTimeout(function () { b.classList.remove('on'); }, 2600);
+  function showBrand(txt) {
+    var b = $('pbrand');
+    var s = $('pbrandS'); if (s) s.textContent = txt || '正在接通线路…';
+    b.classList.add('on');
+    /* 不再「2.6 秒后自动撤」：撤掉以后 WebView 会把 <video> 画成白底 + 播放三角，
+       这正是之前那个白框。真正的撤除点只有 playing 和出错。 */
   }
+  function hideBrand() { $('pbrand').classList.remove('on'); }
   function flashBig(ch) {
     var b = $('pbig'); b.textContent = ch; b.classList.add('on');
     clearTimeout(flashBig.t); flashBig.t = setTimeout(function () { b.classList.remove('on'); }, 560);
   }
+  var attachSeq = 0, attachTimer = null;
   function attach(url) {
+    var seq = ++attachSeq;
     $('pmsg').classList.remove('on');
+    showBrand('正在接通线路…');
+    clearTimeout(attachTimer);
+    attachTimer = setTimeout(function () {
+      if (seq !== attachSeq) return;
+      if (v.readyState >= 3 || $('pmsg').classList.contains('on')) return;
+      $('pmsg').classList.add('on');
+      $('pmsg').innerHTML = '这条线路 30 秒还没画面<br>按返回换一条线路试试';
+    }, 30000);
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     v.removeAttribute('src'); try { v.load(); } catch (e) {}
     var src = proxy(url);
@@ -892,7 +1014,7 @@
       hls.on(window.Hls.Events.MANIFEST_PARSED, function () { v.play().catch(function () {}); });
       hls.on(window.Hls.Events.ERROR, function (_, data) {
         if (data && data.fatal) {
-          $('pbrand').classList.remove('on');
+          /* 牌子留着盖住白底，错误提示压在它上面（z-index 更高） */
           $('pmsg').classList.add('on');
           $('pmsg').innerHTML = '这条线路拉不动（' + esc(data.details || '') + '）<br>按返回换一条线路';
         }
@@ -1033,6 +1155,7 @@
     if (v.duration) $('played').style.width = (100 * v.currentTime / v.duration).toFixed(2) + '%';
   });
   v.addEventListener('playing', function () {
+    clearTimeout(attachTimer);
     $('pbrand').classList.remove('on');
     $('pmsg').classList.remove('on');
     var g = S.groups[S.group] || {};
@@ -1083,6 +1206,44 @@
     var b = e.target.closest ? e.target.closest('.nv') : null;
     if (b) navTo(b.dataset.nav);
   });
+
+  /* ================= 右上角：搜索 / 设置 ================= */
+  function stRow(k, v) { return '<div class="st-row"><span>' + esc(k) + '</span><b>' + esc(v) + '</b></div>'; }
+  function openSettings() {
+    var rows = $('stRows');
+    rows.innerHTML = stRow('正在读取…', '');
+    $('settings').classList.add('on');
+    paintFocus($('stReload'));
+    getJSON('/api/status').then(function (d) {
+      var ua = navigator.userAgent || '';
+      var m = ua.match(/Chrome\/([\d.]+)/);
+      rows.innerHTML = [
+        stRow('版本', (d && d.version) || '—'),
+        stRow('播放内核', m ? ('Chrome / WebView ' + m[1]) : '未知'),
+        stRow('界面模式', document.documentElement.className.indexOf('lite') >= 0 ? '轻量（弱 GPU 自动）' : '完整'),
+        stRow('屏幕', window.innerWidth + '×' + window.innerHeight),
+        stRow('局域网地址', (d && (d.lan || d.ip)) || '未联网'),
+        stRow('机型', (d && d.device) || '—')
+      ].join('');
+    }).catch(function () {
+      rows.innerHTML = stRow('读取失败', '手机端的服务没应答');
+    });
+  }
+  function closeSettings() { $('settings').classList.remove('on'); paintFocus($('btnSet')); }
+  $('navr').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.nv') : null;
+    if (!b) return;
+    if (b.id === 'btnSearch') navTo('search');
+    else if (b.id === 'btnSet') openSettings();
+  });
+  $('stReload').addEventListener('click', function () { location.reload(); });
+  $('stClear').addEventListener('click', function () {
+    try { localStorage.clear(); } catch (e) {}
+    toast('本机缓存已清空，正在重载');
+    setTimeout(function () { location.reload(); }, 600);
+  });
+  $('stClose').addEventListener('click', closeSettings);
+
   $('heroPlay').addEventListener('click', function () {
     if (S.heroCur) openDetail(S.heroCur);
   });
@@ -1119,6 +1280,12 @@
   }
 
   function handle(a) {
+    if ($('settings').classList.contains('on')) {
+      if (a === 'back') { closeSettings(); return true; }
+      if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); return true; }
+      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
+      return true;
+    }
     if (inPlayer()) return handlePlayer(a);
     if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); bars(true); return true; }
     if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
