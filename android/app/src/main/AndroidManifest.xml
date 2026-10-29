@@ -25,6 +25,10 @@
     <uses-feature
         android:name="android.hardware.faketouch"
         android:required="false" />
+    <!-- 电视（Leanback）也是「非必需」：手机 / 平板 / 盒子同一个包 -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
     <uses-feature
         android:glEsVersion="0x00020000"
         android:required="false" />
@@ -43,6 +47,7 @@
         android:label="MFlixTV"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
+        android:banner="@drawable/tv_banner"
         android:theme="@style/Theme.MFlixTV"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
@@ -54,10 +59,13 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:banner="@drawable/tv_banner"
             android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <!-- 电视首页（Android TV / 各种盒子）也列出这一个入口 -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
 

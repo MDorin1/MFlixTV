@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>MFlixTV · TV</title>
+<style>
+  /* ============ MFlixTV 电视版 · 10 英尺界面 ============
+     基准 1920×1080：html 字号 = 视口宽 /96（1rem ≈ 20px @1080p），
+     720p / 4K 自动等比，不用为分辨率另写一套。
+     交互全部遥控器方向键：.fx 为可聚焦元素，几何导航 + Netflix 式焦点联动。 */
+  :root{
+    --red:#e50914; --red2:#ff4d57;
+    --bg:#000; --ink:#fff; --dim:#a8a8a8; --dim2:#6f6f6f;
+    --card:#161616; --line:rgba(255,255,255,.13);
+    --ease:cubic-bezier(.22,.61,.36,1);
+  }
+  *{box-sizing:border-box}
+  html{font-size:1.0416667vw}
+  body{margin:0;background:var(--bg);color:var(--ink);overflow-x:hidden;
+    font-family:"Noto Sans SC","Source Han Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  button{font-family:inherit;color:inherit;background:none;border:0;cursor:default;padding:0}
+  img{display:block;border:0}
+  ::-webkit-scrollbar{display:none}
+  .view{display:none}
+  .view.on{display:block}
+  .fx{transition:transform .18s var(--ease),box-shadow .18s var(--ease),opacity .18s linear,background .18s linear,border-color .18s linear}
+
+  /* ---------- 顶栏（Netflix 式：纯文字导航，选中项亮白） ---------- */
+  #nav{position:fixed;left:0;right:0;top:0;z-index:60;display:flex;align-items:center;gap:1.5rem;
+    padding:1rem 4rem 3rem;background:linear-gradient(180deg,rgba(0,0,0,.94),rgba(0,0,0,.6) 58%,rgba(0,0,0,0));
+    transition:background .3s linear}
+  #nav.solid{background:rgba(8,8,8,.98)}
+  #nav.up{background:rgba(8,8,8,.98)}
+  .logo{font-size:1.5rem;font-weight:900;letter-spacing:.04em;color:var(--red);
+    text-shadow:0 .1rem 1.5rem rgba(229,9,20,.5);white-space:nowrap;line-height:1}
+  #navItems{display:flex;align-items:center;gap:.15rem;flex:1}
+  .nv{font-size:1rem;font-weight:700;color:#b9b9b9;padding:.42rem .95rem;border-radius:.4rem;white-space:nowrap;
+    letter-spacing:.01em}
+  .nv.active{color:#fff}
+  .nv.fx.on{background:#fff;color:#111;transform:none;box-shadow:0 0 .9rem rgba(255,255,255,.35)}
+  #navr{display:flex;align-items:center;gap:1rem}
+  #clock{font-size:.8rem;color:#8c8c8c;font-variant-numeric:tabular-nums}
+
+  /* ---------- 大图（billboard）：两层背景做交叉淡入 ---------- */
+  #hero{position:relative;height:60vh;min-height:24rem;overflow:hidden}
+  /* 采集源只给竖版海报：把它糊成大背景当「剧照」，右边再立一张真海报 —— 比纯黑好看得多 */
+  .hb{position:absolute;inset:-6%;background:#0b0b0b center/cover no-repeat;opacity:0;
+    filter:blur(34px) saturate(1.2) brightness(.78);
+    transition:opacity .6s linear;transform:scale(1.12)}
+  .hb.on{opacity:1}
+  #heroVeil{position:absolute;inset:0;pointer-events:none;
+    background:
+      linear-gradient(90deg,rgba(0,0,0,.97) 0%,rgba(0,0,0,.82) 32%,rgba(0,0,0,.28) 60%,rgba(0,0,0,.62) 100%),
+      linear-gradient(180deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,0) 26%,rgba(0,0,0,.1) 54%,#000 97%)}
+  .hero-in{position:absolute;left:4rem;right:4rem;bottom:2.9rem;max-width:50%;z-index:3}
+  .hero-poster{position:absolute;right:4rem;bottom:3.4rem;width:12.5rem;aspect-ratio:2/3;z-index:3;
+    border-radius:.55rem;overflow:hidden;box-shadow:0 1.8rem 3.6rem rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.08);
+    opacity:0;transition:opacity .45s linear}
+  .hero-poster.on{opacity:1}
+  .hero-poster img{width:100%;height:100%;object-fit:cover}
+  .hero-tag{display:inline-block;font-size:.68rem;font-weight:900;letter-spacing:.2em;
+    color:#fff;background:linear-gradient(135deg,var(--red),var(--red2));
+    padding:.22rem .62rem;border-radius:.22rem;margin-bottom:.85rem}
+  #heroTitle{margin:0 0 .65rem;font-size:3rem;line-height:1.04;font-weight:900;letter-spacing:-.015em;
+    text-shadow:0 .35rem 1.8rem rgba(0,0,0,.9)}
+  .hero-meta{display:flex;align-items:center;gap:.75rem;font-size:.9rem;color:#d5d5d5;margin-bottom:.65rem}
+  .hero-meta .dot{width:.24rem;height:.24rem;border-radius:50%;background:#7b7b7b}
+  .hero-meta b{color:var(--red2);font-weight:800}
+  .hero-desc{font-size:.92rem;line-height:1.55;color:#c4c4c4;margin:0 0 1.2rem;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .hero-btns{display:flex;gap:.8rem}
+  .btn{display:flex;align-items:center;gap:.45rem;font-size:.95rem;font-weight:800;
+    padding:.72rem 1.4rem;border-radius:.4rem;background:rgba(80,80,80,.55);color:#fff}
+  .btn.primary{background:#fff;color:#111}
+  .btn.fx.on{transform:scale(1.06);box-shadow:0 0 0 .1rem #fff,0 0 1.4rem rgba(229,9,20,.5)}
+  .hero-dots{position:absolute;left:4rem;bottom:1.15rem;z-index:4;display:flex;gap:.36rem}
+  .hero-dots i{width:1.25rem;height:.18rem;border-radius:.2rem;background:rgba(255,255,255,.22)}
+  .hero-dots i.on{background:var(--red2)}
+
+  /* ---------- 片单横排 ---------- */
+  #rails{padding:0 0 4rem;position:relative;z-index:4;margin-top:-.5rem}
+  .rail{margin:0 0 2rem}
+  .rail-h{display:flex;align-items:baseline;gap:.7rem;padding:0 4rem .55rem}
+  .rail-h .t{font-size:1.2rem;font-weight:800;letter-spacing:.005em}
+  .rail-h .s{font-size:.74rem;color:var(--dim2)}
+  .strip{display:flex;gap:.75rem;padding:.55rem 4rem 1.25rem;overflow-x:auto;overflow-y:hidden;
+    scroll-behavior:smooth;scrollbar-width:none}
+  .card{flex:0 0 auto;width:9.2rem;text-align:left;background:none;border-radius:.45rem;
+    transform-origin:center bottom}
+  .card .poster{position:relative;width:100%;aspect-ratio:2/3;border-radius:.45rem;overflow:hidden;
+    background:linear-gradient(160deg,#1e1e1e,#0c0c0c);box-shadow:0 .45rem 1.2rem rgba(0,0,0,.55)}
+  .card .poster img{width:100%;height:100%;object-fit:cover}
+  /* 片名压在海报底部：浅色封面也必须看得清（硬要求） */
+  .card .shade{position:absolute;left:0;right:0;bottom:0;height:56%;
+    background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.66) 44%,rgba(0,0,0,.93))}
+  .card .name{position:absolute;left:.45rem;right:.45rem;bottom:.38rem;font-size:.82rem;font-weight:800;
+    line-height:1.26;color:#fff;text-shadow:0 .1rem .5rem rgba(0,0,0,.95);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .tag{position:absolute;left:.35rem;top:.35rem;font-size:.58rem;font-weight:900;color:#fff;
+    background:rgba(0,0,0,.66);padding:.12rem .34rem;border-radius:.2rem}
+  /* 焦点：放大 + 白边 + 红色辉光；同一排其它片子压暗（Netflix / Google TV 的手感） */
+  .strip.focusing .card{opacity:.5}
+  .strip.focusing .card.on{opacity:1}
+  .card.on{transform:scale(1.16) translateY(-.35rem);z-index:8;
+    box-shadow:0 0 0 .11rem #fff,0 0 1.6rem rgba(229,9,20,.45),0 1.4rem 2.6rem rgba(0,0,0,.8)}
+  .card.sk{pointer-events:none}
+  .card.sk .poster{background:linear-gradient(100deg,#141414,#212121,#141414);background-size:220% 100%;
+    animation:sk 1.25s linear infinite}
+  @keyframes sk{0%{background-position:120% 0}100%{background-position:-40% 0}}
+  .rail-note{padding:.2rem 4rem 1rem;color:var(--dim2);font-size:.82rem}
+
+  /* ---------- 搜索 ---------- */
+  #search{padding:7.6rem 4rem 3rem;gap:3rem}
+  #search.view.on{display:flex}      /* 注意：ID 上的 display 会盖掉 .view{display:none}，所以写成 .view.on */
+  #search .left{width:34rem;flex:0 0 auto}
+  .sc-in{min-height:3rem;border-radius:.4rem;border:1px solid var(--line);background:rgba(255,255,255,.07);
+    font-size:1.05rem;padding:.65rem 1rem;display:flex;align-items:center;letter-spacing:.05em;margin-bottom:1rem}
+  .sc-in .ph{color:#6d6d6d;letter-spacing:0}
+  .cur{display:inline-block;width:.11rem;height:1.25rem;background:var(--red2);margin-left:.12rem;
+    animation:blk 1s steps(1) infinite}
+  @keyframes blk{50%{opacity:0}}
+  .kbd{display:grid;grid-template-columns:repeat(6,1fr);gap:.42rem}
+  .key{height:2.35rem;border-radius:.35rem;background:rgba(255,255,255,.08);font-size:.94rem;font-weight:800;
+    display:flex;align-items:center;justify-content:center}
+  .key.fx.on{background:#fff;color:#111;transform:scale(1.04);box-shadow:0 0 0 .1rem #fff}
+  .sc-acts{display:flex;gap:.6rem;margin-top:.9rem}
+  .pb{font-size:.86rem;font-weight:800;padding:.5rem 1rem;border-radius:.35rem;background:rgba(255,255,255,.12)}
+  .pb.primary{background:linear-gradient(135deg,var(--red),var(--red2))}
+  .pb.fx.on{background:#fff;color:#111;transform:scale(1.04);box-shadow:0 0 0 .1rem #fff}
+  #search .right{flex:1;min-width:0}
+  .sub-h{font-size:.86rem;color:#c9c9c9;font-weight:900;letter-spacing:.12em;margin-bottom:.8rem}
+  .sres{display:grid;grid-template-columns:repeat(auto-fill,minmax(9.2rem,1fr));gap:1.1rem .9rem;
+    margin-top:2.6rem}   /* 焦点卡放大后向上溢出约 52px，标题不能被它盖住 */
+  .sres .card{width:100%}
+  .hot{display:flex;flex-wrap:wrap;gap:.55rem}
+  .hot .chip{font-size:.85rem;font-weight:700;padding:.42rem .9rem;border-radius:.35rem;background:rgba(255,255,255,.09)}
+  .hot .chip.fx.on{background:#fff;color:#111;transform:scale(1.05);box-shadow:0 0 0 .1rem #fff}
+  .hot.off{display:none}
+  .hintline{color:var(--dim2);font-size:.82rem;margin-top:1rem}
+
+  /* ---------- 详情（Netflix 剧集页：满屏大图 + 剧集横排） ---------- */
+  #detail{position:relative;min-height:100vh;padding-bottom:3rem}
+  /* 详情背景：海报本身是竖版，糊开当剧照用，再压一层渐变，右边角上留一张小海报 */
+  #dtBg{position:absolute;left:-6%;right:-6%;top:-8%;height:86vh;background:#0d0d0d center/cover no-repeat;
+    filter:blur(42px) saturate(1.12) brightness(.66);transform:scale(1.06)}
+  #dtVeil{position:absolute;left:0;right:0;top:0;height:86vh;pointer-events:none;
+    background:linear-gradient(90deg,rgba(0,0,0,.96) 0%,rgba(0,0,0,.8) 42%,rgba(0,0,0,.42)),
+      linear-gradient(180deg,rgba(0,0,0,.72),rgba(0,0,0,.25) 42%,#000 94%)}
+  .dt-in{position:relative;z-index:2;padding:8.4rem 4rem 0}
+  #dtTitle{margin:0 0 .6rem;font-size:2.7rem;line-height:1.05;font-weight:900;max-width:60rem;
+    text-shadow:0 .3rem 1.8rem rgba(0,0,0,.85)}
+  .dt-meta{display:flex;gap:.8rem;align-items:center;font-size:.88rem;color:#cdcdcd;margin-bottom:.8rem;flex-wrap:wrap}
+  .dt-meta .dot{width:.22rem;height:.22rem;border-radius:50%;background:#767676}
+  .dt-desc{font-size:.9rem;line-height:1.62;color:#bdbdbd;margin:0 0 1.2rem;max-width:52rem;
+    display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .dt-btns{display:flex;gap:.7rem;margin-bottom:2rem}
+  .dt-sec{margin:0 0 1.6rem;position:relative;z-index:2}
+  .dt-h{display:flex;align-items:baseline;gap:.7rem;margin-bottom:.8rem;padding:0}
+  .dt-h .t{font-size:1.1rem;font-weight:800}
+  .dt-h .s{font-size:.74rem;color:var(--dim2)}
+  .chips{display:flex;gap:.5rem;flex-wrap:wrap;max-width:60rem}
+  .chip{font-size:.83rem;font-weight:700;padding:.4rem .9rem;border-radius:.35rem;
+    background:rgba(255,255,255,.1);color:#ddd}
+  .chip.on{background:#fff;color:#111}
+  .chip.fx.on{transform:scale(1.05);box-shadow:0 0 0 .1rem #fff}
+  /* 剧集卡：16:9 缩略 + 大集号（Netflix 剧集页的感觉） */
+  .epstrip{display:flex;flex-wrap:wrap;gap:.8rem;padding:.55rem 0 1rem;scroll-behavior:smooth}
+  .epc{flex:0 0 auto;width:14.4rem;text-align:left;border-radius:.45rem;overflow:hidden;
+    background:#141414;box-shadow:0 .5rem 1.4rem rgba(0,0,0,.55)}
+  .epc .th{position:relative;width:100%;aspect-ratio:16/9;background:#0f0f0f center/cover no-repeat;
+    display:flex;align-items:center;justify-content:center}
+  .epc .th .num{font-size:1.6rem;font-weight:900;color:rgba(255,255,255,.9);
+    text-shadow:0 .2rem 1rem rgba(0,0,0,.9)}
+  .epc .th .play{position:absolute;right:.45rem;bottom:.45rem;width:1.7rem;height:1.7rem;border-radius:50%;
+    background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.35);display:flex;align-items:center;
+    justify-content:center;font-size:.7rem;color:#fff}
+  .epc .bb{padding:.5rem .6rem .62rem}
+  .epc .bb .l{font-size:.85rem;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .epc .bb .d{font-size:.7rem;color:#8e8e8e;margin-top:.15rem}
+  .epc.on{transform:scale(1.08);z-index:6;box-shadow:0 0 0 .11rem #fff,0 0 1.5rem rgba(229,9,20,.45)}
+  .epstrip.focusing .epc{opacity:.55}
+  .epstrip.focusing .epc.on{opacity:1}
+
+  /* ---------- 播放器 ---------- */
+  #player{position:fixed;inset:0;z-index:90;background:#000;display:none}
+  #player.on{display:block}
+  #video{width:100%;height:100%;background:#000;display:block;object-fit:contain}
+  video::-webkit-media-controls-start-playback-button{display:none !important}
+  video::-webkit-media-controls-play-button,video::-webkit-media-controls-overlay-play-button,
+  video::-webkit-media-controls-panel,video::-webkit-media-controls-enclosure,
+  video::-webkit-media-controls,video::-webkit-media-controls-timeline{display:none !important}
+  #ptopbar{position:absolute;left:0;right:0;top:0;z-index:5;padding:1.6rem 4rem 2.4rem;
+    background:linear-gradient(180deg,rgba(0,0,0,.8),rgba(0,0,0,0));transition:opacity .25s linear}
+  #ptitle{font-size:1.15rem;font-weight:900;letter-spacing:.01em}
+  #psub{font-size:.78rem;color:#b9b9b9;margin-top:.25rem}
+  #pbotbar{position:absolute;left:0;right:0;bottom:0;z-index:5;padding:2.6rem 4rem 1.9rem;
+    background:linear-gradient(0deg,rgba(0,0,0,.92),rgba(0,0,0,.3) 62%,rgba(0,0,0,0));transition:opacity .25s linear}
+  .hide{opacity:0;pointer-events:none}
+  #track{height:.2rem;background:rgba(255,255,255,.26);border-radius:.2rem;overflow:hidden;margin-bottom:.55rem}
+  #played{height:100%;width:0;background:linear-gradient(90deg,var(--red),var(--red2));transition:width .2s linear}
+  .ptime{display:flex;justify-content:space-between;font-size:.74rem;color:#cfcfcf;font-variant-numeric:tabular-nums}
+  #pbtns{display:flex;align-items:center;gap:.55rem;margin-top:.9rem;flex-wrap:wrap}
+  #eps-sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;background:rgba(6,6,6,.98);
+    border-top:1px solid rgba(255,255,255,.1);padding:1.3rem 4rem 1.6rem;display:none}
+  #eps-sheet.on{display:block}
+  #eps-sheet .hd{font-size:.74rem;color:var(--dim2);font-weight:900;letter-spacing:.16em;margin-bottom:.7rem}
+  #eps-sheet .grid{display:flex;flex-wrap:wrap;gap:.5rem;max-width:none}
+  .ep{min-width:5rem;height:2.4rem;padding:0 .75rem;border-radius:.35rem;background:rgba(255,255,255,.1);
+    font-size:.82rem;font-weight:700;color:#e2e2e2;display:flex;align-items:center;justify-content:center}
+  .ep.on{background:#fff;color:#111}
+  .ep.fx.on{box-shadow:0 0 0 .1rem #fff,0 0 1rem rgba(229,9,20,.5);transform:none}
+  #pmsg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9;display:none;
+    text-align:center;font-size:.95rem;color:#ffd9d9;line-height:1.6;max-width:70%}
+  #pmsg.on{display:block}
+  #pbig{position:absolute;left:50%;top:50%;z-index:8;opacity:0;pointer-events:none;
+    width:5rem;height:5rem;border-radius:50%;background:rgba(0,0,0,.5);
+    display:flex;align-items:center;justify-content:center;font-size:1.5rem;
+    transform:translate(-50%,-50%) scale(.85);transition:opacity .2s linear,transform .2s var(--ease)}
+  #pbig.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  #pbrand{position:absolute;inset:0;z-index:4;display:none;align-items:center;justify-content:center;
+    flex-direction:column;background:#000}
+  #pbrand.on{display:flex}
+  #pbrand .w{font-size:2.5rem;font-weight:900;color:var(--red);letter-spacing:.05em;
+    text-shadow:0 .3rem 2rem rgba(229,9,20,.55)}
+  #pbrand .b{width:3.2rem;height:.15rem;background:linear-gradient(90deg,var(--red),var(--red2));
+    margin:.75rem 0 .55rem;border-radius:.1rem}
+  #pbrand .s{font-size:.66rem;letter-spacing:.34em;color:#8b8b8b}
+  /* 下一集倒计时卡（Netflix 播完自动下一集那种） */
+  #nx{position:absolute;right:4rem;bottom:9rem;z-index:8;width:26rem;background:rgba(10,10,10,.96);
+    border:1px solid rgba(255,255,255,.14);border-radius:.5rem;padding:1rem 1.1rem;display:none;
+    box-shadow:0 1.4rem 3rem rgba(0,0,0,.7)}
+  #nx.on{display:block}
+  #nx .h{font-size:.68rem;letter-spacing:.16em;color:var(--dim2);font-weight:900}
+  #nx .t{font-size:1rem;font-weight:800;margin:.3rem 0 .15rem}
+  #nx .s{font-size:.76rem;color:#a9a9a9}
+  #nx .r{display:flex;align-items:center;gap:.5rem;margin-top:.8rem}
+  #nx .cd{margin-left:auto;font-size:.8rem;color:var(--red2);font-weight:900;font-variant-numeric:tabular-nums}
+
+  #toast{position:fixed;left:50%;bottom:3.2rem;transform:translateX(-50%) translateY(.8rem);z-index:300;
+    background:rgba(18,18,18,.96);border:1px solid rgba(255,255,255,.14);color:#fff;
+    font-size:.86rem;font-weight:700;padding:.62rem 1.2rem;border-radius:.4rem;opacity:0;
+    transition:opacity .2s linear,transform .2s var(--ease);pointer-events:none;max-width:80vw;text-align:center}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* 启动页 */
+  #boot{position:fixed;inset:0;z-index:400;background:#000;display:flex;align-items:center;
+    justify-content:center;flex-direction:column;gap:1rem;transition:opacity .4s linear}
+  #boot.off{opacity:0;pointer-events:none}
+  #boot .w{font-size:2.6rem;font-weight:900;color:var(--red);letter-spacing:.05em}
+  #boot .b{width:2.6rem;height:.14rem;background:linear-gradient(90deg,var(--red),var(--red2));border-radius:.1rem}
+  #boot .s{font-size:.66rem;letter-spacing:.32em;color:#7a7a7a}
+  #boot .line{width:12rem;height:.14rem;background:#181818;border-radius:.1rem;overflow:hidden;margin-top:.4rem}
+  #boot .line i{display:block;height:100%;width:36%;background:linear-gradient(90deg,var(--red),var(--red2));
+    animation:bt 1.2s ease-in-out infinite}
+  @keyframes bt{0%{transform:translateX(-110%)}100%{transform:translateX(330%)}}
+</style>
+</head>
+<body>
+
+<div id="boot">
+  <div class="w">MFlixTV</div>
+  <div class="b"></div>
+  <div class="s">TV EDITION</div>
+  <div class="line"><i></i></div>
+</div>
+
+<header id="nav">
+  <div class="logo">MFlixTV</div>
+  <nav id="navItems">
+    <button class="nv fx active" data-nav="home">首页</button>
+    <button class="nv fx" data-nav="movie">电影</button>
+    <button class="nv fx" data-nav="tv">剧集</button>
+    <button class="nv fx" data-nav="variety">综艺</button>
+    <button class="nv fx" data-nav="search">搜索</button>
+  </nav>
+  <div id="navr"><div id="clock">--:--</div></div>
+</header>
+
+<div id="peek" style="display:none"></div>
+
+<main id="home" class="view on">
+  <section id="hero">
+    <div class="hb" id="hb1"></div>
+    <div class="hb on" id="hb2"></div>
+    <div id="heroVeil"></div>
+    <div class="hero-in">
+      <div class="hero-tag" id="heroTag">MFlixTV 精选</div>
+      <h1 id="heroTitle">正在载入…</h1>
+      <div class="hero-meta" id="heroMeta"></div>
+      <p class="hero-desc" id="heroDesc"></p>
+      <div class="hero-btns">
+        <button class="btn primary fx" id="heroPlay">▶ 播放</button>
+        <button class="btn fx" id="heroInfo">ⓘ 更多信息</button>
+      </div>
+    </div>
+    <div class="hero-poster" id="heroPoster"><img id="heroPosterImg" alt=""></div>
+    <div class="hero-dots" id="heroDots"></div>
+  </section>
+  <section id="rails"></section>
+</main>
+
+<section id="search" class="view">
+  <div class="left">
+    <div class="sc-in" id="scIn"><span class="ph">按方向键选字母，回车输入</span><i class="cur"></i></div>
+    <div class="kbd" id="kbd"></div>
+    <div class="sc-acts">
+      <button class="pb fx" id="scDel">← 删除</button>
+      <button class="pb fx" id="scClear">清空</button>
+      <button class="pb primary fx" id="scGo">开始搜索</button>
+    </div>
+    <div class="hintline">片名、演员都能搜。搜到之后按回车直接进详情。</div>
+  </div>
+  <div class="right">
+    <div class="sub-h" id="resH">热门搜索</div>
+    <div class="hot" id="hot"></div>
+    <div class="sres" id="sres"></div>
+  </div>
+</section>
+
+<section id="detail" class="view">
+  <div id="dtBg"></div>
+  <div id="dtVeil"></div>
+  <div class="dt-in">
+    <h2 id="dtTitle">—</h2>
+    <div class="dt-meta" id="dtMeta"></div>
+    <p class="dt-desc" id="dtDesc"></p>
+    <div class="dt-btns">
+      <button class="btn primary fx" id="dtPlay">▶ 播放</button>
+      <button class="btn fx" id="dtFirst">从第一集开始</button>
+    </div>
+    <div class="dt-sec">
+      <div class="dt-h"><span class="t">线路</span><span class="s" id="dtLineCnt"></span></div>
+      <div class="chips" id="dtLines"></div>
+    </div>
+    <div class="dt-sec">
+      <div class="dt-h"><span class="t">剧集</span><span class="s" id="dtEpCnt"></span></div>
+      <div class="epstrip" id="dtEps"></div>
+    </div>
+  </div>
+</section>
+
+<section id="player">
+  <video id="video" playsinline webkit-playsinline preload="metadata"></video>
+  <div id="pbrand"><div class="w">MFlixTV</div><div class="b"></div><div class="s">PLEASE ENJOY</div></div>
+  <div id="pbig"></div>
+  <div id="pmsg"></div>
+  <div id="ptopbar">
+    <div id="ptitle"></div>
+    <div id="psub"></div>
+  </div>
+  <div id="nx">
+    <div class="h">接下来播放</div>
+    <div class="t" id="nxT">—</div>
+    <div class="s" id="nxS"></div>
+    <div class="r">
+      <button class="pb primary fx" id="nxGo">立即播放</button>
+      <button class="pb fx" id="nxNo">取消</button>
+      <span class="cd" id="nxCd">5</span>
+    </div>
+  </div>
+  <div id="pbotbar">
+    <div id="track"><div id="played"></div></div>
+    <div class="ptime"><span id="pcur">00:00</span><span id="pdur">00:00</span></div>
+    <div id="pbtns">
+      <button class="pb primary fx" id="pbPlay">⏸ 暂停</button>
+      <button class="pb fx" id="pbPrev">⏮ 上一集</button>
+      <button class="pb fx" id="pbNext">下一集 ⏭</button>
+      <button class="pb fx" id="pbEps">选集</button>
+      <button class="pb fx" id="pbRate">1.0x</button>
+      <button class="pb fx" id="pbBack">退出播放</button>
+    </div>
+  </div>
+  <div id="eps-sheet">
+    <div class="hd">选集 · 方向键选择 · 回车播放 · 返回键收起</div>
+    <div class="grid" id="pEpsGrid"></div>
+  </div>
+</section>
+
+<div id="toast"></div>
+
+<script src="/hls.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, cls) { var d = document.createElement(tag); if (cls) d.className = cls; return d; }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function proxy(u) { return '/api/proxy?url=' + encodeURIComponent(u); }
+  function fmt(t) {
+    t = Math.max(0, Math.floor(t || 0));
+    var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return h > 0 ? (h + ':' + p(m) + ':' + p(s)) : (p(m) + ':' + p(s));
+  }
+  var tT = null;
+  function toast(m) {
+    var t = $('toast'); t.textContent = m; t.classList.add('on');
+    clearTimeout(tT); tT = setTimeout(function () { t.classList.remove('on'); }, 2200);
+  }
+  function getJSON(u) { return fetch(u).then(function (r) { return r.json(); }); }
+  function cssURL(u) { return String(u).replace(/["\\]/g, function (c) { return encodeURIComponent(c); }); }
+
+  /* ================= 遥控器焦点：几何导航 + Netflix 式联动 ================= */
+  var focusEl = null;
+
+  function visibleIn(view, sel) {
+    var out = [], list = view ? view.querySelectorAll(sel) : [];
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      var r = e.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      if (getComputedStyle(e).visibility === 'hidden') continue;
+      out.push(e);
+    }
+    return out;
+  }
+  function pool() {
+    var view = document.querySelector('.view.on');
+    var list = visibleIn($('navItems'), '.nv');
+    if (view) list = list.concat(visibleIn(view, '.fx'));
+    if ($('player').classList.contains('on')) {
+      list = visibleIn($('player'), '.fx');
+      if ($('eps-sheet').classList.contains('on')) list = visibleIn($('eps-sheet'), '.fx');
+    }
+    return list;
+  }
+
+  /** 焦点变化时：同排压暗、大图跟着换（Netflix 的 billboard 联动） */
+  function paintFocus(next) {
+    if (focusEl && focusEl !== next) focusEl.classList.remove('on');
+    var prevStrip = focusEl && focusEl.closest ? focusEl.closest('.strip, .epstrip') : null;
+    focusEl = next || null;
+    var strip = focusEl && focusEl.closest ? focusEl.closest('.strip, .epstrip') : null;
+    if (prevStrip && prevStrip !== strip) prevStrip.classList.remove('focusing');
+    if (strip) strip.classList.add('focusing');
+    if (focusEl) { focusEl.classList.add('on'); ensureVisible(focusEl); onFocusCard(focusEl); }
+  }
+
+  /** 焦点停在一张片卡上：稍等 240ms 再换大图，快速滑动时不闪 */
+  var pvT = null;
+  function onFocusCard(f) {
+    var card = f && f.closest ? f.closest('.card') : null;
+    if (!card || !card.__item) return;
+    clearTimeout(pvT);
+    pvT = setTimeout(function () { previewHero(card.__item); }, 240);
+  }
+  function ensureVisible(f) {
+    var strip = f.closest ? f.closest('.strip, .epstrip') : null;
+    if (strip) {
+      var fr = f.getBoundingClientRect(), sr = strip.getBoundingClientRect();
+      var pad = Math.min(110, sr.width * 0.12);
+      if (fr.left < sr.left + pad) strip.scrollLeft -= (sr.left + pad - fr.left);
+      else if (fr.right > sr.right - pad) strip.scrollLeft += (fr.right - (sr.right - pad));
+    }
+    var r = f.getBoundingClientRect(), vh = window.innerHeight;
+    if (r.top < 110) window.scrollBy({ top: r.top - 150, behavior: 'smooth' });
+    else if (r.bottom > vh - 36) window.scrollBy({ top: r.bottom - vh + 90, behavior: 'smooth' });
+    // 焦点进顶栏时把顶部渐变压深一点
+    var inNav = f.closest && f.closest('#nav');
+    $('nav').classList.toggle('up', !!inNav);
+  }
+
+  function pick(dir, list, cur) {
+    if (!cur) return list.length ? list[0] : null;
+    var r = cur.getBoundingClientRect();
+    var cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
+    var best = null, bs = 1e9;
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      if (e === cur) continue;
+      var q = e.getBoundingClientRect();
+      var dx = (q.left + q.right) / 2 - cx, dy = (q.top + q.bottom) / 2 - cy;
+      var along = dir === 'left' ? -dx : dir === 'right' ? dx : dir === 'up' ? -dy : dy;
+      if (along < 8) continue;
+      var across = (dir === 'left' || dir === 'right') ? Math.abs(dy) : Math.abs(dx);
+      // 横排里别跳到别的排：横向移动时纵向偏差重罚
+      var score = along + across * ((dir === 'left' || dir === 'right') ? 3.2 : 2.4);
+      if (score < bs) { bs = score; best = e; }
+    }
+    return best;
+  }
+  function move(dir) {
+    var list = pool();
+    if (!list.length) return;
+    if (!focusEl || list.indexOf(focusEl) < 0) {
+      var v = document.querySelector('.view.on');
+      var f = v ? v.querySelector('.fx') : null;
+      paintFocus(f || list[0]);
+      return;
+    }
+    var n = pick(dir, list, focusEl);
+    if (n) paintFocus(n);
+  }
+  function focusFirst(sel) { var e = document.querySelector(sel); if (e) paintFocus(e); }
+
+  /* ================= 时钟 ================= */
+  function tick() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    $('clock').textContent = p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  setInterval(tick, 20000); tick();
+  window.addEventListener('scroll', function () {
+    $('nav').classList.toggle('solid', window.scrollY > 24);
+  }, { passive: true });
+
+  /* ================= 首页 ================= */
+  var S = {
+    heroList: [], heroAt: -1, heroTimer: null, heroCur: null,
+    rows: [], title: '', src: '', vodId: '', groups: [], group: 0, eps: [], ep: 0,
+    detailItem: null,
+  };
+
+  function cardNode(it, extraTag) {
+    var b = el('button', 'card fx');
+    b.dataset.src = it.src || '';
+    b.dataset.id = it.vodId || it.id || '';
+    b.dataset.name = it.name || '';
+    b.__item = it;
+    var p = el('div', 'poster');
+    if (it.pic) {
+      var im = el('img'); im.loading = 'lazy'; im.src = it.pic;
+      im.onerror = function () { try { im.remove(); } catch (e) {} };
+      p.appendChild(im);
+    }
+    p.appendChild(el('div', 'shade'));
+    var n = el('div', 'name'); n.textContent = it.name || ''; p.appendChild(n);
+    var tg = extraTag || '';
+    if (tg) { var x = el('div', 'tag'); x.textContent = tg; p.appendChild(x); }
+    b.appendChild(p);
+    b.addEventListener('click', function () { openDetail(b.__item); });
+    return b;
+  }
+
+  /* 双背景交叉淡入，Netflix 换片那种感觉 */
+  var heroFront = 2;
+  function paintHeroBg(pic) {
+    var a = $('hb1'), b = $('hb2');
+    var cur = heroFront === 1 ? a : b;
+    var nxt = heroFront === 1 ? b : a;
+    nxt.style.backgroundImage = pic ? 'url("' + cssURL(pic) + '")' : 'none';
+    nxt.style.background = pic
+      ? 'url("' + cssURL(pic) + '") center/cover no-repeat, #0b0b0b'
+      : 'radial-gradient(120% 90% at 20% 10%, #1a0608 0%, #0b0b0b 60%, #000 100%)';
+    nxt.classList.add('on');
+    cur.classList.remove('on');
+    heroFront = heroFront === 1 ? 2 : 1;
+    // 右边立一张真海报（源站只给竖版图，糊背景 + 立海报是最像样的处理）
+    if (pic) {
+      $('heroPosterImg').src = pic;
+      $('heroPoster').classList.add('on');
+    } else {
+      $('heroPoster').classList.remove('on');
+    }
+  }
+  function paintHero(it) {
+    if (!it) return;
+    S.heroCur = it;
+    $('heroTitle').textContent = it.name || '';
+    var m = [];
+    if (it.typeName) m.push('<span>' + esc(it.typeName) + '</span>');
+    if (it.year) m.push('<span>' + esc(it.year) + '</span>');
+    if (it.area) m.push('<span>' + esc(it.area) + '</span>');
+    if (it.remarks) m.push('<b>' + esc(it.remarks) + '</b>');
+    $('heroMeta').innerHTML = m.join('<span class="dot"></span>');
+    $('heroDesc').textContent = it.content || it.desc ||
+      (it.remarks ? (it.remarks + ' · 来自「' + (it.srcName || '采集源') + '」，回车进详情挑线路。') : '');
+    $('heroTag').textContent = it.srcName ? ('来自 ' + it.srcName) : 'MFlixTV 精选';
+    paintHeroBg(it.pic);
+  }
+  function previewHero(it) {
+    if (!it || !it.name) return;
+    if (S.heroCur && S.heroCur.name === it.name) return;
+    paintHero(it);
+  }
+  function dots(n, at) {
+    var d = $('heroDots');
+    d.innerHTML = '';
+    for (var i = 0; i < n; i++) {
+      var x = document.createElement('i');
+      if (i === at) x.className = 'on';
+      d.appendChild(x);
+    }
+  }
+  function startHeroRotate() {
+    clearInterval(S.heroTimer);
+    if (S.heroList.length < 2) { dots(S.heroList.length, 0); return; }
+    dots(S.heroList.length, S.heroAt < 0 ? 0 : S.heroAt);
+    S.heroTimer = setInterval(function () {
+      if (document.querySelector('.view.on') !== $('home')) return;
+      if (focusEl && focusEl.closest && focusEl.closest('#hero')) return;
+      if (focusEl && focusEl.closest && focusEl.closest('#rails')) return;   // 用户正在翻片单，别跟人抢大图
+      S.heroAt = (S.heroAt + 1) % S.heroList.length;
+      paintHero(S.heroList[S.heroAt]);
+      dots(S.heroList.length, S.heroAt);
+    }, 11000);
+  }
+
+  function railNode(title, sub) {
+    var sec = el('section', 'rail');
+    var h = el('div', 'rail-h');
+    var t = el('div', 't'); t.textContent = title; h.appendChild(t);
+    if (sub) { var s = el('div', 's'); s.textContent = sub; h.appendChild(s); }
+    sec.appendChild(h);
+    var strip = el('div', 'strip');
+    sec.appendChild(strip);
+    return { sec: sec, strip: strip };
+  }
+
+  function loadHome() {
+    var rails = $('rails');
+    rails.innerHTML = '';
+    for (var i = 0; i < 3; i++) {
+      var sk = railNode(i === 0 ? '最近更新' : '\u00a0', '');
+      for (var k = 0; k < 9; k++) {
+        var c = el('div', 'card sk'); c.appendChild(el('div', 'poster'));
+        sk.strip.appendChild(c);
+      }
+      rails.appendChild(sk.sec);
+    }
+    getJSON('/api/home').then(function (d) {
+      rails.innerHTML = '';
+      S.rows = (d && d.rows) || [];
+      if (!S.rows.length) {
+        var n = el('div', 'rail-note');
+        n.textContent = '片单是空的：源站可能连不上。去手机的设置页看一眼源，或者稍后按返回重试。';
+        rails.appendChild(n);
+        return;
+      }
+      var pool0 = (S.rows[0].items || []).filter(function (x) { return x && x.pic; });
+      S.heroList = (pool0.length ? pool0 : (S.rows[0].items || [])).slice(0, 5);
+      if (S.heroList.length) { S.heroAt = 0; paintHero(S.heroList[0]); startHeroRotate(); }
+      S.rows.forEach(function (row) {
+        var items = (row.items || []).filter(function (x) { return x && x.name; });
+        if (!items.length) return;
+        var r = railNode(row.title || '片单', items.length + ' 部');
+        items.forEach(function (it) { r.strip.appendChild(cardNode(it)); });
+        rails.appendChild(r.sec);
+      });
+      getJSON('/api/calendar?limit=14').then(function (c) {
+        var gs = (c && c.groups) || [], list = [];
+        gs.forEach(function (g) { (g.items || []).forEach(function (x) { list.push(x); }); });
+        if (!list.length) return;
+        var r = railNode('今天更新', (c.selected && c.selected.totals ? c.selected.totals.all : list.length) + ' 部');
+        list.slice(0, 26).forEach(function (it) { r.strip.appendChild(cardNode(it, it.remarks || '更新')); });
+        rails.appendChild(r.sec);
+        buildHot();
+      }).catch(function () { buildHot(); });
+      if (!focusEl) focusFirst('#heroPlay');
+    }).catch(function (e) {
+      rails.innerHTML = '';
+      var n = el('div', 'rail-note');
+      n.textContent = '取片单失败：' + (e && e.message ? e.message : '网络错误');
+      rails.appendChild(n);
+      buildHot();
+    });
+  }
+
+  /* ================= 搜索 ================= */
+  var KEYS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('');
+  var word = '';
+  function paintWord() {
+    $('scIn').innerHTML = word ? esc(word) + '<i class="cur"></i>'
+      : '<span class="ph">按方向键选字母，回车输入</span><i class="cur"></i>';
+  }
+  function buildKbd() {
+    var box = $('kbd'); box.innerHTML = '';
+    KEYS.forEach(function (ch) {
+      var b = el('button', 'key fx'); b.textContent = ch;
+      b.addEventListener('click', function () { word += ch; paintWord(); });
+      box.appendChild(b);
+    });
+  }
+  function buildHot() {
+    var box = $('hot'); box.innerHTML = '';
+    var picks = [];
+    S.rows.slice(0, 3).forEach(function (r) {
+      (r.items || []).slice(0, 4).forEach(function (it) { if (it.name) picks.push(it.name); });
+    });
+    picks = picks.filter(function (v, i) { return picks.indexOf(v) === i; }).slice(0, 10);
+    if (!picks.length) picks = ['电影', '电视剧', '综艺', '动漫'];
+    picks.forEach(function (name) {
+      var b = el('button', 'chip fx'); b.textContent = name;
+      b.addEventListener('click', function () { word = name; paintWord(); doSearch(); });
+      box.appendChild(b);
+    });
+  }
+  function doSearch() {
+    var wd = word.trim();
+    if (!wd) { toast('先输入片名或演员名'); return; }
+    $('resH').textContent = '正在搜「' + wd + '」…';
+    $('sres').innerHTML = '';
+    getJSON('/api/search?wd=' + encodeURIComponent(wd)).then(function (d) {
+      var list = (d && d.list) || [];
+      $('sres').innerHTML = '';
+      if (!list.length) { $('hot').classList.remove('off'); $('resH').textContent = '没找到「' + wd + '」，换个词'; return; }
+      $('resH').textContent = '搜索结果 · ' + list.length + ' 部';
+      list.forEach(function (it) { $('sres').appendChild(cardNode(it)); });
+      $('hot').classList.add('off');
+      var first = $('sres').querySelector('.card');
+      if (first) paintFocus(first);
+    }).catch(function (e) {
+      $('resH').textContent = '搜索失败：' + (e && e.message ? e.message : '网络错误');
+    });
+  }
+  $('scDel').addEventListener('click', function () { word = word.slice(0, -1); paintWord(); });
+  $('scClear').addEventListener('click', function () { word = ''; paintWord(); $('sres').innerHTML = ''; $('hot').classList.remove('off'); $('resH').textContent = '热门搜索'; });
+  $('scGo').addEventListener('click', doSearch);
+
+  /* ================= 详情 ================= */
+  function openDetail(it) {
+    if (!it) return;
+    S.detailItem = it;
+    S.title = it.name || '';
+    S.src = it.src || '';
+    S.vodId = it.vodId || it.id || '';
+    showView('detail');
+    $('dtTitle').textContent = it.name || '—';
+    $('dtMeta').innerHTML = [it.typeName, it.year, it.area, it.remarks, it.srcName]
+      .filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('<span class="dot"></span>');
+    $('dtDesc').textContent = it.content || '正在取简介…';
+    $('dtBg').style.backgroundImage = it.pic ? 'url("' + cssURL(it.pic) + '")' : 'none';
+    $('dtLines').innerHTML = '';
+    $('dtLineCnt').textContent = '';
+    $('dtEps').innerHTML = '<div class="hintline">正在取分集…</div>';
+    $('dtEpCnt').textContent = '';
+    focusFirst('#dtPlay');
+    getJSON('/api/detail?src=' + encodeURIComponent(S.src) + '&id=' + encodeURIComponent(S.vodId))
+      .then(function (d) {
+        if (!d || d.error || !(d.groups || []).length) {
+          $('dtEps').innerHTML = '<div class="hintline">这个源没给分集' +
+            (d && d.error ? '（' + esc(String(d.error).slice(0, 40)) + '）' : '') + '，返回换一部试试</div>';
+          return;
+        }
+        if (d.name) { S.title = d.name; $('dtTitle').textContent = d.name; }
+        if (d.content) $('dtDesc').textContent = d.content;
+        if (d.pic) $('dtBg').style.backgroundImage = 'url("' + cssURL(d.pic) + '")';
+        $('dtMeta').innerHTML = [d.typeName, d.year, d.area, d.remarks, d.srcName]
+          .filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('<span class="dot"></span>');
+        S.groups = d.groups || [];
+        S.ep = 0;
+        renderGroups(0, 0, d.pic || it.pic || '');
+        getJSON('/api/lines?name=' + encodeURIComponent(S.title) +
+          '&src=' + encodeURIComponent(S.src) + '&id=' + encodeURIComponent(S.vodId))
+          .then(function (l) {
+            var gs = (l && l.groups) || [];
+            if (gs.length > S.groups.length) {
+              S.groups = gs;
+              renderGroups(0, 0, d.pic || it.pic || '');
+            }
+          }).catch(function () {});
+      })
+      .catch(function (e) {
+        $('dtEps').innerHTML = '<div class="hintline">详情失败：' + esc(e && e.message ? e.message : '网络错误') + '</div>';
+      });
+  }
+
+  function renderGroups(gi, epIdx, pic) {
+    S.group = gi || 0;
+    var chips = $('dtLines'); chips.innerHTML = '';
+    S.groups.forEach(function (g, i) {
+      var b = el('button', 'chip fx');
+      b.textContent = (g.name || ('线路 ' + (i + 1))) + (g.total ? ' · ' + g.total + ' 集' : '');
+      if (i === S.group) b.classList.add('on');
+      b.addEventListener('click', function () { renderGroups(i, 0, pic); });
+      chips.appendChild(b);
+    });
+    $('dtLineCnt').textContent = S.groups.length ? '共 ' + S.groups.length + ' 条线路' : '';
+    var g = S.groups[S.group] || { episodes: [] };
+    S.eps = g.episodes || [];
+    var box = $('dtEps'); box.innerHTML = '';
+    if (!S.eps.length) { box.innerHTML = '<div class="hintline">这条线路没有分集</div>'; $('dtEpCnt').textContent = ''; return; }
+    $('dtEpCnt').textContent = '共 ' + S.eps.length + ' 集 · 回车直接播';
+    var start = Math.max(0, Math.min(S.eps.length - 1, epIdx || 0));
+    S.eps.forEach(function (e, i) {
+      var b = el('button', 'epc fx');
+      b.dataset.name = (e.label || ('第' + (i + 1) + '集'));
+      var th = el('div', 'th');
+      if (pic) th.style.backgroundImage = 'url("' + cssURL(pic) + '")';
+      th.style.backgroundSize = 'cover';
+      th.innerHTML = '<span class="num">' + (i + 1) + '</span><span class="play">▶</span>';
+      b.appendChild(th);
+      var bb = el('div', 'bb');
+      var l = el('div', 'l'); l.textContent = e.label || ('第' + (i + 1) + '集'); bb.appendChild(l);
+      var d = el('div', 'd'); d.textContent = '第 ' + (i + 1) + ' 集' + (S.eps.length > 1 ? ' · 共 ' + S.eps.length + ' 集' : ''); bb.appendChild(d);
+      b.appendChild(bb);
+      if (i === start) b.classList.add('on');
+      b.addEventListener('click', function () { playEp(i); });
+      box.appendChild(b);
+    });
+    // 播放按钮：接着看这一集
+    $('dtPlay').onclick = function () { playEp(start); };
+    $('dtFirst').onclick = function () { playEp(0); };
+  }
+
+  /* ================= 播放器 ================= */
+  var v = $('video'), hls = null, hideT = null, rateIdx = 0;
+  var RATES = [1, 1.25, 1.5, 2, 0.75];
+
+  function bars(show) {
+    $('ptopbar').classList.toggle('hide', !show);
+    $('pbotbar').classList.toggle('hide', !show);
+    clearTimeout(hideT);
+    if (show) hideT = setTimeout(function () { if (!v.paused) bars(false); }, 4500);
+  }
+  function showBrand() {
+    var b = $('pbrand'); b.classList.add('on');
+    clearTimeout(showBrand.t);
+    showBrand.t = setTimeout(function () { b.classList.remove('on'); }, 2600);
+  }
+  function flashBig(ch) {
+    var b = $('pbig'); b.textContent = ch; b.classList.add('on');
+    clearTimeout(flashBig.t); flashBig.t = setTimeout(function () { b.classList.remove('on'); }, 560);
+  }
+  function attach(url) {
+    $('pmsg').classList.remove('on');
+    if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    v.removeAttribute('src'); try { v.load(); } catch (e) {}
+    var src = proxy(url);
+    if (String(url).indexOf('.m3u8') < 0) { v.src = src; v.play().catch(function () {}); return; }
+    if (window.Hls && window.Hls.isSupported()) {
+      hls = new window.Hls({
+        maxBufferLength: 40, maxMaxBufferLength: 120, backBufferLength: 30,
+        enableWorker: true, lowLatencyMode: false,
+        manifestLoadingTimeOut: 15000, manifestLoadingMaxRetry: 2,
+        fragLoadingTimeOut: 25000, fragLoadingMaxRetry: 3
+      });
+      hls.loadSource(src); hls.attachMedia(v);
+      hls.on(window.Hls.Events.MANIFEST_PARSED, function () { v.play().catch(function () {}); });
+      hls.on(window.Hls.Events.ERROR, function (_, data) {
+        if (data && data.fatal) {
+          $('pbrand').classList.remove('on');
+          $('pmsg').classList.add('on');
+          $('pmsg').innerHTML = '这条线路拉不动（' + esc(data.details || '') + '）<br>按返回换一条线路';
+        }
+      });
+    } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+      v.src = src; v.play().catch(function () {});
+    } else {
+      $('pmsg').classList.add('on');
+      $('pmsg').textContent = '这台设备的播放内核不支持 HLS';
+    }
+  }
+  function playEp(i) {
+    var g = S.groups[S.group] || {};
+    var eps = g.episodes || [];
+    var e = eps[i];
+    if (!e) return;
+    S.ep = i;
+    cancelNext();
+    $('eps-sheet').classList.remove('on');
+    $('player').classList.add('on');
+    $('nav').style.display = 'none';
+    $('peek').classList.remove('on');
+    $('ptitle').textContent = S.title;
+    $('psub').textContent = (e.label || ('第' + (i + 1) + '集')) + (g.name ? ' · ' + g.name : '');
+    $('pcur').textContent = '00:00'; $('pdur').textContent = '00:00'; $('played').style.width = '0%';
+    $('pbPlay').textContent = '⏸ 暂停';
+    showBrand(); attach(e.url); bars(true);
+    paintFocus($('pbPlay'));
+    // 从上次位置继续
+    try {
+      var key = 'mfl:tv:' + S.title + '|' + (e.label || i);
+      var t = Number(localStorage.getItem(key) || 0);
+      if (t > 10) {
+        v.addEventListener('loadedmetadata', function once() {
+          v.removeEventListener('loadedmetadata', once);
+          if (t < (v.duration || 0) - 15) { v.currentTime = t; toast('从上次看到的位置继续'); }
+        });
+      }
+    } catch (err) {}
+  }
+  function closePlayer() {
+    cancelNext();
+    $('player').classList.remove('on');
+    $('eps-sheet').classList.remove('on');
+    $('nav').style.display = '';
+    if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    try { v.pause(); } catch (e) {}
+    v.removeAttribute('src'); try { v.load(); } catch (e) {}
+    $('pmsg').classList.remove('on');
+    bars(true);
+    // 回到详情：焦点停在刚看的那一集
+    var items = $('dtEps').querySelectorAll('.epc');
+    if (document.querySelector('.view.on') === $('detail')) {
+      for (var i = 0; i < items.length; i++) items[i].classList.toggle('on', i === S.ep);
+      paintFocus(items[S.ep] || items[0] || $('dtPlay'));
+    } else paintFocus(null);
+  }
+  function togglePlay() {
+    if (v.paused) { v.play().catch(function () {}); $('pbPlay').textContent = '⏸ 暂停'; flashBig('▶'); }
+    else { v.pause(); $('pbPlay').textContent = '▶ 播放'; flashBig('⏸'); rememberPos(); }
+    bars(true);
+  }
+  function rememberPos() {
+    try {
+      var g = S.groups[S.group] || {}, e = (g.episodes || [])[S.ep];
+      if (e) localStorage.setItem('mfl:tv:' + S.title + '|' + (e.label || S.ep), String(Math.floor(v.currentTime || 0)));
+    } catch (err) {}
+  }
+  function seekBy(s) {
+    if (!v.duration) return;
+    v.currentTime = Math.max(0, Math.min(v.duration - 1, v.currentTime + s));
+    flashBig(s > 0 ? '⏩' : '⏪'); bars(true);
+  }
+  function stepEp(d) {
+    var g = S.groups[S.group] || {}, n = (g.episodes || []).length;
+    var i = S.ep + d;
+    if (i < 0) { toast('已经是第一集'); return; }
+    if (i >= n) { toast('已经是最后一集'); return; }
+    playEp(i);
+  }
+  function toggleEps() {
+    var on = $('eps-sheet').classList.toggle('on');
+    if (on) {
+      var g = S.groups[S.group] || {}, box = $('pEpsGrid');
+      box.innerHTML = '';
+      (g.episodes || []).forEach(function (e, i) {
+        var b = el('button', 'ep fx'); b.textContent = e.label || ('第' + (i + 1) + '集');
+        if (i === S.ep) b.classList.add('on');
+        b.addEventListener('click', function () { playEp(i); });
+        box.appendChild(b);
+      });
+      paintFocus(box.querySelectorAll('.ep')[S.ep] || box.querySelector('.ep'));
+    } else {
+      paintFocus($('pbEps'));
+    }
+  }
+  /* 下一集倒计时 */
+  var nxTimer = null, nxSec = 0;
+  function offerNext() {
+    var g = S.groups[S.group] || {}, n = (g.episodes || []).length;
+    if (S.ep + 1 >= n) { toast('已经播完最后一集'); bars(true); return; }
+    var e = (g.episodes || [])[S.ep + 1] || {};
+    $('nxT').textContent = S.title;
+    $('nxS').textContent = (e.label || ('第' + (S.ep + 2) + '集')) + ' · 即将自动播放';
+    $('nx').classList.add('on');
+    nxSec = 8;
+    $('nxCd').textContent = nxSec;
+    paintFocus($('nxGo'));
+    clearInterval(nxTimer);
+    nxTimer = setInterval(function () {
+      nxSec--;
+      $('nxCd').textContent = nxSec > 0 ? nxSec : 0;
+      if (nxSec <= 0) { clearInterval(nxTimer); playEp(S.ep + 1); }
+    }, 1000);
+  }
+  function cancelNext() {
+    clearInterval(nxTimer);
+    $('nx').classList.remove('on');
+  }
+  $('nxGo').addEventListener('click', function () { cancelNext(); playEp(S.ep + 1); });
+  $('nxNo').addEventListener('click', function () { cancelNext(); paintFocus($('pbPlay')); });
+
+  $('pbPlay').addEventListener('click', togglePlay);
+  $('pbPrev').addEventListener('click', function () { stepEp(-1); });
+  $('pbNext').addEventListener('click', function () { stepEp(1); });
+  $('pbEps').addEventListener('click', toggleEps);
+  $('pbBack').addEventListener('click', closePlayer);
+  $('pbRate').addEventListener('click', function () {
+    rateIdx = (rateIdx + 1) % RATES.length;
+    v.playbackRate = RATES[rateIdx];
+    $('pbRate').textContent = (RATES[rateIdx] === 1 ? '1.0' : String(RATES[rateIdx])) + 'x';
+    toast('倍速 ' + RATES[rateIdx] + 'x');
+  });
+
+  v.addEventListener('timeupdate', function () {
+    $('pcur').textContent = fmt(v.currentTime);
+    $('pdur').textContent = fmt(v.duration);
+    if (v.duration) $('played').style.width = (100 * v.currentTime / v.duration).toFixed(2) + '%';
+  });
+  v.addEventListener('playing', function () {
+    $('pbrand').classList.remove('on');
+    $('pmsg').classList.remove('on');
+    var g = S.groups[S.group] || {};
+    $('psub').textContent = ((S.eps[S.ep] || {}).label || ('第' + (S.ep + 1) + '集')) + (g.name ? ' · ' + g.name : '');
+  });
+  v.addEventListener('waiting', function () { $('psub').textContent = '缓冲中…'; });
+  v.addEventListener('ended', function () { rememberPos(); offerNext(); });
+
+  /* ================= 视图 / 返回栈 ================= */
+  var stack = ['home'];
+  function showView(name) {
+    ['home', 'search', 'detail'].forEach(function (k) { $(k).classList.toggle('on', k === name); });
+    $('nav').style.display = '';
+    window.scrollTo(0, 0);
+    var nvs = $('navItems').querySelectorAll('.nv');
+    var act = name === 'detail' ? '' : name;
+    for (var i = 0; i < nvs.length; i++) nvs[i].classList.toggle('active', nvs[i].dataset.nav === act);
+    if (stack[stack.length - 1] !== name) stack.push(name);
+    paintFocus(null);
+    $('peek').classList.remove('on');
+  }
+  function goHome() {
+    showView('home');
+    stack = ['home'];
+    focusFirst('#heroPlay');
+  }
+  function navTo(key) {
+    if (key === 'search') { showView('search'); focusFirst('#kbd .key'); return; }
+    if (key === 'home') {
+      if (document.querySelector('.view.on') !== $('home')) showView('home');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      focusFirst('#heroPlay');
+      return;
+    }
+    var want = key === 'movie' ? ['电影'] : key === 'tv' ? ['电视剧', '剧集'] : ['综艺'];
+    if (document.querySelector('.view.on') !== $('home')) showView('home');
+    var rails = $('rails').querySelectorAll('.rail'), hit = null;
+    for (var i = 0; i < rails.length; i++) {
+      var t = (rails[i].querySelector('.rail-h .t') || {}).textContent || '';
+      for (var j = 0; j < want.length; j++) if (t.indexOf(want[j]) >= 0) hit = rails[i];
+    }
+    if (!hit) { toast('这一排还没加载出来'); return; }
+    hit.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    var card = hit.querySelector('.card.fx');
+    if (card) setTimeout(function () { paintFocus(card); }, 200);
+  }
+  $('navItems').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.nv') : null;
+    if (b) navTo(b.dataset.nav);
+  });
+  $('heroPlay').addEventListener('click', function () {
+    if (S.heroCur) openDetail(S.heroCur);
+  });
+  $('heroInfo').addEventListener('click', function () {
+    if (S.heroCur) openDetail(S.heroCur);
+  });
+
+  /* ================= 按键 ================= */
+  var nativeDriven = false;
+  try { nativeDriven = !!(window.MFlixNative && window.MFlixNative.tvKeys && window.MFlixNative.tvKeys() === true); } catch (e) {}
+
+  function inPlayer() { return $('player').classList.contains('on'); }
+
+  function handlePlayer(a) {
+    if ($('nx').classList.contains('on')) {
+      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
+      if (a === 'left' || a === 'right' || a === 'up' || a === 'down') { move(a); return true; }
+      if (a === 'back') { cancelNext(); paintFocus($('pbPlay')); return true; }
+      return true;
+    }
+    if ($('eps-sheet').classList.contains('on')) {
+      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
+      if (a === 'back') { toggleEps(); return true; }
+      move(a); return true;
+    }
+    if (a === 'ok') { togglePlay(); return true; }
+    if (a === 'left') { seekBy(-10); return true; }
+    if (a === 'right') { seekBy(10); return true; }
+    if (a === 'up') { stepEp(-1); return true; }
+    if (a === 'down') { stepEp(1); return true; }
+    if (a === 'back') { closePlayer(); return true; }
+    if (a === 'menu') { bars(true); return true; }
+    return true;
+  }
+
+  function handle(a) {
+    if (inPlayer()) return handlePlayer(a);
+    if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); bars(true); return true; }
+    if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
+    if (a === 'menu') { bars(true); return true; }
+    if (a === 'back') {
+      if (stack.length > 1) {
+        stack.pop();
+        var prev = stack[stack.length - 1] || 'home';
+        showView(prev === 'detail' ? 'detail' : prev === 'search' ? 'search' : 'home');
+        var f = document.querySelector('.view.on .fx');
+        if (f) paintFocus(f);
+        return true;
+      }
+      if (document.querySelector('.view.on') !== $('home')) { goHome(); return true; }
+      return false;
+    }
+    return false;
+  }
+  window.mflTvKey = function (a) {
+    try { return handle(String(a || '')) === true; } catch (e) { return false; }
+  };
+  window.mflBack = function () { return handle('back') === true; };
+
+  var KEYMAP = {
+    37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 10: 'ok',
+    8: 'back', 27: 'back', 461: 'back', 82: 'menu', 93: 'menu',
+    179: 'ok', 415: 'ok', 66: 'ok', 23: 'ok',
+    19: 'up', 20: 'down', 21: 'left', 22: 'right'
+  };
+  window.addEventListener('keydown', function (e) {
+    if (nativeDriven) return;   // 电视里由原生注入，一次按键只动一格
+    if (e.keyCode === 32) { e.preventDefault(); if (inPlayer()) togglePlay(); else if (focusEl && focusEl.click) focusEl.click(); return; }
+    var a = KEYMAP[e.keyCode];
+    if (!a) return;
+    e.preventDefault();
+    handle(a);
+  }, false);
+
+  $('player').addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('#pbotbar, #ptopbar, #eps-sheet, #nx')) return;
+    bars($('pbotbar').classList.contains('hide'));
+  });
+
+  /* ================= 起飞 ================= */
+  paintWord(); buildKbd(); loadHome();
+  setTimeout(function () { $('boot').classList.add('off'); setTimeout(function () { try { $('boot').remove(); } catch (e) {} }, 500); }, 260);
+  setTimeout(function () { if (!focusEl) focusFirst('#heroPlay'); }, 1000);
+})();
+</script>
+</body>
+</html>

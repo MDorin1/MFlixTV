@@ -1,14 +1,17 @@
 package com.mflixtv.app
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -48,6 +51,9 @@ class MainActivity : AppCompatActivity() {
     private var fallback: View? = null
     private var retries = 0
     private var loadingUrl: String = ""
+
+    /** 电视模式：Leanback 盒子 / UI_MODE_TYPE_TELEVISION / 没有触摸屏，或启动时 --ez tv true 手动指定 */
+    private var tvMode = false
 
     /** HTML5 全屏（WebView 交过来的自定义视图）——页面里 <video> 自带的全屏按钮也走这条路 */
     private var fullView: View? = null
@@ -170,6 +176,27 @@ class MainActivity : AppCompatActivity() {
         fun port(): Int {
             return ServerService.port
         }
+
+        /** 是不是电视版：页面据此换 10 英尺界面。 */
+        @JavascriptInterface
+        fun tv(): Boolean {
+            return tvMode
+        }
+
+        /**
+         * 电视版由原生注入按键（见 dispatchKeyEvent）。页面拿到 true 就不再自己听 keydown，
+         * 免得一次按键动两格。
+         */
+        @JavascriptInterface
+        fun tvKeys(): Boolean {
+            return tvMode
+        }
+
+        /** 调试 / 外部触发用：往页面塞一个遥控器动作。up down left right ok back menu */
+        @JavascriptInterface
+        fun key(action: String) {
+            runOnUiThread { sendKey(action) }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -177,6 +204,20 @@ class MainActivity : AppCompatActivity() {
         try {
             immersive()
         } catch (_: Throwable) {
+        }
+
+        // 电视 / 盒子：锁横屏 + 屏幕常亮，页面走 /tv（10 英尺界面，遥控器导航）
+        tvMode = try {
+            intent?.getBooleanExtra("tv", false) == true || detectTv()
+        } catch (_: Throwable) {
+            false
+        }
+        if (tvMode) {
+            try {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } catch (_: Throwable) {
+            }
         }
 
         // 容器先上屏：后面 WebView 出问题也只是这一层里换内容，不会整页垮掉
@@ -219,6 +260,57 @@ class MainActivity : AppCompatActivity() {
 
     private fun baseUrl(): String {
         return "http://127.0.0.1:" + ServerService.port + "/"
+    }
+
+    /** 电视版进 /tv，手机进 /（同一个服务，同一份源，两套界面）。 */
+    private fun pageUrl(): String {
+        return baseUrl() + (if (tvMode) "tv" else "")
+    }
+
+    /** 判定这台设备是不是电视 / 盒子。 */
+    private fun detectTv(): Boolean {
+        return try {
+            val ui = getSystemService(Context.UI_MODE_SERVICE) as? android.app.UiModeManager
+            if (ui != null && ui.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION) return true
+            val pm = packageManager
+            if (pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) return true
+            !pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN) &&
+                !pm.hasSystemFeature(PackageManager.FEATURE_FAKETOUCH)
+        } catch (e: Throwable) {
+            false
+        }
+    }
+
+    /** 把遥控器动作转给页面（页面里的 window.mflTvKey）。 */
+    private fun sendKey(action: String) {
+        val w = web ?: return
+        try {
+            w.evaluateJavascript("window.mflTvKey&&window.mflTvKey('" + action + "')", null)
+        } catch (_: Throwable) {
+        }
+    }
+
+    /**
+     * 电视上方向键 / 确定键不交给 WebView（它会拿去滚页面，焦点会乱跳），
+     * 由这里统一翻译成动作再注入页面：一次按键只动一格。
+     * BACK 不拦，交给 onBackPressed（页面能处理就先处理，处理不了才退出）。
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (!tvMode) return super.dispatchKeyEvent(event)
+        val action = when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> "up"
+            KeyEvent.KEYCODE_DPAD_DOWN -> "down"
+            KeyEvent.KEYCODE_DPAD_LEFT -> "left"
+            KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_BUTTON_A -> "ok"
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY -> "ok"
+            KeyEvent.KEYCODE_MENU -> "menu"
+            else -> null
+        }
+        if (action == null) return super.dispatchKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN) sendKey(action)
+        return true
     }
 
     /** 造 WebView 并加载首页；任何一步抛异常都返回 false，交给失败页兜住，绝不整 App 崩。 */
@@ -374,7 +466,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun loadHome() {
         val w = web ?: return
-        loadingUrl = baseUrl()
+        loadingUrl = pageUrl()
         val url = loadingUrl
         w.postDelayed({
             try {
@@ -400,7 +492,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 // 每次重试都重新读端口：8080 被占时服务端可能已经换到 8081，
                 // 沿用第一次那个地址会一直打在错的端口上（表现就是永远白屏）。
-                loadingUrl = baseUrl()
+                loadingUrl = pageUrl()
                 view.loadUrl(loadingUrl)
             } catch (_: Throwable) {
             }
@@ -580,6 +672,27 @@ class MainActivity : AppCompatActivity() {
 
     @Deprecated("Android 13 起由系统手势处理，这里保留以兼容旧机型")
     override fun onBackPressed() {
+        // 电视：返回键先给页面（退全屏 / 退详情 / 退搜索），页面说没得退才落回系统
+        if (tvMode) {
+            val tv = web
+            if (tv == null) {
+                super.onBackPressed()
+                return
+            }
+            try {
+                tv.evaluateJavascript(
+                    "(function(){try{return window.mflTvKey?window.mflTvKey('back'):false}catch(e){return false}})()"
+                ) { v ->
+                    if (v != "true") {
+                        if (tv.canGoBack()) tv.goBack() else finish()
+                    }
+                }
+                return
+            } catch (_: Throwable) {
+                super.onBackPressed()
+                return
+            }
+        }
         // 正在 HTML5 全屏：返回键先退全屏，不要直接退到桌面
         if (fullView != null) {
             try {

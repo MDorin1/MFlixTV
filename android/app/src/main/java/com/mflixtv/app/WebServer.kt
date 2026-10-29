@@ -35,7 +35,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val portNum = port
 
     companion object {
-        const val VERSION = "android-0.17"
+        const val VERSION = "android-0.18"
     }
 
     /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
@@ -113,6 +113,8 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 uri == "/api/netcfg" -> netcfg(p["proxy"]?.firstOrNull())
                 uri == "/api/proxy" -> proxy(session)
                 uri == "/" || uri == "/index.html" -> asset("index.html", "text/html; charset=utf-8")
+                // 电视版（10 英尺界面，遥控器导航）：盒子上 8080/tv 也能直接用浏览器开
+                uri == "/tv" || uri == "/tv.html" -> asset("tv.html", "text/html; charset=utf-8")
                 uri == "/hls.min.js" -> asset("hls.min.js", "application/javascript; charset=utf-8")
                 uri == "/favicon.ico" -> newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "")
                 else -> newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "not found")
