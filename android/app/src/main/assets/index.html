@@ -279,6 +279,13 @@
     box-shadow:0 6px 16px rgba(229,9,20,.32)}
   /* 网页全屏（铺满窗口，视频裁边填满；再点一次回到完整画面） */
   #player.webwide #video{object-fit:cover}
+  /* iPhone / iPad 的 Safari 与 Chrome 都是 WebKit，没有元素级全屏 API：真全屏只能靠
+     <video> 自带的 webkitEnterFullscreen；那条也不通时用「页面内铺满 + 强制横屏」兜底。 */
+  #player.pfull{position:fixed;top:0;left:0;right:auto;bottom:auto;z-index:9999;
+    transform-origin:0 0;overflow:hidden}
+  #player.pfull #video{object-fit:contain}
+  #player.pfull #pctl{z-index:5}
+  #player.pfull.rot #pmFull,#player.pfull.rot #pRotate{box-shadow:0 6px 16px rgba(229,9,20,.35)}
   /* 播放器内的「设置」抽屉 */
   #psheetB.set{display:block}
   #psheetB.set .set-h{font-size:11.5px;color:#8a8a8a;margin:12px 0 8px;letter-spacing:.3px}
@@ -1776,7 +1783,10 @@
       return;
     }
     var src = proxy(url);
-    if (window.Hls && window.Hls.isSupported()) {
+    // iPhone / iPad：Safari、Chrome 都是 WebKit，原生 HLS 走硬件解码——比 hls.js 更快更省电，
+    // 而且只有原生播放的 <video> 才能用 webkitEnterFullscreen 进系统全屏，所以 iOS 上不挂 hls.js。
+    var iOSnative = isIOS() && !!v.canPlayType('application/vnd.apple.mpegurl');
+    if (!iOSnative && window.Hls && window.Hls.isSupported()) {
       hls = new window.Hls({
         maxBufferLength: 40,
         maxMaxBufferLength: 120,
@@ -1820,15 +1830,21 @@
     v.removeAttribute('src');
     try { v.load(); } catch (e) {}
     // 全屏 / 横屏状态一并还原：退出播放器就回到竖屏 + 系统栏
-    natFull = false;
-    natWide = false;
-    if (inApp()) native('fullscreen', false);
-    native('landscape', false);
-    paintFullBtns();
+    exitAnyFull(true);
   }
   $('pClose').onclick = closePlayer;
-  // 旋转键：一下横屏、再一下回竖屏（顺手把全屏状态一起收掉）
+  // 旋转键：一下横屏、再一下回竖屏（App 里走原生旋屏；手机浏览器没有横屏锁，用页面内旋转兜底）
   $('pRotate').onclick = function () {
+    if (!inApp()) {
+      if ($('player').classList.contains('pfull') && pfullRot) {
+        pfullOff();
+        toast('已转回竖屏');
+      } else {
+        pfullOn(true);
+        toast('已转成横屏 · 顺手把手机横过来就更清楚');
+      }
+      return;
+    }
     natWide = !natWide;
     if (natWide) {
       native('landscape', true);
@@ -1952,20 +1968,93 @@
     showCtl();
   };
   /**
-   * 全屏：App 里走原生（转横屏 + 收掉系统栏），浏览器里走 HTML5 全屏。
-   * 以前 App 里也硬调 requestFullscreen()，WebView 不理就只剩一句
-   * 「这台设备的 WebView 不支持系统全屏」——按钮等于没用，也不会转横屏。
+   * 全屏分三层，从真到假，任何一台设备都不会空转：
+   *  1) 安卓 App → 原生桥（真转横屏 + 收掉状态栏导航栏）
+   *  2) 电脑 / 安卓浏览器 → 标准 Fullscreen API
+   *  3) iPhone / iPad → Safari 和 Chrome 都是 WebKit，没有元素级全屏 API，只有
+   *     <video> 自带的 webkitEnterFullscreen 是真系统全屏；再不行就「页面内铺满 + 强制横屏」兜底，
+   *     总之不再只弹一句「不支持」然后什么都不做。
    */
-  var natFull = false, natWide = false;
-  function paintFullBtns() {
-    $('pRotate').classList.toggle('on', natWide);
-    $('pmFull').classList.toggle('on', natFull);
+  var natFull = false, natWide = false, pfullRot = false;
+  /** iPhone / iPad 判定：iOS 上 Chrome(CriOS)、Safari、Edge 全是 WebKit，行为一样 */
+  function isIOS() {
+    var ua = navigator.userAgent || '';
+    if (/iPad|iPhone|iPod/.test(ua)) return true;
+    return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
   }
+  function fsElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement ||
+      document.mozFullScreenElement || document.msFullscreenElement || null;
+  }
+  function paintFullBtns() {
+    var pf = $('player').classList.contains('pfull');
+    var vfs = false;
+    try { vfs = !!v.webkitDisplayingFullscreen; } catch (e) {}
+    $('pRotate').classList.toggle('on', natWide || (pf && pfullRot));
+    $('pmFull').classList.toggle('on', natFull || pf || vfs || !!fsElement());
+  }
+  /** iOS 专用：唤出系统播放器全屏（手机横过来就是满屏横屏，控制条也由系统给） */
+  function iosVideoFull() {
+    try {
+      if (typeof v.webkitEnterFullscreen !== 'function') return false;
+      if (v.webkitSupportsFullscreen === false) return false;
+      v.webkitEnterFullscreen();
+      return true;
+    } catch (e) { return false; }
+  }
+  /* 兜底：页面内铺满（竖着拿手机时再旋转 90° 强制横屏），浏览器不给系统全屏时用 */
+  function paintPfull() {
+    var pl = $('player');
+    if (!pl.classList.contains('pfull')) return;
+    var dw = document.documentElement.clientWidth || window.innerWidth || 360;
+    var dh = document.documentElement.clientHeight || window.innerHeight || 640;
+    var rot = pfullRot && dh > dw;   // 手机自己横过来了就不用再转
+    pl.classList.toggle('rot', rot);
+    pl.style.width = (rot ? dh : dw) + 'px';
+    pl.style.height = (rot ? dw : dh) + 'px';
+    pl.style.left = '0px';
+    pl.style.top = '0px';
+    pl.style.transform = rot ? 'translate(' + dw + 'px,0) rotate(90deg)' : 'none';
+  }
+  function pfullOn(rot) {
+    pfullRot = !!rot;
+    $('player').classList.add('pfull');
+    paintPfull();
+    lockScroll(true);
+    paintFullBtns();
+    showCtl();
+  }
+  function pfullOff() {
+    var pl = $('player');
+    pl.classList.remove('pfull');
+    pl.classList.remove('rot');
+    pfullRot = false;
+    pl.style.width = '';
+    pl.style.height = '';
+    pl.style.left = '';
+    pl.style.top = '';
+    pl.style.transform = '';
+    paintFullBtns();
+    showCtl();
+  }
+  window.addEventListener('resize', paintPfull);
+  window.addEventListener('orientationchange', function () { setTimeout(paintPfull, 260); });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', paintPfull);
   /** App 里退出全屏：横屏也一起收回去，否则退到「竖屏播放」这个中间态很奇怪 */
   function exitNativeFull(silent) {
     natFull = false;
     natWide = false;
     native('fullscreen', false);
+    native('landscape', false);
+    paintFullBtns();
+    if (!silent) showCtl();
+  }
+  /** 返回键 / 关播放器：三层全屏哪层开着都收掉 */
+  function exitAnyFull(silent) {
+    if (natFull || natWide) exitNativeFull(silent);
+    if ($('player').classList.contains('pfull')) pfullOff();
+    try { if (fsElement()) (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document); } catch (e) {}
+    try { if (typeof v.webkitExitFullscreen === 'function' && v.webkitDisplayingFullscreen) v.webkitExitFullscreen(); } catch (e) {}
     paintFullBtns();
     if (!silent) showCtl();
   }
@@ -1982,28 +2071,45 @@
       showCtl();
       return;
     }
-    var on = false;
-    try {
-      if (document.fullscreenElement) { document.exitFullscreen(); on = false; }
-      else {
-        var el = $('player');
-        var fn = el.requestFullscreen || el.webkitRequestFullscreen;
-        if (fn) { fn.call(el); on = true; }
-      }
-    } catch (e) {}
-    this.classList.toggle('on', on);
-    if (!on && !document.fullscreenElement) {
-      // 桌面浏览器 / 老内核都不给全屏，但播放器本来就是铺满的，不算失败
-      toast('这个浏览器不给系统全屏，播放器已经铺满屏幕');
+    // 任意一层已经全屏 → 退出
+    if (fsElement() || $('player').classList.contains('pfull')) { exitAnyFull(); toast('已退出全屏'); return; }
+    // iPhone / iPad 先走视频自带的系统全屏（这是 iOS 上唯一真全屏，也最省电）
+    if (isIOS() && iosVideoFull()) {
+      paintFullBtns();
+      // 少数机芯函数在、却不出全屏（省电模式 / 老的 iOS）：600ms 后自己兜底，绝不空转
+      setTimeout(function () {
+        try {
+          if (!v.webkitDisplayingFullscreen && !fsElement() && !$('player').classList.contains('pfull')) pfullOn(true);
+        } catch (e) {}
+      }, 600);
+      toast('已进入系统全屏 · 把手机横过来就是满屏');
+      showCtl();
+      return;
     }
-    showCtl();
+    // 标准 Fullscreen API（电脑、安卓浏览器）
+    var el = $('player');
+    var fn = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen ||
+      el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (fn) {
+      try {
+        var r = fn.call(el);
+        if (r && r.catch) r.catch(function () { pfullOn(isIOS()); });
+        // 有的老内核会静默忽略：400ms 后还是没进全屏就换兜底
+        setTimeout(function () {
+          if (!fsElement() && !$('player').classList.contains('pfull')) pfullOn(isIOS());
+        }, 420);
+        showCtl();
+        return;
+      } catch (e) {}
+    }
+    // 最后兜底：页面内铺满 + 强制横屏
+    pfullOn(true);
+    toast('这个浏览器没有系统全屏，已铺满并转成横屏');
   };
-  // 用户按 ESC / 系统手势退出全屏时，按钮高亮也要跟着回位
-  document.addEventListener('fullscreenchange', function () {
-    $('pmFull').classList.toggle('on', !!document.fullscreenElement);
-  });
-  document.addEventListener('webkitfullscreenchange', function () {
-    $('pmFull').classList.toggle('on', !!document.webkitFullscreenElement);
+  // 用户按 ESC / 系统手势 / 视频自带键退出全屏时，按钮高亮跟着回位
+  ['fullscreenchange', 'webkitfullscreenchange', 'webkitbeginfullscreen', 'webkitendfullscreen',
+    'mozfullscreenchange', 'MSFullscreenChange'].forEach(function (ev) {
+    document.addEventListener(ev, function () { paintFullBtns(); });
   });
 
   /* ---- 播放器里的选集 / 换线路 / 播放设置（对齐电脑端，不只靠右下角「下一集」） ---- */
@@ -2352,7 +2458,11 @@
     if ($('player').classList.contains('on')) {
       if ($('psheet').classList.contains('on')) { $('psheet').classList.remove('on'); return true; }
       // 全屏中按返回 = 先退全屏（留在播放器），再按一次才关播放器
-      if (natFull) { exitNativeFull(); toast('已退出全屏'); return true; }
+      if (natFull || natWide || $('player').classList.contains('pfull') || fsElement()) {
+        exitAnyFull();
+        toast('已退出全屏');
+        return true;
+      }
       closePlayer(); return true;
     }
     if ($('settings').classList.contains('on')) { closeSettings(); return true; }
