@@ -47,11 +47,11 @@
   /* ---------- 大图（billboard）：两层背景做交叉淡入 ---------- */
   #hero{position:relative;height:60vh;min-height:24rem;overflow:hidden}
   /* 采集源只给竖版海报：把它糊成大背景当「剧照」，右边再立一张真海报 —— 比纯黑好看得多 */
-  .hb{position:absolute;inset:-6%;background:#0b0b0b center/cover no-repeat;opacity:0;
+  .hb{position:absolute;top:-6%;right:-6%;bottom:-6%;left:-6%;background:#0b0b0b center/cover no-repeat;opacity:0;
     filter:blur(34px) saturate(1.2) brightness(.78);
     transition:opacity .6s linear;transform:scale(1.12)}
   .hb.on{opacity:1}
-  #heroVeil{position:absolute;inset:0;pointer-events:none;
+  #heroVeil{position:absolute;top:0;right:0;bottom:0;left:0;pointer-events:none;
     background:
       linear-gradient(90deg,rgba(0,0,0,.97) 0%,rgba(0,0,0,.82) 32%,rgba(0,0,0,.28) 60%,rgba(0,0,0,.62) 100%),
       linear-gradient(180deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,0) 26%,rgba(0,0,0,.1) 54%,#000 97%)}
@@ -185,7 +185,7 @@
   .epstrip.focusing .epc.on{opacity:1}
 
   /* ---------- 播放器 ---------- */
-  #player{position:fixed;inset:0;z-index:90;background:#000;display:none}
+  #player{position:fixed;top:0;right:0;bottom:0;left:0;z-index:90;background:#000;display:none}
   #player.on{display:block}
   #video{width:100%;height:100%;background:#000;display:block;object-fit:contain}
   video::-webkit-media-controls-start-playback-button{display:none !important}
@@ -220,7 +220,7 @@
     display:flex;align-items:center;justify-content:center;font-size:1.5rem;
     transform:translate(-50%,-50%) scale(.85);transition:opacity .2s linear,transform .2s var(--ease)}
   #pbig.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
-  #pbrand{position:absolute;inset:0;z-index:4;display:none;align-items:center;justify-content:center;
+  #pbrand{position:absolute;top:0;right:0;bottom:0;left:0;z-index:4;display:none;align-items:center;justify-content:center;
     flex-direction:column;background:#000}
   #pbrand.on{display:flex}
   #pbrand .w{font-size:2.5rem;font-weight:900;color:var(--red);letter-spacing:.05em;
@@ -246,7 +246,7 @@
   #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
   /* 启动页 */
-  #boot{position:fixed;inset:0;z-index:400;background:#000;display:flex;align-items:center;
+  #boot{position:fixed;top:0;right:0;bottom:0;left:0;z-index:400;background:#000;display:flex;align-items:center;
     justify-content:center;flex-direction:column;gap:1rem;transition:opacity .4s linear}
   #boot.off{opacity:0;pointer-events:none}
   #boot .w{font-size:2.6rem;font-weight:900;color:var(--red);letter-spacing:.05em}
@@ -256,6 +256,52 @@
   #boot .line i{display:block;height:100%;width:36%;background:linear-gradient(90deg,var(--red),var(--red2));
     animation:bt 1.2s ease-in-out infinite}
   @keyframes bt{0%{transform:translateX(-110%)}100%{transform:translateX(330%)}}
+
+  /* ---------- 老内核兜底：斐讯 N1 这类 Android 7.1 盒子，WebView 可能是 5x–8x，
+                 不认 aspect-ratio / flex 的 gap / inset 简写。这里逐个补上 ---------- */
+  @supports not (aspect-ratio: 2 / 3){
+    .hero-poster{height:18.75rem}                     /* 12.5rem 宽 × 3/2 */
+    .card .poster{height:0;padding-top:150%}          /* 父级 .card 宽度是定值，百分比 padding 可用 */
+    .card .poster img{position:absolute;top:0;left:0;width:100%;height:100%}
+    .epc .th{height:8.1rem}                           /* 14.4rem 宽 × 9/16 */
+  }
+  @supports not (gap: .5rem){
+    #nav > *{margin-right:1.5rem}
+    #navItems > *{margin-right:.15rem}
+    #navr > *{margin-right:1rem}
+    .hero-meta > *{margin-right:.75rem}
+    .hero-btns > *{margin-right:.8rem}
+    .btn > *{margin-right:.45rem}
+    .hero-dots i{margin-right:.36rem}
+    .rail-h > *{margin-right:.7rem}
+    .strip > *{margin-right:.75rem}
+    .dt-meta > *{margin-right:.8rem}
+    .dt-btns > *{margin-right:.7rem}
+    .dt-h > *{margin-right:.7rem}
+    .chips > *{margin:0 .5rem .5rem 0}
+    .epstrip > *{margin:0 .8rem .8rem 0}
+    .hot .chip{margin:0 .55rem .55rem 0}
+    .sc-acts > *{margin-right:.6rem}
+    #search .right{margin-left:3rem}
+    #pbtns > *{margin-right:.55rem}
+    #eps-sheet .grid > *{margin:0 .5rem .5rem 0}
+    #nx .r > *{margin-right:.5rem}
+    #boot > *{margin-bottom:1rem}
+  }
+  /* 老 WebView 可能连 CSS Grid 都没有（Chrome 57 才有）：字母键盘 / 搜索结果退回 inline-block */
+  @supports not (display: grid){
+    .kbd{display:block}
+    .kbd .key{display:inline-block;vertical-align:top;width:14.6%;margin:0 .2% .35rem;
+      text-align:center;padding:0;line-height:2.35rem}
+    .sres{display:block}
+    .sres .card{display:inline-block;vertical-align:top;width:9.2rem;margin:0 .9rem 1.2rem 0}
+  }
+  /* 弱 GPU（S905 / 老盒子）：大半径模糊和重阴影太贵，换廉价版，滚动不卡 */
+  html.lite .hb{filter:none;transform:none}
+  html.lite #dtBg{filter:blur(8px) brightness(.7);transform:none}
+  html.lite .card .poster,html.lite .epc,html.lite .hero-poster{box-shadow:none}
+  html.lite .card.on{box-shadow:0 0 0 .11rem #fff}
+  html.lite #heroTitle,html.lite #dtTitle{text-shadow:none}
 </style>
 </head>
 <body>
@@ -385,6 +431,17 @@
 <script>
 (function () {
   'use strict';
+  /* 老 WebView / 弱 GPU 自动进轻量模式：?full=1 强制完整、?lite=1 强制轻量 */
+  (function () {
+    var q = location.search || '';
+    var ua = navigator.userAgent || '';
+    var m = ua.match(/Chrome\/(\d+)/);
+    var major = m ? parseInt(m[1], 10) : 0;
+    var lite = /[?&]lite=1/.test(q) ? true
+      : /[?&]full=1/.test(q) ? false
+        : (major > 0 && major < 85) || (navigator.hardwareConcurrency || 4) <= 2;
+    if (lite) document.documentElement.className += ' lite';
+  })();
   var $ = function (id) { return document.getElementById(id); };
   function el(tag, cls) { var d = document.createElement(tag); if (cls) d.className = cls; return d; }
   function esc(s) {

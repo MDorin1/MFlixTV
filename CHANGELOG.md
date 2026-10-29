@@ -1,5 +1,32 @@
 # 更新日志
 
+## Android 0.19 — 老盒子兼容（Shield TV 2017 / 斐讯 N1 这类机器直接能跑）
+
+> 你手上是 2017 款英伟达 Shield TV（Android TV 11，WebView 是新的）和斐讯 N1 刷的电视系统（Amlogic S905D，多半是 Android 7.1，系统 WebView 可能停在 5x–7x 那一代）。0.18 的电视界面用了几样新内核才认的 CSS，在老 WebView 上会直接散架——这轮全补上，同时给弱 GPU 加了轻量模式。
+
+### 老内核会踩的三个坑，逐个补
+
+| 老 WebView 不认的 | 0.18 会怎样 | 0.19 的兜底 |
+| --- | --- | --- |
+| `aspect-ratio`（Chrome 88+） | 海报没有高度、剧集卡塌成一条 | `@supports not (aspect-ratio)` 里改成定高：海报 `13.8rem`、大图海报 `18.75rem`、剧集缩略 `8.1rem`，比例仍是 2:3 / 16:9 |
+| flex 的 `gap`（Chrome 84+） | 导航、海报排、按钮全挤在一起 | `@supports not (gap)` 里逐个换回 `margin`，间距和现在一模一样 |
+| CSS Grid（Chrome 57+） | 搜索页的字母键盘变成一列长条 | `@supports not (display: grid)` 里字母键盘 / 搜索结果退回 `inline-block`（键盘仍是 6 列） |
+| `inset` 简写（Chrome 87+） | 全屏播放器、开机画面、大图遮罩会跑偏 | 全部改成 `top/right/bottom/left` 四件套，任何内核都认 |
+
+### 弱 GPU 轻量模式
+
+- S905D 这种老盒子跑 1080p 的 WebView，`filter: blur(34px)` 这种大半径模糊很贵。现在 **WebView 主版本号 < 85、或 CPU 核心 ≤ 2 时自动进轻量模式**：去掉背景模糊、去掉卡片重阴影和片名投影，只留白描边——滚动立刻顺。
+- 想手动控制：`http://手机IP:8080/tv?lite=1` 强制轻量、`?full=1` 强制完整。
+
+### 两台机器怎么弄
+
+- **Shield TV 2017**：Android TV 11、WebView 一直跟着 Play 更新，跑完整效果。装法：`adb connect 电视IP:5555` → `adb install -r MFlixTV-android-0.19.apk`；或者装个 Downloader 直接下 Release 里的 apk。遥控器方向键 / OK / 返回全支持。
+- **斐讯 N1（刷的电视系统）**：先看系统设置里的 WebView 版本（我们设置页「关于」也会显示）。低于 80 就别折腾升级了，0.19 的兜底足够跑；想更顺可以装一份新版 Android System WebView 再在开发者选项里切成它。装法同上，N1 一般是 `adb connect N1的IP:5555`。
+
+### 版本
+
+- `versionCode 19`、`versionName "0.19"`、`/api/status` 返回 `android-0.19`，包体积 2.93 MB，签名与 0.18 相同（覆盖安装不丢数据）。手机端界面与播放路径仍然一行没动。
+
 ## Android 0.18 — 电视版 TV 界面（同一个 APK，盒子 / 电视自动认出来）
 
 > 你要的「Android 电视的 TV 版」。不是另开一个包：**同一个 APK** 装到电视盒子 / 电视上，它自己认出来就进 10 英尺界面；装在手机上还是原来的手机界面。手机端的界面、播放路径一行没动。
