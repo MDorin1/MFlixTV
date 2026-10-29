@@ -7,6 +7,7 @@ import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
@@ -35,7 +36,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val portNum = port
 
     companion object {
-        const val VERSION = "android-0.27"
+        const val VERSION = "android-0.28"
     }
 
     /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
@@ -112,6 +113,8 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 uri == "/api/diag" -> json(Sources.probeJson(useCache = p["force"]?.firstOrNull() != "1"))
                 uri == "/api/netcfg" -> netcfg(p["proxy"]?.firstOrNull())
                 uri == "/api/proxy" -> proxy(session)
+                // 外部播放器用的整条线路播放列表（连播不断，切集不用回 App）
+                uri == "/api/list.m3u" -> playlist(p)
                 uri == "/" || uri == "/index.html" -> asset("index.html", "text/html; charset=utf-8")
                 // 电视版（10 英尺界面，遥控器导航）：盒子上 8080/tv 也能直接用浏览器开
                 uri == "/tv" || uri == "/tv.html" -> asset("tv.html", "text/html; charset=utf-8")
@@ -263,6 +266,66 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             first.contains(".mp4") -> 10
             else -> 20
         }
+    }
+
+    /**
+     * /api/list.m3u —— 把「一条线路的全部集」做成一个 m3u 播放列表。
+     *
+     * 为什么要有它：外部播放器一次只能接一个地址，一集一个 intent 的话，每看完一集都要
+     * 退回 MFlixTV 再点下一集，跳来跳去看得人心烦。实测 MX Player 认 #EXTM3U 播放列表
+     * （会把它当播放队列，自己续下一集），所以这里把整条线路一次性交出去，连播由播放器完成。
+     *
+     * 条目一律走本机 /api/proxy：Referer 与 m3u8 分片重写在服务端做，外部播放器不用管防盗链。
+     * start=N 表示从第 N 集开始（用户点第 8 集，列表就从第 8 集往后排）。
+     */
+    private fun playlist(p: Map<String, List<String>>): Response {
+        val key = p["src"]?.firstOrNull().orEmpty()
+        val id = p["id"]?.firstOrNull().orEmpty()
+        val gi = (p["g"]?.firstOrNull() ?: "0").toIntOrNull() ?: 0
+        val start = ((p["start"]?.firstOrNull() ?: "0").toIntOrNull() ?: 0).coerceAtLeast(0)
+        // 列表长度上限：外部播放器打开时会先把条目探一遍，整条 80 集会明显拖慢起播，
+        // 所以默认只给「这一集 + 往后 9 集」，够连看好几小时，再来点下一批。
+        val max = ((p["max"]?.firstOrNull() ?: "10").toIntOrNull() ?: 10).coerceIn(1, 30)
+        val sb = StringBuilder("#EXTM3U\n")
+        var n = 0
+        try {
+            val base = Sources.byKey(key)?.base ?: key
+            val d = JSONObject(SourceDetail.detail(base, id, key))
+            val gs = d.optJSONArray("groups")
+            if (gs != null && gs.length() > 0) {
+                val g = gs.optJSONObject(gi.coerceIn(0, gs.length() - 1))
+                val eps = g?.optJSONArray("episodes")
+                if (eps != null) {
+                    for (i in start until eps.length()) {
+                        if (n >= max) break
+                        val e = eps.optJSONObject(i) ?: continue
+                        val u = e.optString("url")
+                        if (u.isEmpty()) continue
+                        val raw = e.optString("label").ifEmpty { "第" + (i + 1) + "集" }
+                        // EXTINF 的标题里不能带逗号/换行，否则播放器会把整张列表解析坏
+                        val label = raw.replace(',', ' ').replace('\n', ' ').replace('\r', ' ').trim()
+                        sb.append("#EXTINF:-1,").append(label).append('\n')
+                        sb.append("http://127.0.0.1:").append(portNum).append("/api/proxy?url=")
+                            .append(URLEncoder.encode(u, "UTF-8")).append('\n')
+                        n++
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+        if (n == 0) {
+            // 兜不住线路（源临时抽风 / 分享页线路）时，至少把前端手里那一集放进列表：
+            // 外部播放器拿到一条也能正常播，不会只看到「转圈」。
+            val single = p["u"]?.firstOrNull().orEmpty()
+            if (single.isNotEmpty()) {
+                sb.append("#EXTINF:-1,继续播放\n")
+                sb.append("http://127.0.0.1:").append(portNum).append("/api/proxy?url=")
+                    .append(URLEncoder.encode(single, "UTF-8")).append('\n')
+            } else {
+                sb.append("# 这条线路没有可用分集\n")
+            }
+        }
+        return newFixedLengthResponse(Response.Status.OK, "audio/x-mpegurl; charset=utf-8", sb.toString())
     }
 
     private fun baseName(name: String): String {

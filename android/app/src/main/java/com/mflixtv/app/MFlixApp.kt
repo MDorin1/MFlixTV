@@ -29,6 +29,11 @@ class MFlixApp : Application() {
             Net.init(this)
         } catch (_: Throwable) {
         }
+        // 常驻自愈：15 分钟一次的闹钟，服务被系统杀了也能自己回来
+        try {
+            BootReceiver.schedule(this)
+        } catch (_: Throwable) {
+        }
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             try {

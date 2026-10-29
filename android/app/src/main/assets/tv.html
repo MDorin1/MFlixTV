@@ -285,6 +285,16 @@
   .st-btns{display:flex;gap:.7rem;margin-top:1.3rem;flex-wrap:wrap}
   .st-tip{font-size:.7rem;color:#777;margin-top:.85rem;letter-spacing:.1em}
 
+  /* ---------- 外部播放器回到 App 的接力卡 ---------- */
+  #extcard{position:fixed;left:0;top:0;right:0;bottom:0;z-index:130;display:none;align-items:center;
+    justify-content:center;background:rgba(0,0,0,.74)}
+  #extcard.on{display:flex}
+  #extcard .ec-box{min-width:36rem;max-width:74vw;background:#141414;border-radius:1rem;
+    padding:1.7rem 2rem;box-shadow:0 2rem 5rem rgba(0,0,0,.82)}
+  #extcard .ec-h{font-size:1.4rem;font-weight:900;margin-bottom:.55rem;letter-spacing:.01em}
+  #extcard .ec-s{font-size:.92rem;color:#a6a6a6;line-height:1.75;margin-bottom:1.15rem}
+  #extcard .ec-btns{display:flex;gap:.7rem;flex-wrap:wrap}
+
   /* ---------- 圆润 + 半透明（Netflix TV 的柔和手感） ---------- */
   .nv{border-radius:999px;padding:.34rem .8rem}
   .nv.fx.on{background:rgba(255,255,255,.18);color:#fff;transform:none;
@@ -508,6 +518,20 @@
 
 <div id="peek" style="display:none"></div>
 
+<!-- 从外部播放器回到 App 时的接力卡片：接着干「本机播 / 换源」，不用重新找片 -->
+<div id="extcard">
+  <div class="ec-box">
+    <div class="ec-h">外部播放器已经退出</div>
+    <div class="ec-s" id="ecSub">这一条线路会在播放器里自动往下连播</div>
+    <div class="ec-btns">
+      <button class="btn primary fx" id="ecLocal">用本机播这一集</button>
+      <button class="btn fx" id="ecSrc">换条线路</button>
+      <button class="btn fx" id="ecNext">下一集（外部）</button>
+      <button class="btn fx" id="ecClose">收起</button>
+    </div>
+  </div>
+</div>
+
 <section id="settings">
   <div class="st-box">
     <div class="st-h">设置</div>
@@ -688,6 +712,17 @@
   function getJSON(u) { return fetch(u).then(function (r) { return r.json(); }); }
   function cssURL(u) { return String(u).replace(/["\\]/g, function (c) { return encodeURIComponent(c); }); }
 
+  /* 老盒子自动走外部播放器（0.28）：WebView 主版本 < 70 的机器在本页播放是
+     JS 解封装 + 软解，高码率必掉帧。第一次打开就替用户选好，设置里随时能切回来。 */
+  (function autoExt() {
+    try {
+      if (localStorage.getItem('mfl:ext') !== null) return;
+      var m = (navigator.userAgent || '').match(/Chrome\/(\d+)/);
+      var major = m ? parseInt(m[1], 10) : 0;
+      if (major > 0 && major < 70) localStorage.setItem('mfl:ext', '1');
+    } catch (e) {}
+  })();
+
   /* ================= 遥控器焦点：几何导航 + Netflix 式联动 ================= */
   var focusEl = null;
   /* 播放页的按钮条焦点：方向键在播放页默认是快进/切集，按「菜单键」才进按钮条 */
@@ -705,6 +740,7 @@
     return out;
   }
   function pool() {
+    if ($('extcard').classList.contains('on')) return visibleIn($('extcard'), '.fx');
     if ($('settings').classList.contains('on')) return visibleIn($('settings'), '.fx');
     var view = document.querySelector('.view.on');
     var list = visibleIn($('navItems'), '.nv');
@@ -1135,7 +1171,7 @@
     $('dtFirst').onclick = function () { playEp(0); };
     $('dtExt').onclick = function () {
       var e = S.eps[Math.max(0, Math.min(S.eps.length - 1, start))];
-      if (e) extPlay(e.url); else toast('这条线路还没有分集');
+      if (e) extPlay(e.url, start); else toast('这条线路还没有分集');
     };
   }
 
@@ -1149,10 +1185,22 @@
      高码率片子必掉帧；同一个 m3u8 交给 MX Player 硬解就顺了（实测 CPU 0~1%）。
      地址走本地 /api/proxy（Referer、分片重写在服务端做），外部播放器不会被防盗链拦。 */
   function extMode() { try { return localStorage.getItem('mfl:ext') === '1'; } catch (e) { return false; } }
-  function extPlay(url) {
-    if (!url) { toast('还没拿到播放地址'); return false; }
-    rawUrl = url;
-    var abs = location.origin + proxy(url);
+  /* 交给外部播放器的地址 = 整条线路的播放列表（服务端现拼）。
+     这样「看完一集自动下一集」由播放器完成，不用为了切集退回 App。
+     &u= 是兜底：万一线路拼不出来，就只放用户点的那一集。 */
+  function extPackUrl(epIdx) {
+    var q = '/api/list.m3u?name=' + encodeURIComponent(S.title || '') +
+      '&src=' + encodeURIComponent(S.src || '') +
+      '&id=' + encodeURIComponent(S.vodId || '') +
+      '&g=' + (S.group || 0) +
+      '&start=' + (epIdx || 0) +
+      '&u=' + encodeURIComponent(rawUrl || '');
+    return location.origin + q;
+  }
+  function extPlay(url, epIdx) {
+    if (url) rawUrl = url;
+    if (!rawUrl) { toast('还没拿到播放地址'); return false; }
+    var abs = extPackUrl(epIdx);
     var sent = false;
     try {
       if (window.MFlixNative && window.MFlixNative.playExternal) {
@@ -1161,7 +1209,17 @@
       }
     } catch (e) {}
     if (!sent) { toast('这台设备没有外部播放器，继续用本机播放'); return false; }
+    extSession(epIdx || 0);
     return true;
+  }
+  /* 记住「我把它交出去了」，回到 App 时据此给接力卡片 */
+  var extAt = 0, extEp = 0;
+  function extSession(i) {
+    extAt = Date.now(); extEp = i || 0;
+    try {
+      localStorage.setItem('mfl:extep', String(extEp));
+      localStorage.setItem('mfl:extat', String(extAt));
+    } catch (e) {}
   }
   var RATES = [1, 1.25, 1.5, 2, 0.75];
   /* 没画面时先铺一张 MFlixTV 字标：不铺的话 WebView 会把 <video> 画成白底 + 大播放三角 */
@@ -1252,7 +1310,7 @@
     /* 设置里选了「外部播放器」就直接交给系统播放器硬解，本页只留个说明 */
     if (extMode()) {
       showBrand('已在外部播放器打开');
-      if (!extPlay(e.url)) attach(e.url);
+      if (!extPlay(e.url, i)) attach(e.url);
     } else {
       showBrand(); attach(e.url);
     }
@@ -1371,7 +1429,56 @@
     if (!rawUrl) { toast('还没拿到播放地址'); return; }
     try { if (hls) { hls.stopLoad(); } } catch (e) {}
     try { v.pause(); } catch (e) {}
-    if (extPlay(rawUrl)) toast('已交给外部播放器');
+    if (extPlay(rawUrl, S.ep)) toast('已交给外部播放器（整条线路连播）');
+  });
+
+  /* ===== 接力卡：从外部播放器回到 App 时，接着能干「本机播 / 换源 / 下一集」 ===== */
+  function extCurEp() {
+    var g = S.groups[S.group] || {}, eps = g.episodes || [];
+    var i = Math.max(0, Math.min(S.ep || 0, eps.length - 1));
+    return { i: i, e: eps[i] || null, n: eps.length };
+  }
+  function openExtCard() {
+    var c = extCurEp();
+    if (!c.e) return;
+    $('ecSub').textContent = '刚才是「' + (c.e.label || ('第' + (c.i + 1) + '集')) +
+      '」· 这条线路在播放器里会自动连播下一集';
+    $('extcard').classList.add('on');
+    paintFocus($('ecLocal'));
+  }
+  function closeExtCard() {
+    $('extcard').classList.remove('on');
+    if (inPlayer()) paintFocus($('pbPlay'));
+  }
+  $('ecClose').addEventListener('click', closeExtCard);
+  $('ecLocal').addEventListener('click', function () {
+    var c = extCurEp();
+    if (!c.e) { closeExtCard(); return; }
+    $('extcard').classList.remove('on');
+    try { localStorage.setItem('mfl:ext', '0'); } catch (e) {}
+    attach(c.e.url);
+    toast('改回本机播放（设置里可以再切回去）');
+  });
+  $('ecSrc').addEventListener('click', function () {
+    $('extcard').classList.remove('on');
+    closePlayer();
+    setTimeout(function () {
+      var chips = $('dtLines') ? $('dtLines').querySelectorAll('.chip.fx') : [];
+      if (chips.length) paintFocus(chips[0]);
+      toast(chips.length > 1 ? '方向键选线路 · 回车换源' : '这部片只有这一条线路');
+    }, 300);
+  });
+  $('ecNext').addEventListener('click', function () {
+    var c = extCurEp(), g = S.groups[S.group] || {};
+    if (!(g.episodes || [])[c.i + 1]) { toast('已经是最后一集'); return; }
+    $('extcard').classList.remove('on');
+    playEp(c.i + 1);
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (!extMode() || !inPlayer() || extAt <= 0) return;
+    if (Date.now() - extAt < 2500) return;   // 刚交出去的那一下不算「回来」
+    openExtCard();
   });
 
   v.addEventListener('timeupdate', function () {
@@ -1544,6 +1651,12 @@
   }
 
   function handle(a) {
+    if ($('extcard').classList.contains('on')) {
+      if (a === 'back') { closeExtCard(); return true; }
+      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
+      if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); return true; }
+      return true;
+    }
     if ($('settings').classList.contains('on')) {
       if (a === 'back') { closeSettings(); return true; }
       if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); return true; }
