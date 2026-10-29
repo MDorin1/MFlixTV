@@ -62,15 +62,33 @@ object CrashLog {
         sb.append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
             .append(" | Android ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT).append(')')
             .append(" | abi=").append(Build.SUPPORTED_ABIS.joinToString(","))
+        sb.append(" | webview=").append(webViewVersion(ctx))
+        return sb.toString()
+    }
+
+    /**
+     * 取系统 WebView 版本。
+     * Android 8（API 26）起有 WebView.getCurrentWebViewPackage()，老盒子（斐讯 N1 这类
+     * Android 7）没有这个方法，直接调会抛 NoSuchMethodError，所以那里退回查包管理器。
+     * 别人的盒子上出问题时，这一行就是判断「是不是 WebView 太老」的第一手依据。
+     */
+    fun webViewVersion(ctx: Context): String {
         if (Build.VERSION.SDK_INT >= 26) {
             try {
                 val pkg = WebView.getCurrentWebViewPackage()
-                sb.append(" | webview=").append(pkg?.versionName ?: "none")
+                return pkg?.versionName ?: "none(需安装 Android System WebView)"
             } catch (_: Throwable) {
-                sb.append(" | webview=?")
             }
         }
-        return sb.toString()
+        for (name in arrayOf("com.google.android.webview", "com.android.webview", "com.android.chrome")) {
+            try {
+                val pi = ctx.packageManager.getPackageInfo(name, 0)
+                val v = pi.versionName ?: "?"
+                return "$v(${name.substringAfterLast('.')})"
+            } catch (_: Throwable) {
+            }
+        }
+        return "none(需安装 Android System WebView)"
     }
 
     fun record(ctx: Context, t: Thread?, e: Throwable?) {

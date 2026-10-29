@@ -132,6 +132,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        /**
+         * 外部播放器（0.26）：把地址交给系统里带硬件解码的播放器去放。
+         *
+         * 老盒子（斐讯 N1 = Android 7.1 / WebView 52）上 hls.js 走的是 JS 解封装 + 软解，
+         * 实测播放时本进程 CPU 顶到 38%、画面还掉帧；同一个 m3u8 交给 MX Player 硬解，
+         * CPU 只有 0~1%，完全顺滑。所以给用户留一个「外部播放器」键，卡的时候一键切过去。
+         *
+         * 先按已知包名逐个试（不弹「打开方式」选择框），都没有再走通用 ACTION_VIEW + 选择器。
+         */
+        @JavascriptInterface
+        fun playExternal(url: String) {
+            runOnUiThread { startExternal(url) }
+        }
+
         /** 是否已经进了电池优化白名单（进了就不会被后台清理）。 */
         @JavascriptInterface
         fun batteryOk(): Boolean {
@@ -265,6 +279,49 @@ class MainActivity : AppCompatActivity() {
     /** 电视版进 /tv，手机进 /（同一个服务，同一份源，两套界面）。 */
     private fun pageUrl(): String {
         return baseUrl() + (if (tvMode) "tv" else "")
+    }
+
+    /**
+     * 交给外部播放器放（0.26）。已知能硬解的包名按优先级逐个试，
+     * 都装不了才弹系统的「打开方式」让用户自己挑，最后兜一句 Toast。
+     */
+    private fun startExternal(raw: String) {
+        val u = (raw ?: "").trim()
+        if (u.isEmpty()) {
+            Toast.makeText(this, "还没有拿到播放地址", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val uri = try {
+            Uri.parse(u)
+        } catch (e: Throwable) {
+            null
+        }
+        if (uri == null) {
+            Toast.makeText(this, "播放地址无效", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val pm = packageManager
+        for (pkg in EXT_PLAYERS) {
+            try {
+                val i = Intent(Intent.ACTION_VIEW)
+                i.setDataAndType(uri, "video/*")
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                i.setPackage(pkg)
+                if (i.resolveActivity(pm) != null) {
+                    startActivity(i)
+                    return
+                }
+            } catch (_: Throwable) {
+            }
+        }
+        try {
+            val i = Intent(Intent.ACTION_VIEW)
+            i.setDataAndType(uri, "video/*")
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(Intent.createChooser(i, "用哪个播放器打开"))
+        } catch (e: Throwable) {
+            Toast.makeText(this, "这台设备没有可用的外部播放器", Toast.LENGTH_LONG).show()
+        }
     }
 
     /** 判定这台设备是不是电视 / 盒子。 */
@@ -414,7 +471,16 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            chrome = w.webChromeClient
+            // WebView.getWebChromeClient() 是 API 26 才有的。我们在 API 34 上编译，
+            // 老盒子（斐讯 N1 = Android 7.1 / API 25）执行到这一行会抛 NoSuchMethodError，
+            // 整个 WebView 创建连带失败，屏幕上只剩「WebView 用不了」的兜底页。
+            // 这个字段只用来在退出全屏时回调 onHideCustomView，老盒子上没有它也能跑，按版本守卫。
+            if (Build.VERSION.SDK_INT >= 26) {
+                try {
+                    chrome = w.webChromeClient
+                } catch (_: Throwable) {
+                }
+            }
             web = w
             root.removeAllViews()
             fallback = null
@@ -511,16 +577,17 @@ class MainActivity : AppCompatActivity() {
         val sb = StringBuilder()
         sb.append("这台设备 ").append(Build.MANUFACTURER).append(" ").append(Build.MODEL)
             .append("（Android ").append(Build.VERSION.RELEASE).append("）")
-        if (Build.VERSION.SDK_INT >= 26) {
-            try {
-                val pkg = WebView.getCurrentWebViewPackage()
-                if (pkg == null) {
-                    sb.append(" 没有可用的系统 WebView。装一个「Android System WebView」或 Chrome 就能用。")
-                } else {
-                    sb.append(" 的 WebView 版本是 ").append(pkg.versionName).append("。")
-                }
-            } catch (_: Throwable) {
-            }
+        val ver = try {
+            CrashLog.webViewVersion(this)
+        } catch (_: Throwable) {
+            "?"
+        }
+        sb.append(" 的 WebView：").append(ver).append("。")
+        if (ver.startsWith("none")) {
+            sb.append("\n\n这台设备没有可用的系统 WebView，装上就能用：")
+            sb.append("\n装「Android System WebView」（或 Chrome），装完回到这里按重试。")
+        } else {
+            sb.append("\n\n按重试一般能恢复；还不行就把上面这行版本号发给我。")
         }
         return sb.toString()
     }
@@ -730,5 +797,16 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         closeWeb()
         super.onDestroy()
+    }
+
+    private companion object {
+        /** 能硬解、电视盒子上常见的播放器，按优先级排（MX 专业版/免费版 → VLC → 盒子自带）。 */
+        val EXT_PLAYERS = arrayOf(
+            "com.mxtech.videoplayer.pro",
+            "com.mxtech.videoplayer.ad",
+            "org.videolan.vlc",
+            "com.droidlogic.videoplayer",
+            "com.phicomm.imageplayer"
+        )
     }
 }

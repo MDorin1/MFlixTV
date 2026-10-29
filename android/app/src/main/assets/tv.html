@@ -275,6 +275,8 @@
   .st-row{display:flex;justify-content:space-between;align-items:center;font-size:.88rem;color:#bdbdbd;
     padding:.58rem .85rem;background:rgba(255,255,255,.05);border-radius:.55rem}
   .st-row b{color:#fff;font-weight:800;margin-left:1.2rem;text-align:right}
+  .st-row.fx.on{background:#fff;color:#111;transform:none;box-shadow:0 0 0 .08rem #fff}
+  .st-row.fx.on b{color:#111}
   .st-btns{display:flex;gap:.7rem;margin-top:1.3rem;flex-wrap:wrap}
   .st-tip{font-size:.7rem;color:#777;margin-top:.85rem;letter-spacing:.1em}
 
@@ -392,6 +394,31 @@
   @supports (font-size: max(8px, 1vw)){
     html{font-size:max(8px, 1.0416667vw)}
   }
+  /* ---- 首页大图：背景图要看得见 ----
+     原来 .hb 模糊 34px + 亮度 .68，再叠 #heroVeil 的 .97→.28→.62 横向黑幕和纵向渐隐，
+     两层压下来整块几乎是纯黑，只剩字。现在：模糊降到 14px、亮度提到 1.04，
+     黑幕只在左边（放文字那半边）保留 86%→10%，右边基本放开，纵向只留顶部一点和底部渐隐。
+     lite 模式（老盒子）保持原来的「不模糊」，不动性能策略。 */
+  /* 采集源只给竖版海报（约 500×750），没有横版剧照。
+     把竖图拉到 1920 宽 = 放大 3.8 倍，必然糊，而且裁出来的是海报中间一条，构图全错。
+     所以：背景只做「同图环境光」（大模糊 + 压暗，负责氛围和颜色，看不见像素），
+     真正的大图交给右边那张竖版海报——尺寸放大到 18rem、原图直出，
+     它是源图物理分辨率能支撑的最大清晰度，构图也是海报原本的构图。 */
+  html:not(.lite) #hero .hb{filter:blur(30px) saturate(1.26) brightness(.82) contrast(1.06)}
+  #heroVeil{background:
+    linear-gradient(90deg,rgba(0,0,0,.90) 0%,rgba(0,0,0,.72) 28%,rgba(0,0,0,.30) 56%,rgba(0,0,0,.10) 100%),
+    linear-gradient(180deg,rgba(0,0,0,.40) 0%,rgba(0,0,0,.10) 26%,rgba(0,0,0,.02) 56%,#000 98%)}
+  #heroTitle{text-shadow:0 2px 18px rgba(0,0,0,.85),0 1px 3px rgba(0,0,0,.95)}
+  .hero-tag,.hero-meta,.hero-desc{text-shadow:0 1px 10px rgba(0,0,0,.9)}
+  .hero-poster{width:18rem;right:3.2rem;bottom:2.6rem;border-radius:.5rem;
+    box-shadow:0 2.4rem 4.4rem rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.10)}
+  .hero-poster img{object-fit:cover;image-rendering:-webkit-optimize-contrast}
+  /* 详情页同步提亮一档，别再压成黑底 */
+  html:not(.lite) #dtBg{filter:blur(20px) saturate(1.1) brightness(.94)}
+  #dtVeil{background:
+    linear-gradient(90deg,rgba(0,0,0,.88) 0%,rgba(0,0,0,.60) 40%,rgba(0,0,0,.18) 100%),
+    linear-gradient(180deg,rgba(0,0,0,.42),rgba(0,0,0,.08) 42%,#000 96%)}
+
   /* ---- 其它控件：方角、去掉过度圆润 ---- */
   .pb{border-radius:.28rem}
   .ep{border-radius:.26rem}
@@ -537,6 +564,7 @@
     <div class="dt-btns">
       <button class="btn primary fx" id="dtPlay">▶ 播放</button>
       <button class="btn fx" id="dtFirst">从第一集开始</button>
+      <button class="btn fx" id="dtExt">外部播放器</button>
     </div>
     <div class="dt-sec">
       <div class="dt-h"><span class="t">线路</span><span class="s" id="dtLineCnt"></span></div>
@@ -577,6 +605,7 @@
       <button class="pb fx" id="pbNext">下一集 ⏭</button>
       <button class="pb fx" id="pbEps">选集</button>
       <button class="pb fx" id="pbRate">1.0x</button>
+      <button class="pb fx" id="pbExt">外部播放器</button>
       <button class="pb fx" id="pbBack">退出播放</button>
     </div>
   </div>
@@ -592,6 +621,20 @@
 <script>
 (function () {
   'use strict';
+  /* 极老 WebView 守卫（斐讯 N1 一类盒子可能是 Chrome 39/43 时代的 WebView）：
+     这页面全靠 fetch 取数据，没有 fetch 就什么也干不了。与其白屏或一堆报错，
+     不如直接说清楚要升到什么版本。这是分发到别人盒子上最省心的一道闸。 */
+  if (!window.fetch || !window.Promise || !window.WeakMap || !window.JSON || !Object.assign) {
+    document.documentElement.innerHTML =
+      '<div style="position:fixed;left:0;top:0;right:0;bottom:0;background:#000;color:#fff;' +
+      'display:flex;align-items:center;justify-content:center;text-align:center;' +
+      'font-family:sans-serif;line-height:1.9;padding:0 8%;">' +
+      '<div><div style="font-size:2.4em;font-weight:800;letter-spacing:.02em">MFlixTV</div>' +
+      '<div style="margin-top:1em;font-size:1.2em;color:#ddd">这台设备的 WebView 太旧，页面跑不起来。</div>' +
+      '<div style="margin-top:.6em;font-size:1em;color:#9a9a9a">需要 WebView 55 以上。装一个「Android System WebView」' +
+      '（或 Chrome）再重开本应用即可。</div></div></div>';
+    return;
+  }
   /* 老 WebView / 弱 GPU 自动进轻量模式：?full=1 强制完整、?lite=1 强制轻量 */
   (function () {
     var q = location.search || '';
@@ -641,6 +684,8 @@
 
   /* ================= 遥控器焦点：几何导航 + Netflix 式联动 ================= */
   var focusEl = null;
+  /* 播放页的按钮条焦点：方向键在播放页默认是快进/切集，按「菜单键」才进按钮条 */
+  var barFocus = false;
 
   function visibleIn(view, sel) {
     var out = [], list = view ? view.querySelectorAll(sel) : [];
@@ -694,8 +739,16 @@
       else if (fr.right > sr.right - pad) strip.scrollLeft += (fr.right - (sr.right - pad));
     }
     var r = f.getBoundingClientRect(), vh = window.innerHeight;
-    if (r.top < 110) window.scrollBy({ top: r.top - 150, behavior: 'smooth' });
-    else if (r.bottom > vh - 36) window.scrollBy({ top: r.bottom - vh + 90, behavior: 'smooth' });
+    /* 老内核（斐讯 N1 的 WebView 52）的 scrollBy 只认两个数字，传配置对象会抛
+       "2 arguments required"，焦点滚出屏幕就拉不回来。按能力选写法，别用裸 if。 */
+    var smoothOk = ('scrollBehavior' in document.documentElement.style);
+    if (r.top < 110) {
+      if (smoothOk) window.scrollBy({ top: r.top - 150, behavior: 'smooth' });
+      else window.scrollBy(0, r.top - 150);
+    } else if (r.bottom > vh - 36) {
+      if (smoothOk) window.scrollBy({ top: r.bottom - vh + 90, behavior: 'smooth' });
+      else window.scrollBy(0, r.bottom - vh + 90);
+    }
     // 焦点进顶栏时把顶部渐变压深一点
     var inNav = f.closest && f.closest('#nav');
     $('nav').classList.toggle('up', !!inNav);
@@ -1047,10 +1100,36 @@
     // 播放按钮：接着看这一集
     $('dtPlay').onclick = function () { playEp(start); };
     $('dtFirst').onclick = function () { playEp(0); };
+    $('dtExt').onclick = function () {
+      var e = S.eps[Math.max(0, Math.min(S.eps.length - 1, start))];
+      if (e) extPlay(e.url); else toast('这条线路还没有分集');
+    };
   }
 
   /* ================= 播放器 ================= */
   var v = $('video'), hls = null, hideT = null, rateIdx = 0;
+  /* 当前这条线路的原始地址（外部播放器要拿它） */
+  var rawUrl = '';
+
+  /* ===== 外部播放器（0.26）=====
+     老盒子（斐讯 N1 = Android 7.1 / WebView 52）在本页播放是 JS 解封装 + 软解，
+     高码率片子必掉帧；同一个 m3u8 交给 MX Player 硬解就顺了（实测 CPU 0~1%）。
+     地址走本地 /api/proxy（Referer、分片重写在服务端做），外部播放器不会被防盗链拦。 */
+  function extMode() { try { return localStorage.getItem('mfl:ext') === '1'; } catch (e) { return false; } }
+  function extPlay(url) {
+    if (!url) { toast('还没拿到播放地址'); return false; }
+    rawUrl = url;
+    var abs = location.origin + proxy(url);
+    var sent = false;
+    try {
+      if (window.MFlixNative && window.MFlixNative.playExternal) {
+        window.MFlixNative.playExternal(abs);
+        sent = true;
+      }
+    } catch (e) {}
+    if (!sent) { toast('这台设备没有外部播放器，继续用本机播放'); return false; }
+    return true;
+  }
   var RATES = [1, 1.25, 1.5, 2, 0.75];
   /* 没画面时先铺一张 MFlixTV 字标：不铺的话 WebView 会把 <video> 画成白底 + 大播放三角 */
   (function () {
@@ -1067,7 +1146,7 @@
     $('ptopbar').classList.toggle('hide', !show);
     $('pbotbar').classList.toggle('hide', !show);
     clearTimeout(hideT);
-    if (show) hideT = setTimeout(function () { if (!v.paused) bars(false); }, 4500);
+    if (show) hideT = setTimeout(function () { if (!v.paused && !barFocus) bars(false); }, 4500);
   }
   function showBrand(txt) {
     var b = $('pbrand');
@@ -1084,6 +1163,7 @@
   var attachSeq = 0, attachTimer = null;
   function attach(url) {
     var seq = ++attachSeq;
+    rawUrl = url || '';
     $('pmsg').classList.remove('on');
     showBrand('正在接通线路…');
     clearTimeout(attachTimer);
@@ -1126,6 +1206,7 @@
     var e = eps[i];
     if (!e) return;
     S.ep = i;
+    barFocus = false;
     cancelNext();
     $('eps-sheet').classList.remove('on');
     $('player').classList.add('on');
@@ -1135,7 +1216,14 @@
     $('psub').textContent = (e.label || ('第' + (i + 1) + '集')) + (g.name ? ' · ' + g.name : '');
     $('pcur').textContent = '00:00'; $('pdur').textContent = '00:00'; $('played').style.width = '0%';
     $('pbPlay').textContent = '⏸ 暂停';
-    showBrand(); attach(e.url); bars(true);
+    /* 设置里选了「外部播放器」就直接交给系统播放器硬解，本页只留个说明 */
+    if (extMode()) {
+      showBrand('已在外部播放器打开');
+      if (!extPlay(e.url)) attach(e.url);
+    } else {
+      showBrand(); attach(e.url);
+    }
+    bars(true);
     paintFocus($('pbPlay'));
     // 从上次位置继续
     try {
@@ -1151,6 +1239,7 @@
   }
   function closePlayer() {
     cancelNext();
+    barFocus = false;
     $('player').classList.remove('on');
     $('eps-sheet').classList.remove('on');
     $('nav').style.display = '';
@@ -1192,6 +1281,7 @@
   function toggleEps() {
     var on = $('eps-sheet').classList.toggle('on');
     if (on) {
+      barFocus = false;
       var g = S.groups[S.group] || {}, box = $('pEpsGrid');
       box.innerHTML = '';
       (g.episodes || []).forEach(function (e, i) {
@@ -1241,6 +1331,14 @@
     v.playbackRate = RATES[rateIdx];
     $('pbRate').textContent = (RATES[rateIdx] === 1 ? '1.0' : String(RATES[rateIdx])) + 'x';
     toast('倍速 ' + RATES[rateIdx] + 'x');
+  });
+
+  /* 播放页里的「外部播放器」键：菜单键进入按钮条后可选（见 handlePlayer） */
+  $('pbExt').addEventListener('click', function () {
+    if (!rawUrl) { toast('还没拿到播放地址'); return; }
+    try { if (hls) { hls.stopLoad(); } } catch (e) {}
+    try { v.pause(); } catch (e) {}
+    if (extPlay(rawUrl)) toast('已交给外部播放器');
   });
 
   v.addEventListener('timeupdate', function () {
@@ -1303,6 +1401,22 @@
 
   /* ================= 右上角：搜索 / 设置 ================= */
   function stRow(k, v) { return '<div class="st-row"><span>' + esc(k) + '</span><b>' + esc(v) + '</b></div>'; }
+  /* 播放方式：可选的一行（老盒子选「外部播放器」就交给 MX/VLC 硬解，不卡） */
+  function stPlayRow() {
+    return '<div class="st-row fx" id="stPlayMode"><span>播放方式</span><b id="stPlayModeV">' +
+      (extMode() ? '外部播放器 · 硬解更顺' : '本机播放') + '</b></div>';
+  }
+  function bindStPlay() {
+    var r = $('stPlayMode');
+    if (!r) return;
+    r.onclick = function () {
+      var on = !extMode();
+      try { localStorage.setItem('mfl:ext', on ? '1' : '0'); } catch (e) {}
+      var b = $('stPlayModeV');
+      if (b) b.textContent = on ? '外部播放器 · 硬解更顺' : '本机播放';
+      toast(on ? '以后点播放都交给外部播放器' : '改回本机播放');
+    };
+  }
   function openSettings() {
     var rows = $('stRows');
     rows.innerHTML = stRow('正在读取…', '');
@@ -1317,10 +1431,13 @@
         stRow('界面模式', document.documentElement.className.indexOf('lite') >= 0 ? '轻量（弱 GPU 自动）' : '完整'),
         stRow('屏幕', window.innerWidth + '×' + window.innerHeight),
         stRow('局域网地址', (d && (d.lan || d.ip)) || '未联网'),
-        stRow('机型', (d && d.device) || '—')
+        stRow('机型', (d && d.device) || '—'),
+        stPlayRow()
       ].join('');
+      bindStPlay();
     }).catch(function () {
-      rows.innerHTML = stRow('读取失败', '手机端的服务没应答');
+      rows.innerHTML = stRow('读取失败', '手机端的服务没应答') + stPlayRow();
+      bindStPlay();
     });
   }
   function closeSettings() { $('settings').classList.remove('on'); paintFocus($('btnSet')); }
@@ -1363,14 +1480,34 @@
       if (a === 'back') { toggleEps(); return true; }
       move(a); return true;
     }
+    if (barFocus) {
+      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); bars(true); return true; }
+      if (a === 'left' || a === 'right' || a === 'up' || a === 'down') { move(a); bars(true); return true; }
+      if (a === 'back') { leaveBar(); return true; }
+      return true;
+    }
     if (a === 'ok') { togglePlay(); return true; }
     if (a === 'left') { seekBy(-10); return true; }
     if (a === 'right') { seekBy(10); return true; }
     if (a === 'up') { stepEp(-1); return true; }
     if (a === 'down') { stepEp(1); return true; }
     if (a === 'back') { closePlayer(); return true; }
-    if (a === 'menu') { bars(true); return true; }
+    if (a === 'menu') { enterBar(); return true; }
     return true;
+  }
+
+  /* 按钮条（暂停/上一集/下一集/选集/倍速/外部播放器/退出）：遥控器走不到就等于没有，
+     所以给「菜单键」一个入口：进条子以后方向键移焦点、回车执行、返回退出条子。 */
+  function enterBar() {
+    barFocus = true;
+    bars(true);
+    paintFocus($('pbPlay'));
+    toast('方向键选择 · 回车执行 · 返回退出');
+  }
+  function leaveBar() {
+    barFocus = false;
+    paintFocus(null);
+    bars(true);
   }
 
   function handle(a) {
