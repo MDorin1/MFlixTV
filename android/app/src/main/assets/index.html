@@ -528,6 +528,54 @@
     #dActions{display:block}
     #dActions .btn-play{margin-bottom:9px}
   }
+
+  /* ============ Apple 播放器皮肤（0.34） ============
+     照 iOS 视频播放器的手感调：进度条是细白线 + 白色圆点，按钮是毛玻璃胶囊，
+     播放键白色实心，倍速面板 / 设置面板走大圆角玻璃。红色只留给品牌峰值，控件底色一律中性。 */
+  #pctl{background:linear-gradient(180deg,rgba(0,0,0,.68),rgba(0,0,0,0) 20%,rgba(0,0,0,0) 58%,rgba(0,0,0,.84))}
+  #ptitle{font-family:-apple-system,"SF Pro Display","PingFang SC","HarmonyOS Sans SC","MiSans",sans-serif;
+    font-size:14.5px;font-weight:600;letter-spacing:-.01em}
+  .icon-btn{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.1);
+    -webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6)}
+  .icon-btn:active{transform:scale(.92);background:rgba(255,255,255,.26)}
+  /* 进度条 */
+  #pbar{height:22px;border-radius:999px;background-size:100% 4px;background-repeat:no-repeat;
+    background-position:center;background-image:linear-gradient(90deg,#fff 0,#fff 0,rgba(255,255,255,.3) 0,rgba(255,255,255,.3) 100%)}
+  #pbar::-webkit-slider-runnable-track{height:4px;background:transparent;border-radius:999px}
+  #pbar::-webkit-slider-thumb{width:15px;height:15px;margin-top:-5.5px;background:#fff;border-radius:50%;
+    box-shadow:0 2px 9px rgba(0,0,0,.55)}
+  #pbar::-moz-range-track{height:4px;background:rgba(255,255,255,.3);border-radius:999px}
+  #pbar::-moz-range-thumb{width:15px;height:15px;border:0;background:#fff;border-radius:50%}
+  #ptime{font-size:11.5px;color:rgba(255,255,255,.52);font-weight:500;letter-spacing:.01em}
+  #pcur{color:rgba(255,255,255,.92);font-weight:600}
+  /* 按钮 */
+  #pbtns button{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.1);
+    font-weight:600;letter-spacing:.01em;
+    -webkit-backdrop-filter:blur(26px) saturate(1.6);backdrop-filter:blur(26px) saturate(1.6)}
+  #pbtns button:active{transform:scale(.94);background:rgba(255,255,255,.26)}
+  #pPlay{background:#fff !important;color:#08080a !important;border-color:#fff !important;
+    box-shadow:0 6px 18px rgba(0,0,0,.45)}
+  #pmini button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.1);font-weight:600;
+    -webkit-backdrop-filter:blur(26px) saturate(1.6);backdrop-filter:blur(26px) saturate(1.6)}
+  #pmini button:active{transform:scale(.94);background:rgba(255,255,255,.26)}
+  #pmini button.on{background:#fff;color:#08080a;border-color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.42)}
+  /* 倍速面板 */
+  #pratepop{background:rgba(28,28,30,.8);border:1px solid rgba(255,255,255,.12);border-radius:18px;
+    -webkit-backdrop-filter:blur(38px) saturate(1.7);backdrop-filter:blur(38px) saturate(1.7);
+    box-shadow:0 18px 44px rgba(0,0,0,.55)}
+  #pratepop .rp{border-radius:11px;font-weight:600;color:#f2f2f4}
+  #pratepop .rp.on{background:#fff;color:#08080a}
+  #pratepop .rp:active{background:rgba(255,255,255,.2)}
+  #pratepop .rp-h{font-weight:600;letter-spacing:.12em;color:rgba(255,255,255,.45)}
+  #pdrag{border-radius:999px;background:rgba(28,28,30,.82);border:1px solid rgba(255,255,255,.12);
+    -webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
+  /* 底部抽屉 */
+  #psheet{background:rgba(24,24,26,.88);border-radius:22px 22px 0 0;border-top:1px solid rgba(255,255,255,.1);
+    -webkit-backdrop-filter:blur(40px) saturate(1.7);backdrop-filter:blur(40px) saturate(1.7)}
+  #psheetB .it{border-radius:999px}
+  #psheetB.set .row .lnk{border-radius:999px}
+  #psheetB.set .sw.on{background:#fff}
+  #psheetB.set .sw.on i{background:#08080a}
 </style>
 </head>
 <body>
@@ -630,7 +678,7 @@
       <div id="ptime"><span id="pcur">00:00</span><span id="pdur">00:00</span></div>
       <div id="pbtns">
         <button id="pPlay">&#10074;&#10074;</button>
-        <button id="pRate">1.0x</button>
+        <button id="pRate">1.0×</button>
         <button id="pEps">选集</button>
         <button id="pSrc">线路</button>
         <button id="pNext" style="margin-left:auto">下一集 ›</button>
@@ -2044,6 +2092,7 @@
   v.addEventListener('timeupdate', function () {
     if (dragging || !v.duration) return;
     $('pbar').value = Math.round(v.currentTime / v.duration * 1000);
+    paintBar();
     $('pcur').textContent = fmt(v.currentTime);
     $('pdur').textContent = fmt(v.duration);
     var now = Date.now();
@@ -2137,8 +2186,17 @@
     clearTimeout(pdragT);
     pdragT = setTimeout(function () { b.classList.remove('on'); }, 1400);
   }
+  /* 进度条已播部分填白（原生 range 只能画一条灰线，这里用背景渐变补上 Apple 那种「走过的地方是白的」） */
+  function paintBar() {
+    var b = $('pbar');
+    if (!b) return;
+    var p = Math.max(0, Math.min(100, (b.value / 10) || 0));
+    b.style.background = 'linear-gradient(90deg,#fff 0,#fff ' + p + '%,rgba(255,255,255,.3) ' + p +
+      '%,rgba(255,255,255,.3) 100%)';
+  }
   $('pbar').addEventListener('input', function () {
     dragging = true;
+    paintBar();
     if (v.duration) {
       var sec = $('pbar').value / 1000 * v.duration;
       $('pcur').textContent = fmt(sec);
@@ -2151,7 +2209,7 @@
     pdragShow(v.currentTime || 0);
   });
   var rates = [0.5, 0.75, 1, 1.25, 1.5, 2, 3], ri = 0;
-  function rateText(r) { return String(r).replace(/(\.\d)0$/, '$1') + 'x'; }
+  function rateText(r) { return String(r).replace(/(\.\d)0$/, '$1') + '×'; }
   /** 上次选的倍速：换集、换源、重开 App 都接着用 */
   function savedRate() {
     var r = Number(ls('mfl:rate') || 0);

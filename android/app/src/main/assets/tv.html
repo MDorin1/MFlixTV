@@ -533,6 +533,131 @@
   html.lite .card .poster,html.lite .epc,html.lite .hero-poster{box-shadow:none}
   html.lite .card.on{box-shadow:0 0 0 .11rem #fff}
   html.lite #heroTitle,html.lite #dtTitle{text-shadow:none}
+
+  /* ============ Apple 播放器皮肤（0.34） ============
+     照 tvOS / iOS 视频播放器的做法重排播放页：
+       · 底部不再是「整条黑渐变 + 一排方块按钮」，而是一块悬浮的毛玻璃面板（大圆角、发丝描边、内高光）
+       · 播放键是白色实心圆，两侧是圆形的上一集 / 下一集，功能区在右侧用胶囊 + 文字
+       · 进度条细、纯白、带一个圆形滑块；时间和总时长分别在两头，用等宽数字
+       · 焦点 = 白底黑字 + 轻微放大 + 外圈白环，跟 Apple TV 的聚焦手感一致
+     老内核（不认 backdrop-filter）自动退回半透明纯色，观感不塌。 */
+
+  /* --- 顶部信息 --- */
+  #ptopbar{padding:2.2rem 4.4rem 3.6rem;
+    background:linear-gradient(180deg,rgba(0,0,0,.74),rgba(0,0,0,.34) 52%,rgba(0,0,0,0));
+    transition:opacity .3s var(--ease)}
+  #ptitle{font-family:-apple-system,"SF Pro Display","PingFang SC","HarmonyOS Sans SC","MiSans",sans-serif;
+    font-size:1.82rem;font-weight:600;letter-spacing:-.008em;line-height:1.22}
+  #psub{font-size:.9rem;color:rgba(255,255,255,.6);margin-top:.46rem;font-weight:500;letter-spacing:.012em}
+
+  /* --- 底部悬浮面板 --- */
+  #pbotbar{left:2.4rem;right:2.4rem;bottom:1.8rem;padding:1.1rem 1.5rem 1.25rem;border-radius:1.4rem;
+    background:rgba(26,26,28,.62);border:1px solid rgba(255,255,255,.1);
+    box-shadow:0 1.8rem 4.2rem rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.11);
+    transition:opacity .3s var(--ease),transform .3s var(--ease)}
+  #pbotbar.hide{transform:translateY(1.1rem)}
+  @supports (backdrop-filter: blur(2px)){
+    #pbotbar{background:rgba(26,26,28,.5);
+      -webkit-backdrop-filter:blur(40px) saturate(1.8);backdrop-filter:blur(40px) saturate(1.8)}
+    #ptopbar{-webkit-backdrop-filter:none;backdrop-filter:none}
+  }
+  html.lite #pbotbar{background:rgba(18,18,20,.9);box-shadow:0 1rem 2rem rgba(0,0,0,.6)}
+
+  /* --- 进度条：细白线 + 圆形滑块 --- */
+  #track{height:.3rem;margin:0 .18rem .58rem;background:rgba(255,255,255,.22);border-radius:999px;
+    overflow:visible;position:relative}
+  #played{height:100%;background:#fff;border-radius:999px;transition:width .2s linear;position:relative}
+  #played:after{content:'';position:absolute;right:-.36rem;top:50%;width:.78rem;height:.78rem;
+    margin-top:-.39rem;border-radius:50%;background:#fff;box-shadow:0 .12rem .5rem rgba(0,0,0,.55)}
+  #tbub{bottom:2.6rem;border-radius:999px;background:rgba(28,28,30,.78);border:1px solid rgba(255,255,255,.14);
+    padding:.28rem .8rem;font-size:.8rem;font-weight:600;letter-spacing:.02em;
+    -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:0 .6rem 1.6rem rgba(0,0,0,.5)}
+  .ptime{font-size:.78rem;letter-spacing:.02em;color:rgba(255,255,255,.52);font-weight:500}
+  #pcur{color:rgba(255,255,255,.92);font-weight:600}
+
+  /* --- 按钮 --- */
+  #pbtns{display:flex;align-items:center;gap:.72rem;margin-top:1rem;flex-wrap:wrap}
+  .pb{height:2.9rem;padding:0 1.05rem;border-radius:999px;font-size:.9rem;font-weight:600;letter-spacing:.01em;
+    background:rgba(255,255,255,.13);color:#fff;border:1px solid rgba(255,255,255,.09);
+    display:inline-flex;align-items:center;justify-content:center;gap:.45rem;box-sizing:border-box;
+    font-family:-apple-system,"SF Pro Display","PingFang SC","HarmonyOS Sans SC","MiSans",sans-serif}
+  .pb svg{width:1.1rem;height:1.1rem;display:block;flex:none}
+  .pb.ic{width:2.9rem;padding:0}
+  .pb.play{width:3.5rem;height:3.5rem;background:#fff;color:#08080a;border:none;
+    box-shadow:0 .5rem 1.6rem rgba(0,0,0,.45)}
+  .pb.play svg{width:1.34rem;height:1.34rem}
+  .pb.play .i-pause{display:none}
+  .pb.play.playing .i-play{display:none}
+  .pb.play.playing .i-pause{display:block}
+  .pb.fx.on{background:#fff;color:#08080a;transform:scale(1.07);
+    box-shadow:0 0 0 .09rem rgba(255,255,255,.95),0 1rem 2.4rem rgba(0,0,0,.5)}
+  /* 播放键本身就是白的：聚焦时先垫一圈深色再套白环，白键和彩色画面上都看得见 */
+  .pb.play.fx.on{transform:scale(1.12);
+    box-shadow:0 0 0 .12rem rgba(6,6,8,.92),0 0 0 .3rem #fff,0 1.2rem 3rem rgba(0,0,0,.6)}
+  .pb[disabled]{opacity:.38}
+  #pbSep{width:1px;height:1.9rem;background:rgba(255,255,255,.16);margin-left:auto}
+
+  /* --- 选集 / 倍速 面板：和播放条同一个位置、同一块毛玻璃 --- */
+  #eps-sheet,#spd-sheet{left:2.4rem;right:2.4rem;bottom:1.8rem;border-radius:1.4rem;
+    border:1px solid rgba(255,255,255,.1);background:rgba(26,26,28,.82);
+    padding:1.3rem 1.5rem 1.5rem;box-shadow:0 1.8rem 4.2rem rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.11);
+    max-height:64vh;overflow:auto}
+  @supports (backdrop-filter: blur(2px)){
+    #eps-sheet,#spd-sheet{background:rgba(26,26,28,.62);
+      -webkit-backdrop-filter:blur(40px) saturate(1.7);backdrop-filter:blur(40px) saturate(1.7)}
+  }
+  html.lite #eps-sheet,html.lite #spd-sheet{background:rgba(18,18,20,.94)}
+  #eps-sheet .hd,#spd-sheet .hd{font-size:.72rem;letter-spacing:.14em;color:rgba(255,255,255,.45);
+    font-weight:600;margin-bottom:.9rem}
+  .ep,#spd-sheet .sp{height:2.6rem;border-radius:999px;background:rgba(255,255,255,.12);
+    font-size:.87rem;font-weight:600;color:#f2f2f4;border:1px solid rgba(255,255,255,.07)}
+  /* 「正在看 / 当前倍速」用一枚细白环表示，焦点才是白底 —— 两者不再长得一样 */
+  .ep.on,#spd-sheet .sp.on{background:rgba(255,255,255,.16);color:#fff;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.72)}
+  .ep.fx.on,#spd-sheet .sp.fx.on{background:#fff;color:#08080a;transform:scale(1.06);
+    box-shadow:0 0 0 .09rem rgba(255,255,255,.95),0 .9rem 2rem rgba(0,0,0,.5)}
+
+  /* --- 下一集卡片 --- */
+  #nx{width:27rem;padding:1.25rem 1.35rem;border-radius:1.3rem;background:rgba(28,28,30,.8);
+    border:1px solid rgba(255,255,255,.11);box-shadow:0 2rem 4.6rem rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.1)}
+  @supports (backdrop-filter: blur(2px)){
+    #nx{-webkit-backdrop-filter:blur(38px) saturate(1.7);backdrop-filter:blur(38px) saturate(1.7)}
+  }
+  #nx .h{font-size:.7rem;letter-spacing:.14em;color:rgba(255,255,255,.45);font-weight:600}
+  #nx .t{font-size:1.15rem;font-weight:600;margin:.38rem 0 .2rem}
+  #nx .s{font-size:.8rem;color:rgba(255,255,255,.58)}
+  #nx .r{gap:.6rem;margin-top:1rem}
+  #nx .cd{font-size:.82rem;color:rgba(255,255,255,.6);font-weight:600}
+
+  /* --- 提示条 --- */
+  #pmsg{font-size:1rem;color:#fff;line-height:1.6;max-width:64%;padding:1.1rem 1.6rem;border-radius:1.1rem;
+    background:rgba(24,24,26,.72);border:1px solid rgba(255,255,255,.1);
+    -webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);
+    box-shadow:0 1.4rem 3.4rem rgba(0,0,0,.55)}
+  html.lite #pmsg{background:rgba(16,16,18,.92)}
+
+  /* ============ 全局「圆润」一层：按钮 / 胶囊 / 卡片 ============ */
+  .btn{border-radius:999px;font-size:.94rem;font-weight:600;padding:.72rem 1.7rem;letter-spacing:.01em;
+    border:1px solid rgba(255,255,255,.09)}
+  .btn.primary{background:#fff;color:#08080a;border-color:#fff}
+  .btn:not(.primary){background:rgba(255,255,255,.14);color:#fff}
+  .btn.fx.on{transform:scale(1.06);box-shadow:0 0 0 .09rem #fff,0 1rem 2.2rem rgba(0,0,0,.5)}
+  .chip{border-radius:999px}
+  .chip.fx.on{transform:scale(1.05);box-shadow:0 0 0 .09rem #fff}
+  .key{border-radius:.6rem}
+  .sc-in{border-radius:.9rem}
+  .epc{border-radius:.8rem}
+  .card .poster{border-radius:.8rem}
+  .hero-poster{border-radius:.8rem}
+  .st-row{border-radius:.85rem}
+  #toast{border-radius:999px;background:rgba(28,28,30,.82);border:1px solid rgba(255,255,255,.13);
+    padding:.68rem 1.35rem;font-weight:600;
+    -webkit-backdrop-filter:blur(28px);backdrop-filter:blur(28px)}
+  html.lite #toast{background:rgba(16,16,18,.94)}
+  #extcard .ec-box{border-radius:1.5rem;background:rgba(26,26,28,.9);border:1px solid rgba(255,255,255,.1)}
+  #extcard .ec-h{font-weight:600}
+  /* 电视上焦点只走 .fx.on 那一套，不要浏览器默认的虚线框 */
+  #player button:focus,.pb:focus,#pbtns button:focus,.btn:focus{outline:none}
 </style>
 </head>
 <body>
@@ -676,13 +801,29 @@
     <div id="track"><div id="played"></div></div>
     <div class="ptime"><span id="pcur">00:00</span><span id="pdur">00:00</span></div>
     <div id="pbtns">
-      <button class="pb primary fx" id="pbPlay">⏸ 暂停</button>
-      <button class="pb fx" id="pbPrev">⏮ 上一集</button>
-      <button class="pb fx" id="pbNext">下一集 ⏭</button>
-      <button class="pb fx" id="pbEps">选集</button>
-      <button class="pb fx" id="pbRate">1.0x</button>
-      <button class="pb fx" id="pbExt">外部播放器</button>
-      <button class="pb fx" id="pbBack">退出播放</button>
+      <button class="pb ic fx" id="pbPrev" aria-label="上一集">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 5.2v13.6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M19.4 5.6v12.8L9.1 12z" fill="currentColor"/></svg>
+      </button>
+      <button class="pb ic play fx" id="pbPlay" aria-label="播放 / 暂停">
+        <svg class="i-play" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7.6 4.7v14.6L20 12z" fill="currentColor"/></svg>
+        <svg class="i-pause" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="7.4" y="4.9" width="3.5" height="14.2" rx="1.4" fill="currentColor"/><rect x="13.1" y="4.9" width="3.5" height="14.2" rx="1.4" fill="currentColor"/></svg>
+      </button>
+      <button class="pb ic fx" id="pbNext" aria-label="下一集">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M17.4 5.2v13.6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M4.6 5.6v12.8L14.9 12z" fill="currentColor"/></svg>
+      </button>
+      <div id="pbSep"></div>
+      <button class="pb fx" id="pbEps">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.4" y="4.4" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/><rect x="13.2" y="4.4" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/><rect x="4.4" y="13.2" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/><rect x="13.2" y="13.2" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/></svg>
+        选集
+      </button>
+      <button class="pb fx" id="pbRate">1.0×</button>
+      <button class="pb fx" id="pbExt">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13.6 4.6h5.8v5.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.4 4.6l-7.6 7.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M11.2 5.6H7a2.4 2.4 0 00-2.4 2.4v9a2.4 2.4 0 002.4 2.4h9a2.4 2.4 0 002.4-2.4v-4.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        外部播放器
+      </button>
+      <button class="pb ic fx" id="pbBack" aria-label="退出播放">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
     </div>
   </div>
   <div id="eps-sheet">
@@ -1489,12 +1630,25 @@
       });
   }
 
+  /* 采集站的线路名多是 lzm3u8 / ffm3u8 这类技术标识，电视上直接显示很难看：
+     技术名统一换成「线路 N」，跨源补上源名（和手机端同一套规则） */
+  function grpLabel(g, i) {
+    var n = (g && g.name) || '';
+    var base = (!n || /m3u8|mp4|^[a-z0-9_\-]+$/i.test(n)) ? ('线路 ' + (i + 1)) : n;
+    var s = (g && g.srcName) ? String(g.srcName) : '';
+    return s ? (base + ' · ' + s) : base;
+  }
+  function lineName(g) {
+    var gs = S.groups || [];
+    var i = gs.indexOf(g);
+    return grpLabel(g, i < 0 ? 0 : i);
+  }
   function renderGroups(gi, epIdx, pic) {
     S.group = gi || 0;
     var chips = $('dtLines'); chips.innerHTML = '';
     S.groups.forEach(function (g, i) {
       var b = el('button', 'chip fx');
-      b.textContent = (g.name || ('线路 ' + (i + 1))) + (g.total ? ' · ' + g.total + ' 集' : '');
+      b.textContent = grpLabel(g, i) + (g.total ? ' · ' + g.total + ' 集' : '');
       if (i === S.group) b.classList.add('on');
       b.addEventListener('click', function () { renderGroups(i, 0, pic); });
       chips.appendChild(b);
@@ -1611,7 +1765,9 @@
   var seeking = false;
   function bars(show) {
     $('ptopbar').classList.toggle('hide', !show);
-    $('pbotbar').classList.toggle('hide', !show);
+    /* 选集 / 倍速面板占的是播放条那个位置，开着的时候把条子收起来，别两块玻璃叠在一起 */
+    var sheet = $('eps-sheet').classList.contains('on') || $('spd-sheet').classList.contains('on');
+    $('pbotbar').classList.toggle('hide', !show || sheet);
     clearTimeout(hideT);
     if (show) hideT = setTimeout(function () {
       if (!v.paused && !barFocus && !seeking) bars(false);
@@ -1665,7 +1821,7 @@
       if (ei < 0 || !eps[ei] || !eps[ei].url) continue;
       triedLine[k] = 1;
       tryCount++;
-      var nm = gs[i].name || ('线路 ' + (i + 1));
+      var nm = grpLabel(gs[i], i);
       S.group = i; S.eps = eps; S.ep = ei;
       $('psub').textContent = (eps[ei].label || label) + ' · ' + nm;
       $('pmsg').classList.remove('on');
@@ -1763,16 +1919,16 @@
     $('nav').style.display = 'none';
     $('peek').classList.remove('on');
     $('ptitle').textContent = S.title;
-    $('psub').textContent = (e.label || ('第' + (i + 1) + '集')) + (g.name ? ' · ' + g.name : '');
+    $('psub').textContent = (e.label || ('第' + (i + 1) + '集')) + ' · ' + lineName(g);
     $('pcur').textContent = '00:00'; $('pdur').textContent = '00:00'; $('played').style.width = '0%';
-    $('pbPlay').textContent = '⏸ 暂停';
+    $('pbPlay').classList.add('playing');
     /* 上次选的倍速接着用：换集、换片、重开 App 都保持，别每集都回 1x */
     var rr = savedRate();
     if (rr) {
       try { v.defaultPlaybackRate = rr; v.playbackRate = rr; } catch (e) {}
       $('pbRate').textContent = rateLabel(rr);
     } else {
-      $('pbRate').textContent = '1.0x';
+      $('pbRate').textContent = '1.0×';
     }
     /* 起播位置：先把 loadedmetadata 的监听挂上，再交给 attach。
        顺序反过来的话，本地 / 局域网秒开的片子会在监听注册之前就跑完 metadata，
@@ -1846,9 +2002,13 @@
     /* 首页那一行立刻反映「刚才看到哪」，不用重开 App */
     try { refreshRecRows(); } catch (e) {}
   }
+  function setPlayState(playing) {
+    var b = $('pbPlay');
+    if (b) b.classList.toggle('playing', !!playing);
+  }
   function togglePlay() {
-    if (v.paused) { v.play().catch(function () {}); $('pbPlay').textContent = '⏸ 暂停'; flashBig('▶'); }
-    else { v.pause(); $('pbPlay').textContent = '▶ 播放'; flashBig('⏸'); rememberPos(); }
+    if (v.paused) { v.play().catch(function () {}); setPlayState(true); flashBig('▶'); }
+    else { v.pause(); setPlayState(false); flashBig('⏸'); rememberPos(); }
     bars(true);
   }
   function rememberPos() {
@@ -1937,6 +2097,7 @@
   }
   function toggleEps() {
     var on = $('eps-sheet').classList.toggle('on');
+    bars(true);
     if (on) {
       barFocus = false;
       var g = S.groups[S.group] || {}, box = $('pEpsGrid');
@@ -1986,7 +2147,7 @@
   /* 倍速：面板里一眼选，不再「点一下轮一个」 */
   var SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
   var RATE_KEY = 'mfl:rate';
-  function rateLabel(r) { return (r === 1 ? '1.0' : String(r)) + 'x'; }
+  function rateLabel(r) { return (r === 1 ? '1.0' : String(r)) + '×'; }
   function savedRate() {
     try { var r = Number(localStorage.getItem(RATE_KEY) || 0); if (r >= 0.25 && r <= 4) return r; } catch (e) {}
     return 0;
@@ -2019,12 +2180,14 @@
     clearTimeout(bubT);
     var tb = $('tbub'); if (tb) tb.classList.remove('on');
     $('spd-sheet').classList.add('on');
+    bars(true);
     barFocus = false;
     var cur = document.querySelector('#spdGrid .sp.on') || document.querySelector('#spdGrid .sp');
     if (cur) paintFocus(cur);
   }
   function closeSpeeds() {
     $('spd-sheet').classList.remove('on');
+    bars(true);
     paintFocus($('pbRate'));
   }
   $('pbRate').addEventListener('click', function () { openSpeeds(); });
@@ -2121,10 +2284,13 @@
     $('pbrand').classList.remove('on');
     $('pmsg').classList.remove('on');
     var g = S.groups[S.group] || {};
-    $('psub').textContent = ((S.eps[S.ep] || {}).label || ('第' + (S.ep + 1) + '集')) + (g.name ? ' · ' + g.name : '');
+    $('psub').textContent = ((S.eps[S.ep] || {}).label || ('第' + (S.ep + 1) + '集')) + ' · ' + lineName(g);
   });
   v.addEventListener('waiting', function () { $('psub').textContent = '缓冲中…'; });
   v.addEventListener('ended', function () { rememberPos(); offerNext(); });
+  /* 图标跟着真实状态走：播完、被外部暂停、自动换线路重连，按钮上的三角 / 双竖线不会停在错的那个 */
+  v.addEventListener('play', function () { setPlayState(true); });
+  v.addEventListener('pause', function () { setPlayState(false); });
 
   /* ================= 视图 / 返回栈 ================= */
   var stack = ['home'];
