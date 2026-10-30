@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#000000">
+<link rel="icon" href="data:,">
 <title>MFlixTV</title>
 <style>
   :root{
@@ -805,6 +806,27 @@
   function jset(key, val) {
     try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
   }
+
+  /* ---------------- 追剧连播：跳过片头 / 片尾提前 ----------------
+     与电视端（tv.html）共用同一组键、同样的 raw 字符串写法：
+     同一台设备上两个界面（tv.html / index.html）读到的是同一份设置。
+     片头默认关（会真的挪播放位置，让用户自己开）；片尾默认 45 秒提前。 */
+  var SKIP_HEAD_KEY = 'mfl:skiphead', SKIP_TAIL_KEY = 'mfl:skiptail';
+  var HEADS = [0, 30, 60, 90, 120, 150, 180];
+  var TAILS = [0, 20, 30, 45, 60];
+  function skipHead() {
+    var s = ls(SKIP_HEAD_KEY);
+    if (s === null) return 0;
+    var n = Number(String(s).replace(/"/g, ''));
+    return isNaN(n) ? 0 : n;
+  }
+  function skipTail() {
+    var s = ls(SKIP_TAIL_KEY);
+    if (s === null) return 45;
+    var n = Number(String(s).replace(/"/g, ''));
+    return isNaN(n) ? 45 : n;
+  }
+  function skipTxt(v) { return v ? v + ' 秒' : '关闭'; }
 
   /* ---------------- 本机记录：继续观看 / 我的列表 ---------------- */
   var K_CONT = 'mfl:continue', K_LIST = 'mfl:list';
@@ -1734,6 +1756,7 @@
 
   /* ---------------- 播放器 ---------------- */
   var v = $('video'), dragging = false, attachKey = '', lastSave = 0, lastCont = 0;
+  var lastTailTag = '';
 
   // 视频还没出画面时的占位图：MFlixTV 字标（黑底），替代浏览器默认的白框播放图标
   try {
@@ -1968,15 +1991,48 @@
         touchCont({ pos: Math.floor(v.currentTime), dur: Math.floor(v.duration || 0) });
       }
     }
+    /* 片尾提前切下一集：只有「播完自动下一集」开着才做，
+       否则等于擅自替用户跳过片尾字幕（有彩蛋的片子会很讨厌）。 */
+    var tl = skipTail();
+    if (tl > 0 && autoNextOn() && v.duration > tl + 60 && (v.duration - v.currentTime) <= tl) {
+      var tag = state.title + '#' + state.ep;
+      if (lastTailTag !== tag && state.ep + 1 < state.eps.length) {
+        lastTailTag = tag;
+        toast('片尾跳过，继续下一集');
+        playEp(state.ep + 1);
+      }
+    }
   });
+  /* 起播位置：有观看记录就续播，没有记录才看要不要跳片头。
+     hls.js + MSE 的 duration 是边 append 边长的（loadedmetadata 那一刻常常只有首段长度），
+     所以等它连续两次给出同一个非零值再判断，最多等 10 秒；换集时旧回调靠 startTok 自动作废。 */
+  var startTok = 0;
+  function applyStartPos(key, sh) {
+    var tok = ++startTok;
+    var last = -1, tries = 0;
+    function apply(d) {
+      if (tok !== startTok) return;
+      var t = Number(ls(key) || 0);
+      if (t > 8) {
+        if (t < d - 15) { v.currentTime = t; toast('从上次看到的位置继续'); }
+        return;
+      }
+      if (sh > 0 && d > sh + 60) { v.currentTime = sh; toast('已跳过片头 ' + sh + ' 秒'); }
+    }
+    (function step() {
+      if (tok !== startTok) return;
+      var d = v.duration || 0;
+      var okDur = d > 0 && isFinite(d);
+      if (okDur && Math.abs(d - last) < 1) { apply(d); return; }
+      last = okDur ? d : -1;
+      if (++tries < 50) { setTimeout(step, 200); return; }
+      if (okDur) apply(d);
+    })();
+  }
   v.addEventListener('loadedmetadata', function () {
     $('pdur').textContent = fmt(v.duration);
     if (!attachKey) return;
-    var t = Number(ls(attachKey) || 0);
-    if (t > 8 && v.duration && t < v.duration - 15) {
-      v.currentTime = t;
-      toast('从上次看到的位置继续');
-    }
+    applyStartPos(attachKey, skipHead());
   });
   v.addEventListener('error', function () {
     if (!$('player').classList.contains('on')) return;
@@ -2261,6 +2317,8 @@
         '<div class="set-h">播放</div>' +
         '<div class="row"><span>播完自动下一集</span><button class="sw' + (autoNextOn() ? ' on' : '') +
           '" data-set="auto"><i></i></button></div>' +
+        '<div class="row"><span>跳过片头</span><button class="lnk" data-set="skiphead">' + skipTxt(skipHead()) + '</button></div>' +
+        '<div class="row"><span>片尾提前</span><button class="lnk" data-set="skiptail">' + skipTxt(skipTail()) + '</button></div>' +
         '<div class="row"><span>从头重新播放</span><button class="lnk" data-set="restart">从头播放</button></div>' +
         '<div class="row"><span>复制当前播放地址</span><button class="lnk" data-set="copy">复制</button></div>' +
         '<div class="row"><span>画面铺满窗口</span><button class="lnk" data-set="web">' +
@@ -2316,6 +2374,24 @@
       ls('mfl:autonext', on ? '1' : '0');
       el.classList.toggle('on', on);
       toast(on ? '播完自动下一集：已开启' : '播完自动下一集：已关闭');
+      return;
+    }
+    if (k === 'skiphead') {
+      var hi = HEADS.indexOf(skipHead());
+      hi = (hi + 1) % HEADS.length;
+      ls(SKIP_HEAD_KEY, String(HEADS[hi]));
+      el.textContent = skipTxt(HEADS[hi]);
+      toast(HEADS[hi] ? '每集自动跳过片头 ' + HEADS[hi] + ' 秒' : '不再跳过片头');
+      return;
+    }
+    if (k === 'skiptail') {
+      var ti = TAILS.indexOf(skipTail());
+      ti = (ti + 1) % TAILS.length;
+      ls(SKIP_TAIL_KEY, String(TAILS[ti]));
+      el.textContent = skipTxt(TAILS[ti]);
+      toast(TAILS[ti]
+        ? ('片尾剩 ' + TAILS[ti] + ' 秒时直接下一集' + (autoNextOn() ? '' : '（需开着「播完自动下一集」）'))
+        : '片尾不再提前跳');
       return;
     }
     if (k === 'restart') {

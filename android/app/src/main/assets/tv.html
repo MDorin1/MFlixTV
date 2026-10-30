@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#000000">
+<link rel="icon" href="data:,">
 <title>MFlixTV · TV</title>
 <style>
   /* ============ MFlixTV 电视版 · 10 英尺界面 ============
@@ -80,18 +81,22 @@
   .btn{display:flex;align-items:center;gap:.45rem;font-size:.95rem;font-weight:800;
     padding:.72rem 1.4rem;border-radius:.4rem;background:rgba(80,80,80,.55);color:#fff}
   .btn.primary{background:#fff;color:#111}
+  /* 详情页「我的列表」：已加入时高亮，一眼看出当前状态 */
+  .btn.fav-on{background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 .09rem rgba(255,255,255,.92)}
   .btn.fx.on{transform:scale(1.06);box-shadow:0 0 0 .1rem #fff,0 0 1.4rem rgba(229,9,20,.5)}
   .hero-dots{position:absolute;left:4rem;bottom:1.15rem;z-index:4;display:flex;gap:.36rem}
   .hero-dots i{width:1.25rem;height:.18rem;border-radius:.2rem;background:rgba(255,255,255,.22)}
   .hero-dots i.on{background:var(--red2)}
 
   /* ---------- 片单横排 ---------- */
-  #rails{padding:0 0 4rem;position:relative;z-index:4;margin-top:-.5rem}
+  #rails{padding:0 0 4rem;position:relative;z-index:4;margin-top:1.1rem}
   .rail{margin:0 0 2rem}
-  .rail-h{display:flex;align-items:baseline;gap:.7rem;padding:0 4rem .55rem}
+  .rail-h{display:flex;align-items:baseline;gap:.7rem;padding:0 4rem .2rem}
   .rail-h .t{font-size:1.2rem;font-weight:800;letter-spacing:.005em}
   .rail-h .s{font-size:.74rem;color:var(--dim2)}
-  .strip{display:flex;gap:.75rem;padding:.55rem 4rem 1.25rem;overflow-x:auto;overflow-y:hidden;
+  /* padding-top 必须留够：焦点卡会 scale(1.16) 再上移 .35rem，纵向约溢出 1.5rem，
+     而 overflow-y 必须是 hidden（否则横向滚动时会冒出纵向滚动条），不给足就被切顶。 */
+  .strip{display:flex;gap:.75rem;padding:1.7rem 4rem 1.25rem;overflow-x:auto;overflow-y:hidden;
     scroll-behavior:smooth;scrollbar-width:none}
   .card{flex:0 0 auto;width:9.2rem;text-align:left;background:none;border-radius:.45rem;
     transform-origin:center bottom}
@@ -106,6 +111,23 @@
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .card .tag{position:absolute;left:.35rem;top:.35rem;font-size:.58rem;font-weight:900;color:#fff;
     background:rgba(0,0,0,.66);padding:.12rem .34rem;border-radius:.2rem}
+  /* ---- 继续观看 / 我的列表（本机记录行）---- */
+  /* 海报最底一条红色进度：一眼看出看到哪了 */
+  .card .prog{position:absolute;left:0;right:0;bottom:0;height:.19rem;min-height:2.5px;
+    background:rgba(255,255,255,.24);z-index:4}
+  .card .prog i{display:block;height:100%;min-width:3px;background:var(--red);
+    box-shadow:0 0 0 .04rem rgba(229,9,20,.45)}
+  /* 右上角的集标：跟左上角 .tag 对称，不跟片名抢底部 */
+  .card .ep-tag{position:absolute;right:.35rem;top:.35rem;font-size:.56rem;font-weight:900;color:#f2f2f2;
+    background:rgba(0,0,0,.7);padding:.12rem .34rem;border-radius:.2rem;max-width:70%;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:4}
+  /* 「剩 23 分钟」压在片名上面一行 */
+  .card .resume{position:absolute;left:.45rem;right:.45rem;bottom:1.58rem;font-size:.58rem;font-weight:700;
+    color:#c9c9c9;text-shadow:0 .08rem .4rem rgba(0,0,0,.95);z-index:4;letter-spacing:.01em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* 记录卡片的片名只留一行：两行会跟剩余时长那行挤在一起 */
+  .card.rec .name{-webkit-line-clamp:1}
+  .card.rec .poster{outline:.06rem solid rgba(255,255,255,.14);outline-offset:-.06rem}
   /* 焦点：放大 + 白边 + 红色辉光；同一排其它片子压暗（Netflix / Google TV 的手感） */
   .strip.focusing .card{opacity:.5}
   .strip.focusing .card.on{opacity:1}
@@ -395,10 +417,10 @@
   /* ---- 片单横排 ---- */
   #rails{padding-bottom:3rem}
   .rail{margin-bottom:2.9rem}
-  .rail-h{padding-bottom:.7rem}
+  .rail-h{padding-bottom:.2rem}
   .rail-h .t{font-size:1.32rem;font-weight:800;letter-spacing:-.005em}
   .rail-h .s{font-size:.72rem;color:#767676}
-  .strip{gap:.8rem;padding:.65rem 4rem 1.35rem}
+  .strip{gap:.8rem;padding:1.85rem 4rem 1.35rem}
   .card{width:9.7rem}
   .card .poster{border-radius:.28rem;box-shadow:0 .4rem 1rem rgba(0,0,0,.5)}
   .card .shade{height:58%}
@@ -616,6 +638,7 @@
       <button class="btn primary fx" id="dtPlay">▶ 播放</button>
       <button class="btn fx" id="dtFirst">从第一集开始</button>
       <button class="btn fx" id="dtExt">外部播放器</button>
+      <button class="btn fx" id="dtFav">+ 我的列表</button>
     </div>
     <div class="dt-sec">
       <div class="dt-h"><span class="t">线路</span><span class="s" id="dtLineCnt"></span></div>
@@ -900,6 +923,115 @@
     detailItem: null,
   };
 
+  /* ================= 本机记录：继续观看 / 我的列表 =================
+     键名和数据结构与手机端（index.html）完全一致：同一台设备上 tv.html 与
+     index.html 同源，读到的是同一份 localStorage —— 电视上看了一半，手机点开也在。
+     以后要跨设备同步，把 contAll/listAll 换成服务端接口即可，别处不用动。 */
+  var K_CONT = 'mfl:continue', K_LIST = 'mfl:list';
+  function jget(k, dv) {
+    try { var s = localStorage.getItem(k); return s ? JSON.parse(s) : dv; } catch (e) { return dv; }
+  }
+  function jset(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function isArr(a) { return Object.prototype.toString.call(a) === '[object Array]'; }
+  function contAll() { var a = jget(K_CONT, []); return isArr(a) ? a : []; }
+  function listAll() { var a = jget(K_LIST, []); return isArr(a) ? a : []; }
+  function recKey(r) { return (r.name || '') + '|' + (r.src || '') + '|' + (r.vodId || ''); }
+
+  /** 播放时落一条记录：同一部片只留最新一条并挪到最前（最多 24 部）。 */
+  function touchCont(patch) {
+    if (!S.title) return;
+    var g = S.groups[S.group] || {}, e = (g.episodes || [])[S.ep] || {};
+    var rec = {
+      name: S.title, pic: (S.detailItem && S.detailItem.pic) || S.pic || '',
+      src: S.src || '', vodId: S.vodId || '',
+      typeName: (S.detailItem && (S.detailItem.typeName || S.detailItem.type)) || '',
+      g: S.group | 0, ep: S.ep | 0, epLabel: e.label || ('第' + (S.ep + 1) + '集'),
+      gname: g.name || '', pos: 0, dur: 0, ts: Date.now()
+    };
+    var all = contAll(), k = recKey(rec), keep = [];
+    for (var i = 0; i < all.length; i++) {
+      if (recKey(all[i]) === k) { rec.pos = all[i].pos || 0; rec.dur = all[i].dur || 0; }
+      else keep.push(all[i]);
+    }
+    if (patch) { if (patch.pos != null) rec.pos = patch.pos; if (patch.dur != null) rec.dur = patch.dur; }
+    // 换集时把进度归零，否则会带着上一集的比例
+    if (patch && patch.resetPos) { rec.pos = 0; rec.dur = 0; }
+    keep.unshift(rec);
+    jset(K_CONT, keep.slice(0, 24));
+  }
+  function contFind(name, src, vodId) {
+    var k = (name || '') + '|' + (src || '') + '|' + (vodId || '');
+    var all = contAll();
+    for (var i = 0; i < all.length; i++) if (recKey(all[i]) === k) return all[i];
+    return null;
+  }
+  function dropCont(k) { jset(K_CONT, contAll().filter(function (r) { return recKey(r) !== k; })); }
+  function inList(k) { return listAll().some(function (r) { return recKey(r) === k; }); }
+  function toggleList() {
+    var rec = {
+      name: S.title, pic: (S.detailItem && S.detailItem.pic) || S.pic || '',
+      src: S.src || '', vodId: S.vodId || '', ts: Date.now()
+    };
+    var k = recKey(rec), all = listAll();
+    if (inList(k)) {
+      jset(K_LIST, all.filter(function (r) { return recKey(r) !== k; }));
+      toast('已从「我的列表」移除'); S.listOn = false;
+    } else {
+      all.unshift(rec); jset(K_LIST, all.slice(0, 80));
+      toast('已加入「我的列表」'); S.listOn = true;
+    }
+    paintFavBtn();
+  }
+  function paintFavBtn() {
+    var b = $('dtFav');
+    if (!b) return;
+    b.textContent = S.listOn ? '✓ 我的列表' : '+ 我的列表';
+    b.classList.toggle('fav-on', !!S.listOn);
+  }
+  /** 剩余时长文案：给「继续观看」卡片用。卡片下方只有一行，越短越好，
+      真机上「剩 1 小时 1 分钟」这种长句会被截成「剩 1 小时 1…」，白瞎。 */
+  function leftTxt(rec) {
+    if (!rec || !(rec.dur > 0)) return '';
+    var left = Math.max(0, rec.dur - (rec.pos || 0));
+    if (left < 60) return '看完了';
+    var m = Math.round(left / 60);
+    if (m < 60) return '剩' + m + '分';
+    var h = Math.floor(m / 60), r = m % 60;
+    return '剩' + h + '时' + (r ? r + '分' : '');
+  }
+  /** 卡片上的集标只留「第N集 / EPn / S1E2」这种真集数；
+      「HD中字」这类清晰度标签在窄卡片上一行放不下，直接不显示。 */
+  function epTagOf(rec) {
+    var s = String((rec && rec.epLabel) || '').trim();
+    if (!s || s.length > 8) return '';
+    if (/^(第\s*\d+\s*[集话期回]|EP?\s*\d+|S\d+\s*E\d+)/i.test(s)) return s;
+    return '';
+  }
+
+  /* ================= 追剧连播：跳过片头 / 片尾提前 =================
+     遥控器打不了字，所以不搞「输入秒数」：设置页里点一下切一档。
+     片头默认关闭（会真的挪播放位置，让用户自己开）；片尾默认 45 秒提前
+     （只是把「接下来播放」提前叫出来，不改变播放位置）。 */
+  var SKIP_HEAD_KEY = 'mfl:skiphead', SKIP_TAIL_KEY = 'mfl:skiptail';
+  var HEADS = [0, 30, 60, 90, 120, 150, 180];
+  var TAILS = [0, 20, 30, 45, 60];
+  function skipHead() {
+    var s = null;
+    try { s = localStorage.getItem(SKIP_HEAD_KEY); } catch (e) {}
+    if (s === null) return 0;
+    /* 手机端写的是 raw 字符串，老版本可能 WriteAllText 成带引号的，去引号再做数 */
+    var n = Number(String(s).replace(/"/g, ''));
+    return isNaN(n) ? 0 : n;
+  }
+  function skipTail() {
+    var s = null;
+    try { s = localStorage.getItem(SKIP_TAIL_KEY); } catch (e) {}
+    if (s === null) return 45;
+    var n = Number(String(s).replace(/"/g, ''));
+    return isNaN(n) ? 45 : n;
+  }
+  function skipTxt(v) { return v ? v + ' 秒' : '关闭'; }
+
   function cardNode(it, extraTag) {
     var b = el('button', 'card fx');
     b.dataset.src = it.src || '';
@@ -926,6 +1058,135 @@
     b.appendChild(p);
     b.addEventListener('click', function () { openDetail(b.__item); });
     return b;
+  }
+
+  /* ================= 本机记录行的卡片 ================= */
+  /** 继续观看 / 我的列表 用的卡片：海报一样，底部多一条进度，右上角多一个集标。 */
+  function recCardNode(rec, cont) {
+    var b = el('button', 'card fx rec');
+    b.dataset.name = rec.name || '';
+    b.dataset.src = rec.src || '';
+    b.dataset.id = rec.vodId || '';
+    b.__rec = rec;
+    b.__cont = !!cont;
+    var p = el('div', 'poster');
+    var pic0 = imgURL(rec.pic);
+    if (pic0) {
+      var im = el('img'); im.loading = 'lazy'; im.src = pic0;
+      im.onerror = function () {
+        if (im.getAttribute('data-fb') !== '1' && /^https?:/i.test(String(rec.pic || ''))) {
+          im.setAttribute('data-fb', '1'); im.src = rec.pic; return;
+        }
+        try { im.remove(); } catch (e) {}
+      };
+      p.appendChild(im);
+    }
+    p.appendChild(el('div', 'shade'));
+    /* 底部小字：集标 + 剩余时长合成一行。
+       不放右上角——焦点卡会放大并上移，右上角正好落进 strip 的裁切区。 */
+    var bits = [];
+    var epTag = epTagOf(rec);
+    if (epTag) bits.push(epTag);
+    if (cont) { var lt = leftTxt(rec); if (lt) bits.push(lt); }
+    if (bits.length) {
+      var rt = el('div', 'resume'); rt.textContent = bits.join(' · '); p.appendChild(rt);
+    }
+    if (cont && rec.dur > 0) {
+      var pr = el('div', 'prog'), pi = el('i');
+      pi.style.width = Math.max(2, Math.min(100, 100 * (rec.pos || 0) / rec.dur)) + '%';
+      pr.appendChild(pi); p.appendChild(pr);
+    }
+    var n = el('div', 'name'); n.textContent = rec.name || ''; p.appendChild(n);
+    b.appendChild(p);
+    b.addEventListener('click', function () {
+      if (b.__cont) playRec(b.__rec); else openDetailByRec(b.__rec);
+    });
+    return b;
+  }
+
+  /** 「我的列表」里的片子点开就是详情页（没有完整 item，用记录拼一个够用的）。 */
+  function openDetailByRec(rec) {
+    openDetail({
+      name: rec.name, pic: rec.pic, src: rec.src, vodId: rec.vodId,
+      typeName: rec.typeName || '', content: ''
+    });
+  }
+
+  /** 「继续观看」直接开播：跳过详情页，拉到分集后按集标定位，位置由 playEp 自己恢复。 */
+  function playRec(rec) {
+    if (!rec || !rec.name) return;
+    var go = function (d) {
+      var groups = (d && d.groups) || [];
+      if (!groups.length) { toast('这部片的分集没取到，进详情页换条线路试试'); openDetailByRec(rec); return; }
+      var gi = Math.max(0, Math.min(groups.length - 1, rec.g | 0));
+      // 记录里的线路名还在就优先用它（线路顺序可能变过）
+      if (rec.gname) {
+        for (var i = 0; i < groups.length; i++) {
+          if ((groups[i].name || '') === rec.gname) { gi = i; break; }
+        }
+      }
+      S.title = (d && d.name) || rec.name;
+      S.src = rec.src || '';
+      S.vodId = rec.vodId || '';
+      S.detailItem = {
+        name: S.title, pic: (d && d.pic) || rec.pic, src: S.src, vodId: S.vodId,
+        typeName: (d && d.typeName) || rec.typeName || ''
+      };
+      S.groups = groups; S.group = gi;
+      S.eps = groups[gi].episodes || [];
+      var idx = 0;
+      if (rec.epLabel != null) {
+        for (var j = 0; j < S.eps.length; j++) {
+          if ((S.eps[j].label || ('第' + (j + 1) + '集')) === rec.epLabel) { idx = j; break; }
+        }
+      } else if (S.eps.length) {
+        idx = Math.max(0, Math.min(S.eps.length - 1, rec.ep | 0));
+      }
+      S.ep = idx;
+      playEp(idx);
+    };
+    if (S.title === rec.name && S.groups && S.groups.length) { go({ groups: S.groups, name: S.title, pic: rec.pic }); return; }
+    toast('正在接通「' + rec.name + '」…');
+    getJSON('/api/detail?src=' + encodeURIComponent(rec.src || '') +
+      '&id=' + encodeURIComponent(rec.vodId || ''))
+      .then(go)
+      .catch(function (e) {
+        toast('没接通：' + (e && e.message ? e.message : '网络错误'));
+        openDetailByRec(rec);
+      });
+  }
+
+  /** 把「继续观看 / 我的列表」两行挂上去（本地数据，同步、不等网络）。 */
+  function mountRecRows(box) {
+    var conts = contAll().filter(function (r) { return r && r.name; });
+    var lists = listAll().filter(function (r) { return r && r.name; });
+    if (conts.length) {
+      var rc = railNode('继续观看', conts.length + ' 部');
+      conts.slice(0, 20).forEach(function (r) { rc.strip.appendChild(recCardNode(r, true)); });
+      box.appendChild(rc.sec);
+    }
+    if (lists.length) {
+      var rl = railNode('我的列表', lists.length + ' 部');
+      lists.slice(0, 20).forEach(function (r) { rl.strip.appendChild(recCardNode(r, false)); });
+      box.appendChild(rl.sec);
+    }
+  }
+
+  /** 只重建记录行，不动业务行（焦点、滚动位置都不受影响）。
+      退出播放器、从详情回首页、收藏变化后都要叫一次，
+      否则「刚看到第几集」还停在打开 App 那一刻。 */
+  function refreshRecRows() {
+    var rails = $('rails');
+    if (!rails) return;
+    var old = $('recBox');
+    var fresh = el('div'); fresh.id = 'recBox';
+    try { mountRecRows(fresh); } catch (e) {}
+    if (old) {
+      if (fresh.children.length) old.parentNode.replaceChild(fresh, old);
+      else if (old.parentNode) old.parentNode.removeChild(old);
+    } else if (fresh.children.length) {
+      rails.insertBefore(fresh, rails.firstChild);
+    }
   }
 
   /* 双背景交叉淡入，Netflix 换片那种感觉 */
@@ -1015,21 +1276,29 @@
   function loadHome() {
     var rails = $('rails');
     rails.innerHTML = '';
+    /* 本机记录先挂：本地同步读，不等网络 —— 打开电视就能接着看，
+       源站慢或者全挂了也不影响「继续观看」这一行。 */
+    var recBox = el('div'); recBox.id = 'recBox';
+    try { mountRecRows(recBox); } catch (e) {}
+    if (recBox.children.length) rails.appendChild(recBox);
+    /* 业务行单独一个容器：刷新只重建这块，记录行不闪、焦点不丢 */
+    var bizBox = el('div'); bizBox.id = 'bizBox';
+    rails.appendChild(bizBox);
     for (var i = 0; i < 3; i++) {
       var sk = railNode(i === 0 ? '最近更新' : '\u00a0', '');
       for (var k = 0; k < 9; k++) {
         var c = el('div', 'card sk'); c.appendChild(el('div', 'poster'));
         sk.strip.appendChild(c);
       }
-      rails.appendChild(sk.sec);
+      bizBox.appendChild(sk.sec);
     }
     getJSON('/api/home').then(function (d) {
-      rails.innerHTML = '';
+      bizBox.innerHTML = '';
       S.rows = (d && d.rows) || [];
       if (!S.rows.length) {
         var n = el('div', 'rail-note');
         n.textContent = '片单是空的：源站可能连不上。去手机的设置页看一眼源，或者稍后按返回重试。';
-        rails.appendChild(n);
+        bizBox.appendChild(n);
         return;
       }
       var pool0 = (S.rows[0].items || []).filter(function (x) { return x && x.pic; });
@@ -1040,7 +1309,7 @@
         if (!items.length) return;
         var r = railNode(row.title || '片单', items.length + ' 部');
         items.forEach(function (it) { r.strip.appendChild(cardNode(it)); });
-        rails.appendChild(r.sec);
+        bizBox.appendChild(r.sec);
       });
       getJSON('/api/calendar?limit=14').then(function (c) {
         var gs = (c && c.groups) || [], list = [];
@@ -1048,15 +1317,15 @@
         if (!list.length) return;
         var r = railNode('今天更新', (c.selected && c.selected.totals ? c.selected.totals.all : list.length) + ' 部');
         list.slice(0, 26).forEach(function (it) { r.strip.appendChild(cardNode(it, it.remarks || '更新')); });
-        rails.appendChild(r.sec);
+        bizBox.appendChild(r.sec);
         buildHot();
       }).catch(function () { buildHot(); });
       if (!focusEl) focusFirst('#heroPlay');
     }).catch(function (e) {
-      rails.innerHTML = '';
+      bizBox.innerHTML = '';
       var n = el('div', 'rail-note');
       n.textContent = '取片单失败：' + (e && e.message ? e.message : '网络错误');
-      rails.appendChild(n);
+      bizBox.appendChild(n);
       buildHot();
     });
   }
@@ -1113,12 +1382,35 @@
   $('scGo').addEventListener('click', doSearch);
 
   /* ================= 详情 ================= */
+  /** 这部片看过的话，算回复播的线路与集索引（线路名 / 集标优先，索引兜底）。 */
+  function resumeSpot(groups) {
+    var rec = contFind(S.title, S.src, S.vodId);
+    if (!rec || !groups || !groups.length) return null;
+    var gi = 0, ei = 0;
+    if (rec.gname) {
+      for (var i = 0; i < groups.length; i++) {
+        if ((groups[i].name || '') === rec.gname) { gi = i; break; }
+      }
+    } else if (rec.g) { gi = Math.max(0, Math.min(groups.length - 1, rec.g | 0)); }
+    var eps = (groups[gi] || {}).episodes || [];
+    if (rec.epLabel != null) {
+      var hit = -1;
+      for (var j = 0; j < eps.length; j++) {
+        if ((eps[j].label || ('第' + (j + 1) + '集')) === rec.epLabel) { hit = j; break; }
+      }
+      if (hit >= 0) ei = hit;
+    } else if (rec.ep) { ei = Math.max(0, Math.min(eps.length - 1, rec.ep | 0)); }
+    return { gi: gi, ei: ei, rec: rec };
+  }
+
   function openDetail(it) {
     if (!it) return;
     S.detailItem = it;
     S.title = it.name || '';
     S.src = it.src || '';
     S.vodId = it.vodId || it.id || '';
+    S.listOn = inList(recKey({ name: S.title, src: S.src, vodId: S.vodId }));
+    try { paintFavBtn(); } catch (e) {}
     showView('detail');
     $('dtTitle').textContent = it.name || '—';
     $('dtMeta').innerHTML = [it.typeName, it.year, it.area, it.remarks, it.srcName]
@@ -1144,14 +1436,16 @@
           .filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('<span class="dot"></span>');
         S.groups = d.groups || [];
         S.ep = 0;
-        renderGroups(0, 0, d.pic || it.pic || '');
+        var sp = resumeSpot(S.groups);
+        renderGroups(sp ? sp.gi : 0, sp ? sp.ei : 0, d.pic || it.pic || '');
         getJSON('/api/lines?name=' + encodeURIComponent(S.title) +
           '&src=' + encodeURIComponent(S.src) + '&id=' + encodeURIComponent(S.vodId))
           .then(function (l) {
             var gs = (l && l.groups) || [];
             if (gs.length > S.groups.length) {
               S.groups = gs;
-              renderGroups(0, 0, d.pic || it.pic || '');
+              var sp2 = resumeSpot(S.groups);
+              renderGroups(sp2 ? sp2.gi : 0, sp2 ? sp2.ei : 0, d.pic || it.pic || '');
             }
           }).catch(function () {});
       })
@@ -1193,13 +1487,32 @@
       b.addEventListener('click', function () { playEp(i); });
       box.appendChild(b);
     });
-    // 播放按钮：接着看这一集
+    // 播放按钮：接着看这一集（这部片看过就把文案换成「继续观看 · 第 N 集」）
+    var rp = contFind(S.title, S.src, S.vodId);
+    var curLabel = (S.eps[start] || {}).label;
+    var sameEp = rp && rp.epLabel != null && curLabel === rp.epLabel;
+    $('dtPlay').textContent = (sameEp && rp.pos > 10)
+      ? ('▶ 继续观看 · ' + (rp.epLabel || ('第 ' + (start + 1) + ' 集')))
+      : '▶ 播放';
     $('dtPlay').onclick = function () { playEp(start); };
     $('dtFirst').onclick = function () { playEp(0); };
     $('dtExt').onclick = function () {
       var e = S.eps[Math.max(0, Math.min(S.eps.length - 1, start))];
       if (e) extPlay(e.url, start); else toast('这条线路还没有分集');
     };
+    $('dtFav').onclick = function () { if (S.title) toggleList(); };
+    try { paintFavBtn(); } catch (e) {}
+    /* 上次看的那集，横向滚到中间：一眼看见「我从这儿接着看」，不用几十集里找 */
+    if (start > 0) {
+      requestAnimationFrame(function () {
+        try {
+          var cur = box.children[start];
+          if (cur && box.clientWidth) {
+            box.scrollLeft = Math.max(0, cur.offsetLeft - box.clientWidth / 2 + cur.offsetWidth / 2);
+          }
+        } catch (e) {}
+      });
+    }
   }
 
   /* ================= 播放器 ================= */
@@ -1327,6 +1640,9 @@
     var e = eps[i];
     if (!e) return;
     S.ep = i;
+    S.nxTag = '';
+    /* 一换集就把「继续观看」那条记录挪到这一集（进度归零，等 timeupdate 再填真实秒数） */
+    try { touchCont({ resetPos: true }); } catch (err) {}
     barFocus = false;
     cancelNext();
     $('eps-sheet').classList.remove('on');
@@ -1346,6 +1662,37 @@
     } else {
       $('pbRate').textContent = '1.0x';
     }
+    /* 起播位置：先把 loadedmetadata 的监听挂上，再交给 attach。
+       顺序反过来的话，本地 / 局域网秒开的片子会在监听注册之前就跑完 metadata，
+       「从上次位置继续」和「跳过片头」都会静默失效。
+       另外 hls.js + MSE 的 duration 是边 append 边长的：loadedmetadata 那一刻常常只有
+       首段长度（表现为「明明一个多小时的片子，duration 只有几秒」，跳片头就判断不出来）。
+       所以等它连续两次给出同一个非零值再决定，最多等 10 秒。 */
+    try {
+      var key = 'mfl:tv:' + S.title + '|' + (e.label || i);
+      var t0 = Number(localStorage.getItem(key) || 0);
+      var sh = skipHead();
+      v.addEventListener('loadedmetadata', function once() {
+        v.removeEventListener('loadedmetadata', once);
+        var last = -1, tries = 0;
+        var apply = function (d) {
+          if (t0 > 10) {
+            if (t0 < d - 15) { v.currentTime = t0; toast('从上次看到的位置继续'); }
+          } else if (sh > 0) {
+            /* 片头秒数明显短于总长的片才跳，短片（花絮、预告）不动 */
+            if (d > sh + 60) { v.currentTime = sh; toast('已跳过片头 ' + sh + ' 秒'); }
+          }
+        };
+        (function step() {
+          var d = v.duration || 0;
+          var okDur = d > 0 && isFinite(d);
+          if (okDur && Math.abs(d - last) < 1) { apply(d); return; }
+          last = okDur ? d : -1;
+          if (++tries < 50) { setTimeout(step, 200); return; }
+          if (okDur) apply(d);
+        })();
+      });
+    } catch (err) {}
     /* 设置里选了「外部播放器」就直接交给系统播放器硬解，本页只留个说明 */
     if (extMode()) {
       showBrand('已在外部播放器打开');
@@ -1362,21 +1709,12 @@
         setTimeout(function () { toast('长按「确定」键呼出按钮条：倍速 · 选集 · 外部播放器'); }, 1800);
       }
     } catch (err) {}
-    // 从上次位置继续
-    try {
-      var key = 'mfl:tv:' + S.title + '|' + (e.label || i);
-      var t = Number(localStorage.getItem(key) || 0);
-      if (t > 10) {
-        v.addEventListener('loadedmetadata', function once() {
-          v.removeEventListener('loadedmetadata', once);
-          if (t < (v.duration || 0) - 15) { v.currentTime = t; toast('从上次看到的位置继续'); }
-        });
-      }
-    } catch (err) {}
   }
   function closePlayer() {
     cancelNext();
     barFocus = false;
+    /* 退出前补存一次：timeupdate 是 5 秒一跳，正好卡在两次中间退出就会丢掉最后几秒 */
+    try { if (S.title && v.duration > 1) rememberPos(); } catch (e) {}
     $('player').classList.remove('on');
     $('eps-sheet').classList.remove('on');
     $('spd-sheet').classList.remove('on');
@@ -1392,6 +1730,8 @@
       for (var i = 0; i < items.length; i++) items[i].classList.toggle('on', i === S.ep);
       paintFocus(items[S.ep] || items[0] || $('dtPlay'));
     } else paintFocus(null);
+    /* 首页那一行立刻反映「刚才看到哪」，不用重开 App */
+    try { refreshRecRows(); } catch (e) {}
   }
   function togglePlay() {
     if (v.paused) { v.play().catch(function () {}); $('pbPlay').textContent = '⏸ 暂停'; flashBig('▶'); }
@@ -1402,6 +1742,10 @@
     try {
       var g = S.groups[S.group] || {}, e = (g.episodes || [])[S.ep];
       if (e) localStorage.setItem('mfl:tv:' + S.title + '|' + (e.label || S.ep), String(Math.floor(v.currentTime || 0)));
+      /* 同步更新「继续观看」那一行用的总记录（片级：记住是哪一集 + 看到第几秒 + 总时长） */
+      if (S.title && v.duration > 1) {
+        touchCont({ pos: Math.floor(v.currentTime || 0), dur: Math.floor(v.duration || 0) });
+      }
     } catch (err) {}
   }
   /* 拖动 / 快进快退时在进度条上方显示目标时间（图1 那种气泡） */
@@ -1629,11 +1973,36 @@
     openExtCard();
   });
 
+  var posSaveAt = 0;
   v.addEventListener('timeupdate', function () {
     $('pcur').textContent = fmt(v.currentTime);
     $('pdur').textContent = fmt(v.duration);
     if (v.duration) $('played').style.width = (100 * v.currentTime / v.duration).toFixed(2) + '%';
+    /* 每 5 秒把进度落一次盘：以前只在「点暂停」时存，遥控按 Home 直接退出就全丢了 */
+    var n = Date.now();
+    if (S.title && v.duration > 1 && n - posSaveAt > 5000) { posSaveAt = n; rememberPos(); }
+    /* 片尾提前把「接下来播放」叫出来，不用等字幕滚完（默认 45 秒，设置里可关）。
+       用 nxTag 记住「这一集已经提示过」：否则每 0.25 秒的 timeupdate 会把倒计时重置，
+       最后一集还会刷屏式 toast。 */
+    var tl = skipTail();
+    if (tl > 0 && S.title && v.duration > tl + 60 && (v.duration - v.currentTime) <= tl) {
+      var tag = S.title + '#' + S.ep;
+      if (S.nxTag !== tag) {
+        S.nxTag = tag;
+        var eps = ((S.groups[S.group] || {}).episodes) || [];
+        if (S.ep + 1 < eps.length && !$('eps-sheet').classList.contains('on') &&
+            !$('spd-sheet').classList.contains('on') && !$('extcard').classList.contains('on')) {
+          offerNext();
+        }
+      }
+    }
   });
+  /* 切后台 / 关电视 / 系统回收前，再补存一次（timeupdate 没走到的那几秒也不放过） */
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible' && inPlayer()) rememberPos();
+  });
+  window.addEventListener('pagehide', function () { if (inPlayer()) rememberPos(); });
+  window.addEventListener('beforeunload', function () { if (inPlayer()) rememberPos(); });
   v.addEventListener('playing', function () {
     clearTimeout(attachTimer);
     $('pbrand').classList.remove('on');
@@ -1660,12 +2029,14 @@
   function goHome() {
     showView('home');
     stack = ['home'];
+    try { refreshRecRows(); } catch (e) {}
     focusFirst('#heroPlay');
   }
   function navTo(key) {
     if (key === 'search') { showView('search'); focusFirst('#kbd .key'); return; }
     if (key === 'home') {
       if (document.querySelector('.view.on') !== $('home')) showView('home');
+      try { refreshRecRows(); } catch (e) {}
       window.scrollTo({ top: 0, behavior: 'smooth' });
       focusFirst('#heroPlay');
       return;
@@ -1705,6 +2076,30 @@
       toast(on ? '以后点播放都交给外部播放器' : '改回本机播放');
     };
   }
+  /* 追剧连播：点一下切一档，遥控器不用输数字 */
+  function stSkipRows() {
+    return '<div class="st-row fx" id="stSkipHead"><span>跳过片头</span><b id="stSkipHeadV">' +
+      skipTxt(skipHead()) + '</b></div>' +
+      '<div class="st-row fx" id="stSkipTail"><span>片尾提前提示</span><b id="stSkipTailV">' +
+      skipTxt(skipTail()) + '</b></div>';
+  }
+  function bindStSkip() {
+    var h = $('stSkipHead'), t = $('stSkipTail');
+    if (h) h.onclick = function () {
+      var i = HEADS.indexOf(skipHead());
+      i = (i + 1) % HEADS.length;
+      try { localStorage.setItem(SKIP_HEAD_KEY, String(HEADS[i])); } catch (e) {}
+      var b = $('stSkipHeadV'); if (b) b.textContent = skipTxt(HEADS[i]);
+      toast(HEADS[i] ? '每集自动跳过片头 ' + HEADS[i] + ' 秒' : '不再跳过片头');
+    };
+    if (t) t.onclick = function () {
+      var i = TAILS.indexOf(skipTail());
+      i = (i + 1) % TAILS.length;
+      try { localStorage.setItem(SKIP_TAIL_KEY, String(TAILS[i])); } catch (e) {}
+      var b = $('stSkipTailV'); if (b) b.textContent = skipTxt(TAILS[i]);
+      toast(TAILS[i] ? '片尾剩 ' + TAILS[i] + ' 秒时提示下一集' : '片尾不再提前提示');
+    };
+  }
   function openSettings() {
     var rows = $('stRows');
     rows.innerHTML = stRow('正在读取…', '');
@@ -1720,12 +2115,15 @@
         stRow('屏幕', window.innerWidth + '×' + window.innerHeight),
         stRow('局域网地址', (d && (d.lan || d.ip)) || '未联网'),
         stRow('机型', (d && d.device) || '—'),
-        stPlayRow()
+        stPlayRow(),
+        stSkipRows()
       ].join('');
       bindStPlay();
+      bindStSkip();
     }).catch(function () {
-      rows.innerHTML = stRow('读取失败', '手机端的服务没应答') + stPlayRow();
+      rows.innerHTML = stRow('读取失败', '手机端的服务没应答') + stPlayRow() + stSkipRows();
       bindStPlay();
+      bindStSkip();
     });
   }
   function closeSettings() { $('settings').classList.remove('on'); paintFocus($('btnSet')); }
@@ -1833,6 +2231,7 @@
         stack.pop();
         var prev = stack[stack.length - 1] || 'home';
         showView(prev === 'detail' ? 'detail' : prev === 'search' ? 'search' : 'home');
+        if (prev === 'home') { try { refreshRecRows(); } catch (e) {} }
         var f = document.querySelector('.view.on .fx');
         if (f) paintFocus(f);
         return true;
