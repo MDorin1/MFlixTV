@@ -186,6 +186,24 @@ MFlixTV 不是一个「客户端 + 服务器」的两段式软件，它就是**�
 | --- | --- |
 | ![电视版删记录](docs/images/tv-continue-delete.png) | ![手机端继续观看](docs/images/phone-continue.png) |
 
+**1.1 新增的手机遥控、片源开关、多使用者与家长控制：**
+
+| 电视版设置（1.1：快进档位 / 首页行顺序 / 片源开关 / 谁在看 / 家长控制） |
+| --- |
+| ![电视版设置 1.1](docs/images/tv-settings-11.png) |
+
+| 电视版「片源开关」（一行一个源，回车停用 / 启用） | 电视版家长控制（命中限时段，播放前先要密码） |
+| --- | --- |
+| ![电视版片源开关](docs/images/tv-sources.png) | ![电视版家长控制](docs/images/tv-pin.png) |
+
+| 手机端设置：遥控这台设备（方向盘 + 播放控制 + 打开设置） | 手机端设置：「谁在看」＋ 家长控制（设好一键同步到电视） |
+| --- | --- |
+| ![手机端遥控](docs/images/phone-remote.png) | ![手机端谁在看](docs/images/phone-users.png) |
+
+| 手机端家长控制表单（密码 + 屏蔽词 + 限时段） | 电脑端首次启动向导（三步，之后不再打扰） |
+| --- | --- |
+| ![手机端家长控制](docs/images/phone-parental.png) | ![首启向导](docs/images/firstrun.png) |
+
 ## 快速开始
 
 ### Windows（推荐）
@@ -205,14 +223,14 @@ MFlixTV 不是一个「客户端 + 服务器」的两段式软件，它就是**�
 
 ### 桌面快捷方式（可选）
 
-	ools\start.ps1 幂等启动：已经在跑就只打开浏览器，没跑就依次拉起短剧服务(8000)与主站(8080)，等就绪后再开页面。
+`tools\start.ps1` 幂等启动：已经在跑就只打开浏览器，没跑就依次拉起短剧服务(8000)与主站(8080)，等就绪后再开页面。
 
-`powershell
+```powershell
 # 建一个指向它的快捷方式（目标填这行，图标用 packaging\app.ico）
 powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File tools\start.ps1
-`
+```
 
-日志：logs\start.log。装过安装版的话，脚本会优先直接拉起托盘程序。
+日志：`logs\start.log`。装过安装版的话，脚本会优先直接拉起托盘程序。
 
 ### 打开是空白 / 提示「此网页无法正常运作」
 
