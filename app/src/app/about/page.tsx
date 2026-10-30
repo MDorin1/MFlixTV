@@ -46,9 +46,14 @@ export default function AboutPage() {
               </ul>
             </Block>
 
-            <Block title="同一 WiFi 下其它设备">
+            <Block title="同一网络下用手机 / 平板 / 电视看">
               <p>
-                服务跑在本机，手机 / 平板 / 电视连同一个 WiFi，用浏览器打开下面这个地址就能看（点一下复制）。服务没开着时这个地址打不开。
+                服务跑在这台电脑上，同一个 WiFi（同一个局域网）里的手机、平板、电视，
+                用浏览器打开下面这个地址，就是一个完整的网页版：片源、搜索、播放器、短剧都在，不用装 App、不用投屏。
+              </p>
+              <p>
+                点一下这个地址会弹出<strong className="text-white/85">二维码</strong>，手机相机扫一下直接打开；也可以手动输入。
+                第一次打开要输这台电脑上设的访问密码，之后同一个浏览器会记住。电脑上的 MFlixTV 关掉，这个地址就打不开了。
               </p>
               <LanBadge showOnMobile className="px-0 text-sm" />
             </Block>
