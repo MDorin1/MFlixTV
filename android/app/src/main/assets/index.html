@@ -1778,6 +1778,8 @@
     var e = state.eps[i];
     if (!e) return;
     state.ep = i;
+    /* 自动换线路是走这条路的：那种情况不能把「试过哪几条」清掉，否则两条坏线路会来回弹 */
+    if (!switchingLine) resetFailover();
     $('psheet').classList.remove('on');
     markEp(i);
     ls('mfl:last:' + state.title, i);
@@ -1845,9 +1847,12 @@
       hls.on(window.Hls.Events.MANIFEST_PARSED, function () { v.play().catch(function () {}); });
       hls.on(window.Hls.Events.ERROR, function (_, data) {
         if (data && data.fatal) {
+          /* 还没播起来就换下一条线路；已经在播了只提示，别把进度切丢 */
+          if (autoSwitchLine() !== 'none') return;
           hideBrand();
           $('pmsg').classList.add('on');
-          $('pmsg').innerHTML = '拉流失败：' + (data.details || '') + '<br>换一条线路试试';
+          $('pmsg').innerHTML = '拉流失败：' + (data.details || '') +
+            (lnTry > 0 ? '<br>已经自动换过 ' + lnTry + ' 条了' : '<br>换一条线路试试');
         }
       });
     } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
@@ -1892,10 +1897,53 @@
       $('pmsg').textContent = '这台设备的浏览器不支持 HLS 播放';
     }
   }
+  /* ---- 播放失败自动换线路（手机 / 电脑网页同款逻辑） ----
+     详情页的线路表是跨源汇总的，每条都带着全集地址，所以一条不通时不用让人退出去自己找：
+     直接换下一条、停在同一集。只在「这一集还没真的播起来」时换，播起来了再切会把进度丢掉。 */
+  var playedOnce = false, triedLn = {}, lnTry = 0, lastLn = 0, attachWait = null, switchingLine = false;
+  function resetFailover() { triedLn = {}; lnTry = 0; lastLn = 0; }
+  function autoSwitchLine() {
+    var gs = state.groups || [];
+    if (gs.length < 2) return 'none';
+    if (playedOnce) return 'none';
+    if (lnTry >= 4) return 'none';
+    var now = Date.now();
+    if (now - lastLn < 1500) return 'busy';   // video error 和 hls fatal 常常一起报，别一秒连跳两条
+    lastLn = now;
+    var cur = (state.eps || [])[state.ep] || {};
+    var label = cur.label || ('第' + ((state.ep | 0) + 1) + '集');
+    triedLn[(state.group | 0) + '|' + label] = 1;
+    for (var i = 0; i < gs.length; i++) {
+      if (i === (state.group | 0)) continue;
+      var k = i + '|' + label;
+      if (triedLn[k]) continue;
+      var eps = gs[i].episodes || [];
+      if (!eps.length) continue;
+      var ei = -1;
+      for (var j = 0; j < eps.length; j++) { if ((eps[j].label || '') === label) { ei = j; break; } }
+      if (ei < 0) ei = Math.min(eps.length - 1, state.ep | 0);
+      if (ei < 0 || !eps[ei] || !eps[ei].url) continue;
+      triedLn[k] = 1;
+      lnTry++;
+      var nm = gs[i].name || ('线路 ' + (i + 1));
+      state.group = i;
+      state.eps = eps;
+      state.ep = ei;
+      $('pmsg').classList.remove('on');
+      try { renderGroups(i, ei); } catch (err) {}
+      switchingLine = true;
+      try { playEp(ei); } finally { switchingLine = false; }
+      toast('这条线路不通，已自动换到「' + nm + '」');
+      return 'switched';
+    }
+    return 'none';
+  }
   function attach(url, key) {
     curMedia = url || '';
     var isHls = url.indexOf('.m3u8') >= 0;
     attachKey = key || '';
+    playedOnce = false;
+    clearTimeout(attachWait);
     $('pmsg').classList.remove('on');
     stopNativeWatch();
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
@@ -1906,12 +1954,23 @@
       // mp4 也走本机代理：源站基本都按 Referer 放行，直连大概率 403
       v.src = proxy(url);
       v.play().catch(function () {});
-      return;
+    } else {
+      var src = proxy(url);
+      // iOS（Safari / Chrome 同内核）：先原生，报错自动回退 hls.js；其它平台一律 hls.js，和以前完全一样
+      var iosNative = isIOS() && v.canPlayType('application/vnd.apple.mpegurl');
+      if (iosNative) { nativePlay(src); return; }   // 原生那条路有自己的 5 秒看门狗
+      hlsPlay(src);
     }
-    var src = proxy(url);
-    // iOS（Safari / Chrome 同内核）：先原生，报错自动回退 hls.js；其它平台一律 hls.js，和以前完全一样
-    if (isIOS() && v.canPlayType('application/vnd.apple.mpegurl')) nativePlay(src);
-    else hlsPlay(src);
+    // 12 秒还没画面就先试着换下一条线路
+    clearTimeout(attachWait);
+    attachWait = setTimeout(function () {
+      if (v.readyState >= 3 || playedOnce) return;
+      if (autoSwitchLine() !== 'none') return;
+      hideBrand();
+      $('pmsg').classList.add('on');
+      $('pmsg').innerHTML = '这条线路 12 秒还没画面' + (lnTry > 0 ? '（已自动换过 ' + lnTry + ' 条）' : '') +
+        '<br>返回换一部片试试';
+    }, 12000);
   }
 
   function closePlayer() {
@@ -1923,6 +1982,7 @@
     $('pmFull').classList.remove('on');
     hideBrand();
     stopNativeWatch();
+    clearTimeout(attachWait);
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     v.pause();
     v.removeAttribute('src');
@@ -1976,7 +2036,7 @@
   v.addEventListener('play', function () {
     $('pPlay').innerHTML = '&#10074;&#10074;'; $('centerPlay').classList.remove('on'); showCtl();
   });
-  v.addEventListener('playing', hideBrand);
+  v.addEventListener('playing', function () { playedOnce = true; hideBrand(); });
   v.addEventListener('pause', function () {
     $('pPlay').innerHTML = '&#9654;'; $('centerPlay').classList.add('on'); showCtl();
   });
@@ -2042,6 +2102,9 @@
     if (!$('player').classList.contains('on')) return;
     // iOS 原生那条正在自动换 hls.js，这一下报错不算数，别先糊一句「播不了」在屏幕上
     if (nativeErrHook) return;
+    if (!v.src && !v.currentSrc) return;
+    /* 还没播起来就自动换下一条线路；换得动就别糊这句，等它出画面 */
+    if (autoSwitchLine() !== 'none') return;
     hideBrand();
     $('pmsg').classList.add('on');
     $('pmsg').innerHTML = '这个地址播不了<br><span style="font-size:11px;color:#8a8a8a">' +

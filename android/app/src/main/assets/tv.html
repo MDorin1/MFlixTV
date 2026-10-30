@@ -1629,18 +1629,91 @@
     var b = $('pbig'); b.textContent = ch; b.classList.add('on');
     clearTimeout(flashBig.t); flashBig.t = setTimeout(function () { b.classList.remove('on'); }, 560);
   }
-  var attachSeq = 0, attachTimer = null;
+  var attachSeq = 0, attachTimer = null, attachMsg = null;
+  /* ---- 播放失败自动换线路 ----
+     详情页的线路表本来就是跨源汇总的（m3u8 直链在前），而且每条线路都带着全集地址，
+     所以一条线路拉不动时不必让用户按返回自己找 —— 直接换下一条、停在同一个集上。
+     只在「这一集还没真正播起来」时换：已经播起来了再切会把当前进度丢掉，那种情况只提示。 */
+  var playedOnce = false, triedLine = {}, tryCount = 0, lastSwitch = 0;
+  var TRY_MAX = 4;
+  function resetFailover() { triedLine = {}; tryCount = 0; lastSwitch = 0; }
+  function lineMark(i, label) { return S.title + '|' + i + '|' + (S.groups[i] && S.groups[i].src || '') + '|' + label; }
+  function autoSwitchLine() {
+    if (extMode()) return 'none';
+    if (playedOnce) return 'none';
+    var gs = S.groups || [];
+    if (gs.length < 2) return 'none';
+    if (tryCount >= TRY_MAX) return 'none';
+    /* video 的 error 和 hls 的 fatal 有时同一秒一起报，别一秒连跳两条 */
+    var now = Date.now();
+    if (now - lastSwitch < 1500) return 'busy';
+    lastSwitch = now;
+    var cur = (S.eps || [])[S.ep] || {};
+    var label = cur.label || ('第' + (S.ep + 1) + '集');
+    triedLine[lineMark(S.group, label)] = 1;
+    for (var i = 0; i < gs.length; i++) {
+      if (i === S.group) continue;
+      var k = lineMark(i, label);
+      if (triedLine[k]) continue;
+      var eps = gs[i].episodes || [];
+      if (!eps.length) continue;
+      var ei = -1;
+      for (var j = 0; j < eps.length; j++) {
+        if ((eps[j].label || '') === label) { ei = j; break; }
+      }
+      if (ei < 0) ei = Math.min(eps.length - 1, S.ep);
+      if (ei < 0 || !eps[ei] || !eps[ei].url) continue;
+      triedLine[k] = 1;
+      tryCount++;
+      var nm = gs[i].name || ('线路 ' + (i + 1));
+      S.group = i; S.eps = eps; S.ep = ei;
+      $('psub').textContent = (eps[ei].label || label) + ' · ' + nm;
+      $('pmsg').classList.remove('on');
+      showBrand('自动换到「' + nm + '」…');
+      /* 记录跟着换：否则「继续观看」还指着那条已经不通的线路 */
+      try { touchCont(); } catch (e) {}
+      attach(eps[ei].url);
+      toast('这条线路不通，已自动换到「' + nm + '」');
+      return 'switched';
+    }
+    return 'none';
+  }
+  function failMsg(head) {
+    if (playedOnce || v.readyState >= 3) return;
+    $('pmsg').classList.add('on');
+    $('pmsg').innerHTML = head + (tryCount > 0 ? '（已自动换过 ' + tryCount + ' 条线路）' : '') +
+      '<br>按返回换一部片试试';
+  }
   function attach(url) {
     var seq = ++attachSeq;
     rawUrl = url || '';
+    playedOnce = false;
     $('pmsg').classList.remove('on');
     showBrand('正在接通线路…');
-    clearTimeout(attachTimer);
+    clearTimeout(attachTimer); clearTimeout(attachMsg);
+    if (!attach.hooked) {
+      attach.hooked = 1;
+      v.addEventListener('playing', function () { playedOnce = true; });
+      /* 内核直接报错（404 / 分段打不开 / 编码不支持）立刻换线路，不用干等超时；
+         换不动了才把话说明白，别让人对着黑屏猜 */
+      v.addEventListener('error', function () {
+        if (!v.src && !v.currentSrc) return;
+        if (!$('player').classList.contains('on')) return;
+        if (autoSwitchLine() !== 'none') return;
+        failMsg('这个地址播不了');
+      });
+    }
+    /* 12 秒还没画面就换线路；实在换不动就当场把话说明白 */
     attachTimer = setTimeout(function () {
       if (seq !== attachSeq) return;
-      if (v.readyState >= 3 || $('pmsg').classList.contains('on')) return;
-      $('pmsg').classList.add('on');
-      $('pmsg').innerHTML = '这条线路 30 秒还没画面<br>按返回换一条线路试试';
+      if (v.readyState >= 3) return;
+      if (autoSwitchLine() !== 'none') return;
+      failMsg('这条线路 12 秒还没画面');
+    }, 12000);
+    attachMsg = setTimeout(function () {
+      if (seq !== attachSeq) return;
+      if (v.readyState >= 3) return;
+      failMsg('这条线路拉不动');
     }, 30000);
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     v.removeAttribute('src'); try { v.load(); } catch (e) {}
@@ -1657,9 +1730,12 @@
       hls.on(window.Hls.Events.MANIFEST_PARSED, function () { v.play().catch(function () {}); });
       hls.on(window.Hls.Events.ERROR, function (_, data) {
         if (data && data.fatal) {
+          /* 还没真正播起来就换下一条线路；已经在播了的只提示，别把进度切丢 */
+          if (autoSwitchLine() !== 'none') return;
           /* 牌子留着盖住白底，错误提示压在它上面（z-index 更高） */
           $('pmsg').classList.add('on');
-          $('pmsg').innerHTML = '这条线路拉不动（' + esc(data.details || '') + '）<br>按返回换一条线路';
+          $('pmsg').innerHTML = '这条线路拉不动（' + esc(data.details || '') + '）' +
+            (tryCount > 0 ? '<br>已经自动换过 ' + tryCount + ' 条了' : '<br>按返回换一部片试试');
         }
       });
     } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
@@ -1676,6 +1752,7 @@
     if (!e) return;
     S.ep = i;
     S.nxTag = '';
+    resetFailover();
     /* 一换集就把「继续观看」那条记录挪到这一集（进度归零，等 timeupdate 再填真实秒数） */
     try { touchCont({ resetPos: true }); } catch (err) {}
     barFocus = false;
@@ -1755,6 +1832,7 @@
     $('spd-sheet').classList.remove('on');
     $('nav').style.display = '';
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    clearTimeout(attachTimer); clearTimeout(attachMsg);
     try { v.pause(); } catch (e) {}
     v.removeAttribute('src'); try { v.load(); } catch (e) {}
     $('pmsg').classList.remove('on');
