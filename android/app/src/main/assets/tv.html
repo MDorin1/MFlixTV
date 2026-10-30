@@ -823,6 +823,7 @@
     pvT = setTimeout(function () { previewHero(card.__item); }, 240);
   }
   function ensureVisible(f) {
+    if (restoringHome) return;   // 从详情返回正在还原位置，别再滚一次
     var strip = f.closest ? f.closest('.strip, .epstrip') : null;
     if (strip) {
       var fr = f.getBoundingClientRect(), sr = strip.getBoundingClientRect();
@@ -1187,6 +1188,7 @@
     } else if (fresh.children.length) {
       rails.insertBefore(fresh, rails.firstChild);
     }
+    try { fitHome(); } catch (e) {}
   }
 
   /* 双背景交叉淡入，Netflix 换片那种感觉 */
@@ -1273,6 +1275,30 @@
     return { sec: sec, strip: strip };
   }
 
+  /* 首屏只露半张卡是没法看的：按实测把大图收一点，
+     让第一行（继续观看 / 最近更新）整张卡完整落在首屏里。
+     不同电视的高度差很多（1080p 差 38px、720p 差 26px、4:3 本来够），
+     所以不写死 vh，先按 68vh 摆好，量一次底沿再收溢出量。 */
+  function fitHome() {
+    var hero = $('hero'), home = $('home');
+    if (!hero || !home || !home.classList.contains('on')) return;
+    var vh = window.innerHeight || 540;
+    var sy = window.scrollY || window.pageYOffset || 0;
+    /* 量的时候必须在顶部：滚动状态下视口坐标会算出负数，
+       而且切视图的那一刻浏览器会把滚动夹回去，量到的位置根本不可信。 */
+    if (sy > 0) { try { window.scrollTo(0, 0); } catch (e) {} }
+    var h = Math.round(vh * 0.68);
+    hero.style.height = h + 'px';
+    var card = document.querySelector('#recBox .card') || document.querySelector('#bizBox .card');
+    var over = card ? Math.round(card.getBoundingClientRect().bottom + 10 - vh) : 0;
+    if (over > 0) {
+      /* 下限 0.44vh：真见过矮窗口（横屏手机、超宽屏），再收片名就被顶掉了 */
+      h = Math.max(Math.round(vh * 0.44), h - over);
+      hero.style.height = h + 'px';
+    }
+    if (sy > 0) { try { window.scrollTo(0, sy); } catch (e) {} }
+  }
+
   function loadHome() {
     var rails = $('rails');
     rails.innerHTML = '';
@@ -1292,6 +1318,7 @@
       }
       bizBox.appendChild(sk.sec);
     }
+    try { fitHome(); } catch (e) {}
     getJSON('/api/home').then(function (d) {
       bizBox.innerHTML = '';
       S.rows = (d && d.rows) || [];
@@ -1320,6 +1347,7 @@
         bizBox.appendChild(r.sec);
         buildHot();
       }).catch(function () { buildHot(); });
+      try { fitHome(); } catch (e) {}
       if (!focusEl) focusFirst('#heroPlay');
     }).catch(function (e) {
       bizBox.innerHTML = '';
@@ -1411,6 +1439,12 @@
     S.vodId = it.vodId || it.id || '';
     S.listOn = inList(recKey({ name: S.title, src: S.src, vodId: S.vodId }));
     try { paintFavBtn(); } catch (e) {}
+    /* 记下从首页哪个位置点进来的，返回时原地还原（滚到哪儿 + 哪张卡） */
+    if ($('home').classList.contains('on')) {
+      homeScroll = window.scrollY || window.pageYOffset || 0;
+      homeFocus = focusEl || null;
+      homeName = (it && it.name) || '';
+    }
     showView('detail');
     $('dtTitle').textContent = it.name || '—';
     $('dtMeta').innerHTML = [it.typeName, it.year, it.area, it.remarks, it.srcName]
@@ -2015,10 +2049,39 @@
 
   /* ================= 视图 / 返回栈 ================= */
   var stack = ['home'];
+  /* 首页的位置要记住：在第五行点开一部片，返回时得回到第五行那张卡，
+     而不是被弹回顶部——这是 Netflix 的手感，也是自己用起来最烦的一处。 */
+  var homeScroll = 0, homeFocus = null, homeName = '', restoringHome = false;
+  function recallHome() {
+    restoringHome = true;
+    try { window.scrollTo(0, homeScroll || 0); } catch (e) {}
+    var f = null;
+    if (homeFocus && document.contains(homeFocus)) f = homeFocus;
+    else if (homeName) {
+      /* 记录行刚被重建过，原来那个节点已经不在文档里：按片名找回同一张卡 */
+      var cs = document.querySelectorAll('#rails .card');
+      for (var i = 0; i < cs.length; i++) if (cs[i].dataset.name === homeName) { f = cs[i]; break; }
+    }
+    if (!f && (homeFocus || homeName)) f = document.querySelector('#rails .card.fx');
+    if (f) paintFocus(f);
+    /* 恢复期间别让 ensureVisible 再滚一次，否则位置刚还原就被它带跑 */
+    try { window.scrollTo(0, homeScroll || 0); } catch (e) {}
+    setTimeout(function () {
+      restoringHome = false;
+      try { window.scrollTo(0, homeScroll || 0); } catch (e) {}
+    }, 220);
+  }
   function showView(name) {
+    var cur = '';
+    ['home', 'search', 'detail'].forEach(function (k) { if ($(k).classList.contains('on')) cur = k; });
+    if (cur === 'home') homeScroll = window.scrollY || window.pageYOffset || 0;
     ['home', 'search', 'detail'].forEach(function (k) { $(k).classList.toggle('on', k === name); });
     $('nav').style.display = '';
-    window.scrollTo(0, 0);
+    if (name === 'home') {
+      window.scrollTo(0, homeScroll || 0);
+      /* 刚切回来时布局还没稳，滚动位置会被浏览器夹回 0：下一帧再设一次 */
+      setTimeout(function () { try { window.scrollTo(0, homeScroll || 0); } catch (e) {} }, 16);
+    } else window.scrollTo(0, 0);
     var nvs = $('navItems').querySelectorAll('.nv');
     var act = name === 'detail' ? '' : name;
     for (var i = 0; i < nvs.length; i++) nvs[i].classList.toggle('active', nvs[i].dataset.nav === act);
@@ -2030,7 +2093,7 @@
     showView('home');
     stack = ['home'];
     try { refreshRecRows(); } catch (e) {}
-    focusFirst('#heroPlay');
+    recallHome();
   }
   function navTo(key) {
     if (key === 'search') { showView('search'); focusFirst('#kbd .key'); return; }
@@ -2231,9 +2294,13 @@
         stack.pop();
         var prev = stack[stack.length - 1] || 'home';
         showView(prev === 'detail' ? 'detail' : prev === 'search' ? 'search' : 'home');
-        if (prev === 'home') { try { refreshRecRows(); } catch (e) {} }
-        var f = document.querySelector('.view.on .fx');
-        if (f) paintFocus(f);
+        if (prev === 'home') {
+          try { refreshRecRows(); } catch (e) {}
+          recallHome();
+        } else {
+          var f = document.querySelector('.view.on .fx');
+          if (f) paintFocus(f);
+        }
         return true;
       }
       if (document.querySelector('.view.on') !== $('home')) { goHome(); return true; }
@@ -2270,6 +2337,12 @@
   paintWord(); buildKbd(); loadHome();
   setTimeout(function () { $('boot').classList.add('off'); setTimeout(function () { try { $('boot').remove(); } catch (e) {} }, 500); }, 260);
   setTimeout(function () { if (!focusEl) focusFirst('#heroPlay'); }, 1000);
+  /* 换分辨率 / 转屏 / 老盒子改 DPI 都要重算首屏，否则第一行又会被切掉 */
+  var fitT = 0;
+  window.addEventListener('resize', function () {
+    clearTimeout(fitT);
+    fitT = setTimeout(function () { try { fitHome(); } catch (e) {} }, 180);
+  });
 })();
 </script>
 </body>
