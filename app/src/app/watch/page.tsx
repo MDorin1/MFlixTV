@@ -172,37 +172,44 @@ function WatchContent() {
     return entry?.position ?? 0;
   }, [searchParams, sourceKey, vodId, currentIndex]);
 
-  // 写入观看历史（进入页面即记录，进度后续增量更新）
-  useEffect(() => {
-    if (!verified || !sourceKey || !currentUrl) return;
-    const timer = setTimeout(() => {
-      upsertHistory({
-        sourceKey,
-        sourceUrl: source?.url,
-        vodId: vodId || currentUrl,
-        title: videoTitle,
-        pic: detailQuery.data?.videoInfo?.cover,
-        episodeIndex: currentIndex,
-        totalEpisodes: episodes.length,
-        playbackPosition: 0,
-        duration: 0,
-        timestamp: Date.now(),
-      }).catch(() => {});
-    }, 2000);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verified, sourceKey, vodId, currentIndex, videoTitle, currentUrl]);
+  // 观看记录等「真的播起来」才写：以前进页面 2 秒就落一条，点开又退出会在
+  // 「继续观看」里留一排 0% 的空记录。现在由 handleProgress 第一次带着
+  // 真实位置（>3 秒）进来时才建这条记录。
+  const playedRef = useRef(false);
 
   // 播放中与暂停时的进度落盘逻辑一致，共用同一回调
   const handleProgress = useCallback(
     (position: number, duration: number) => {
-      if (vodId) {
-        saveProgress(sourceKey, vodId, currentIndex, position, duration).catch(() => {});
-        updateHistoryProgress(sourceKey, vodId || currentUrl, position, duration).catch(() => {});
+      const vid = vodId || currentUrl;
+      if (!vid) return;
+      if (!playedRef.current && position > 3) {
+        // 第一次真正播起来：建记录，并且一开始就带着真实位置
+        playedRef.current = true;
+        upsertHistory({
+          sourceKey,
+          sourceUrl: source?.url,
+          vodId: vid,
+          title: videoTitle,
+          pic: detailQuery.data?.videoInfo?.cover,
+          episodeIndex: currentIndex,
+          totalEpisodes: episodes.length,
+          playbackPosition: position,
+          duration,
+          timestamp: Date.now(),
+        }).catch(() => {});
       }
+      saveProgress(sourceKey, vid, currentIndex, position, duration).catch(() => {});
+      updateHistoryProgress(sourceKey, vid, position, duration).catch(() => {});
     },
-    [sourceKey, vodId, currentIndex, currentUrl]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sourceKey, vodId, currentIndex, currentUrl, videoTitle, episodes.length, source?.url, detailQuery.data]
   );
+
+  // 换集后重新放行：新一集播起来时立刻把记录指到这一集（位置也换成新一集的）
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    playedRef.current = false;
+  }, [currentIndex]);
 
   // 自动连播的 800ms 延迟切集要在卸载时取消，避免离开页面后跳转
   const autoNextTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

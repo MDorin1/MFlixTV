@@ -114,8 +114,14 @@
   /* 继续观看：海报底部一条红色进度 */
   .card .prog{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.28)}
   .card .prog i{display:block;height:100%;background:var(--accent)}
-  .card .ep-tag{position:absolute;right:6px;bottom:8px;font-size:9.5px;font-weight:800;color:#eee;
-    background:rgba(0,0,0,.62);padding:2px 7px;border-radius:999px}
+  /* 集数签放右上角：底部留给片名，避免「片名+正片」挤成一行读不清 */
+  .card .ep-tag{position:absolute;right:5px;top:5px;max-width:64%;overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap;font-size:9.5px;font-weight:800;color:#eee;
+    background:rgba(0,0,0,.66);padding:2px 7px;border-radius:999px}
+  /* 「继续观看」卡片左上角的删除键：只删这条记录，点别处照常进详情 */
+  .card .delrec{position:absolute;top:5px;left:5px;width:22px;height:22px;display:grid;place-items:center;
+    border-radius:999px;background:rgba(0,0,0,.62);color:rgba(255,255,255,.92);font-size:14px;line-height:1;
+    border:1px solid rgba(255,255,255,.24);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
   /* 搜索结果里同名片合并后标「N 个源」 */
   .card .srcs{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.74);color:#e6e6e6;font-size:9.5px;
     font-weight:800;padding:3px 7px;border-radius:999px;border:1px solid rgba(255,255,255,.22)}
@@ -1024,6 +1030,7 @@
       (extra.epLabel ? '<div class="ep-tag">' + esc(extra.epLabel) + '</div>' : '') +
       '<div class="cap">' + esc(it.name) + '</div>' +
       (pct > 0 ? '<div class="prog"><i style="width:' + Math.min(100, pct) + '%"></i></div>' : '') +
+      (extra.del ? '<span class="delrec" data-del="1" role="button" aria-label="删除这条记录">×</span>' : '') +
       '</div></button>';
   }
 
@@ -1052,11 +1059,11 @@
     var c = contAll();
     if (!c.length) return '';
     var h = '<div class="row"><div class="row-h"><div class="row-t">继续观看</div><div class="row-n">' +
-      c.length + ' 部</div></div><div class="strip">';
+      '本机 ' + c.length + ' 部</div></div><div class="strip">';
     c.slice(0, 14).forEach(function (r) {
       var pct = r.dur > 0 ? Math.round(r.pos / r.dur * 100) : 0;
       if (pct > 96) pct = 0;
-      h += cardHTML(r, '', true, { auto: true, ep: r.ep || 0, epLabel: r.epLabel, pct: pct });
+      h += cardHTML(r, '', true, { auto: true, ep: r.ep || 0, epLabel: r.epLabel, pct: pct, del: true });
     });
     return h + '</div></div>';
   }
@@ -1226,6 +1233,20 @@
       parseInt(c.dataset.ep || '0', 10) || 0);
   });
   function localTap(e) {
+    // 「继续观看」卡片左上角的 ×：只删这条记录，不进详情页
+    var del = e.target.closest ? e.target.closest('[data-del]') : null;
+    if (del) {
+      e.preventDefault();
+      e.stopPropagation();
+      var card = del.closest('.card');
+      if (card) {
+        var k = (card.dataset.name || '') + '|' + (card.dataset.src || '') + '|' + (card.dataset.id || '');
+        dropCont(k);
+        toast('已从「继续观看」移除');
+        try { paintLocal(); } catch (err) {}
+      }
+      return;
+    }
     var c = e.target.closest('.card');
     if (c) openDetail(c.dataset.src, c.dataset.id, c.dataset.name, c.dataset.auto === '1',
       parseInt(c.dataset.ep || '0', 10) || 0);

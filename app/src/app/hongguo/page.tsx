@@ -155,30 +155,14 @@ function upsertProgress(list: ShowProgress[], next: ShowProgress): ShowProgress[
   return [next, ...list.filter((x) => x.seriesId !== next.seriesId)].slice(0, HIST_MAX);
 }
 
-/** 与服务端同规则的合并：同一部剧取较新，集级进度取最大，收藏取或 */
-function mergeProgressLists(a: ShowProgress[], b: ShowProgress[]): ShowProgress[] {
-  const map = new Map<string, ShowProgress>();
-  for (const item of [...a, ...b]) {
-    if (!item || !item.seriesId) continue;
-    const prev = map.get(item.seriesId);
-    if (!prev) {
-      map.set(item.seriesId, { ...item, eps: { ...(item.eps || {}) }, durs: { ...(item.durs || {}) } });
-      continue;
-    }
-    const fresher = (item.updatedAt || 0) >= (prev.updatedAt || 0) ? item : prev;
-    const eps: Record<string, number> = { ...(prev.eps || {}) };
-    for (const [k, v] of Object.entries(item.eps || {})) {
-      if (Number.isFinite(v)) eps[k] = Math.max(eps[k] || 0, v);
-    }
-    map.set(item.seriesId, {
-      ...fresher,
-      eps,
-      durs: { ...(prev.durs || {}), ...(item.durs || {}) },
-      fav: !!(prev.fav || item.fav),
-    });
-  }
-  return [...map.values()].sort((x, y) => (y.updatedAt || 0) - (x.updatedAt || 0)).slice(0, HIST_MAX);
-}
+/**
+ * 记录只留在这台设备（这个浏览器）里。
+ *
+ * 0.35 之前这份记录会推到服务端、进页面时再拉回来合并，本意是「换设备接着看」，
+ * 代价却是反过来的：同一台电脑上，安装版和别的设备开的网页版会互相串记录，
+ * 别人看过什么你这边也冒出来。现在彻底不连服务端 —— localStorage 本来就是
+ * 「每个客户端各一份」，和手机端（index.html）的做法一致。
+ */
 
 /** 播放器偏好：倍速与音量，跨集/跨次记住 */
 const PREFS_KEY = 'hg_player_prefs';
@@ -288,7 +272,6 @@ export default function HongguoPage() {
   const pendingSeekRef = useRef<number | null>(null);
   const lastSaveRef = useRef(0);
   /** 历史同步到服务端的防抖定时器 */
-  const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const reqIdRef = useRef(0);
   /** 漫剧榜 series_id 黑名单：搜索接口不带体裁字段，靠它把漫剧从真人剧/AI短剧里剔掉 */
@@ -345,7 +328,7 @@ export default function HongguoPage() {
     async (g: GenreKey, b: Board, onPartial?: (items: Item[]) => void) => {
       const seeds = SEEDS[g] || [];
       const seen = new Map<string, Item>();
-      let queue = seeds.slice();
+      const queue = seeds.slice();
       let inflight = 0;
       let finished = 0;
 
@@ -525,19 +508,7 @@ export default function HongguoPage() {
   };
 
   /* ------------------------------- 播放 -------------------------------- */
-  /** 把历史推到服务端（2 秒防抖），局域网换设备/换浏览器都能接上 */
-  const pushToServer = (list: ShowProgress[]) => {
-    if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
-    pushTimerRef.current = setTimeout(() => {
-      void fetch('/api/history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: list }),
-      }).catch(() => {});
-    }, 2000);
-  };
-
-  /** 记录进度：剧级 + 集级双写，切回哪一集都能接上 */
+  /** 记录进度：剧级 + 集级双写，切回哪一集都能接上（只写本机） */
   const persistProgress = (pos: number, dur: number) => {
     if (!detail || !playing) return;
     if (!Number.isFinite(pos) || pos < 3) return;
@@ -562,7 +533,6 @@ export default function HongguoPage() {
     const next = upsertProgress(list, entry);
     saveProgress(next);
     setHistory(next);
-    pushToServer(next);
   };
 
   const flushProgress = () => {
@@ -743,7 +713,6 @@ export default function HongguoPage() {
     }
     saveProgress(list);
     setHistory([...list]);
-    pushToServer(list);
   };
 
   /** 从「继续观看」恢复：优先用该剧最后观看位置 */
@@ -786,7 +755,6 @@ export default function HongguoPage() {
     const list = loadProgress().filter((x) => x.seriesId !== h.seriesId);
     saveProgress(list);
     setHistory(list);
-    pushToServer(list);
   };
 
   /** 换源：按剧名找同一部剧的其他来源，切换后回到同一集、只往前挪 */
@@ -831,13 +799,11 @@ export default function HongguoPage() {
     const list = loadProgress().filter((x) => x.seriesId !== seriesId);
     saveProgress(list);
     setHistory(list);
-    pushToServer(list);
   };
 
   const clearHistory = () => {
     saveProgress([]);
     setHistory([]);
-    pushToServer([]);
   };
 
   const streamUrl =
@@ -952,26 +918,22 @@ export default function HongguoPage() {
     const p = loadPrefs();
     setRate(p.rate);
     setVolume(p.volume);
-    // 从服务端拉一次历史，和本地合并：换浏览器/换设备也能接着看
-    void (async () => {
-      try {
-        const r = await fetch('/api/history');
-        if (!r.ok) return;
-        const j = (await r.json()) as { items?: ShowProgress[] };
-        const server = Array.isArray(j.items) ? j.items : [];
-        if (!server.length) return;
-        const merged = mergeProgressLists(loadProgress(), server);
-        saveProgress(merged);
-        setHistory(merged);
-        void fetch('/api/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: merged }),
-        }).catch(() => {});
-      } catch {
-        /* 离线也不影响本地使用 */
+    // 记录只读本机这一份（不连服务端）：这台设备看过的就是这台设备的，
+    // 别的设备开网页版也看不到这边的记录，反过来也一样。
+    // 首页「继续观看」点过来会带 ?resume=<seriesId>，就地接着上次的位置播。
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const rid = q.get('resume');
+      if (rid) {
+        q.delete('resume');
+        const qs = q.toString();
+        window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+        const rec = loadProgress().find((x) => x.seriesId === rid);
+        if (rec) void resumeFrom(rec);
       }
-    })();
+    } catch {
+      /* 参数坏了就当普通进入 */
+    }
   }, []);
 
   const activeGenre = useMemo(() => GENRES.find((g) => g.key === genre)!, [genre]);
@@ -1047,9 +1009,12 @@ export default function HongguoPage() {
                 ))}
               </div>
               <button className="text-xs text-faint transition-colors hover:text-content" onClick={clearHistory}>
-                清空历史
+                清空本机记录
               </button>
             </div>
+            <p className="mb-2 text-[11px] text-faint">
+              记录只存在这台设备（这个浏览器）里：别的设备打开同一个地址是各自的一份，互不影响。
+            </p>
             {(histTab === 'fav' ? favList : history).length === 0 ? (
               <p className="rounded-xl border border-line/60 bg-chip/60 px-4 py-6 text-center text-xs text-faint">
                 {histTab === 'fav' ? '还没有收藏：播放时点右上角「☆ 收藏」就会出现在这里' : '还没有观看记录，随便点一部开始看吧'}

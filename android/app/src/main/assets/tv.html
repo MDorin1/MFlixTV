@@ -960,7 +960,18 @@
   var pvT = null;
   function onFocusCard(f) {
     var card = f && f.closest ? f.closest('.card') : null;
-    if (!card || !card.__item) return;
+    if (!card) return;
+    /* 「继续观看」的卡片第一次拿到焦点时说一次：这条记录能删（遥控器上没有删除键，
+       所以走菜单键 / 长按确定，只说一次，别每次刷屏） */
+    if (card.__cont) {
+      try {
+        if (!localStorage.getItem('mfl:conthint')) {
+          localStorage.setItem('mfl:conthint', '1');
+          toast('这条记录可以删：按「菜单键」，或长按「确定」');
+        }
+      } catch (e) {}
+    }
+    if (!card.__item) return;
     clearTimeout(pvT);
     pvT = setTimeout(function () { previewHero(card.__item); }, 240);
   }
@@ -1109,6 +1120,9 @@
     return null;
   }
   function dropCont(k) { jset(K_CONT, contAll().filter(function (r) { return recKey(r) !== k; })); }
+  /* 清空本机观看记录（我的列表不动）：设置页里点两下才执行，防手抖 */
+  function clearCont() { jset(K_CONT, []); }
+  function contCount() { return contAll().filter(function (r) { return r && r.name; }).length; }
   function inList(k) { return listAll().some(function (r) { return recKey(r) === k; }); }
   function toggleList() {
     var rec = {
@@ -1304,7 +1318,7 @@
     var conts = contAll().filter(function (r) { return r && r.name; });
     var lists = listAll().filter(function (r) { return r && r.name; });
     if (conts.length) {
-      var rc = railNode('继续观看', conts.length + ' 部');
+      var rc = railNode('继续观看', '本机 ' + conts.length + ' 部');
       conts.slice(0, 20).forEach(function (r) { rc.strip.appendChild(recCardNode(r, true)); });
       box.appendChild(rc.sec);
     }
@@ -1318,10 +1332,13 @@
   /** 只重建记录行，不动业务行（焦点、滚动位置都不受影响）。
       退出播放器、从详情回首页、收藏变化后都要叫一次，
       否则「刚看到第几集」还停在打开 App 那一刻。 */
-  function refreshRecRows() {
+  function refreshRecRows(keepKey) {
     var rails = $('rails');
     if (!rails) return;
     var old = $('recBox');
+    // 删掉一条记录后要让焦点落在旁边的卡上，不然遥控器会「不知道在哪」
+    var wantKey = keepKey;
+    if (wantKey === undefined && focusEl && focusEl.__rec) wantKey = ' ';
     var fresh = el('div'); fresh.id = 'recBox';
     try { mountRecRows(fresh); } catch (e) {}
     if (old) {
@@ -1329,6 +1346,18 @@
       else if (old.parentNode) old.parentNode.removeChild(old);
     } else if (fresh.children.length) {
       rails.insertBefore(fresh, rails.firstChild);
+    }
+    if (wantKey !== undefined) {
+      var pick = null;
+      if (wantKey !== ' ') {
+        var cards = document.querySelectorAll('#recBox .rec');
+        for (var i = 0; i < cards.length; i++) {
+          if (cards[i].__rec && recKey(cards[i].__rec) === wantKey) { pick = cards[i]; break; }
+        }
+      }
+      if (!pick) pick = document.querySelector('#recBox .rec');
+      if (pick) paintFocus(pick);
+      else if (document.querySelector('.view.on') === $('home')) paintFocus($('heroPlay'));
     }
     try { fitHome(); } catch (e) {}
   }
@@ -2442,6 +2471,37 @@
       toast(TAILS[i] ? '片尾剩 ' + TAILS[i] + ' 秒时提示下一集' : '片尾不再提前提示');
     };
   }
+  /* 本机观看记录：点两下清空（只清「继续观看」，我的列表不动） */
+  function stWatchRow() {
+    return '<div class="st-row fx" id="stWatch"><span>本机观看记录</span><b id="stWatchV">' +
+      contCount() + ' 部</b></div>';
+  }
+  function bindStWatch() {
+    var r = $('stWatch');
+    if (!r) return;
+    var armed = false, t = 0;
+    r.onclick = function () {
+      var b = $('stWatchV');
+      if (!armed) {
+        armed = true;
+        r.classList.add('warn');
+        if (b) b.textContent = '再按一次清空';
+        clearTimeout(t);
+        t = setTimeout(function () {
+          armed = false; r.classList.remove('warn');
+          if (b) b.textContent = contCount() + ' 部';
+        }, 3000);
+        return;
+      }
+      clearTimeout(t);
+      armed = false;
+      r.classList.remove('warn');
+      clearCont();
+      if (b) b.textContent = '已清空';
+      toast('本机观看记录已清空（我的列表还在）');
+      try { refreshRecRows(); } catch (e) {}
+    };
+  }
   function openSettings() {
     var rows = $('stRows');
     rows.innerHTML = stRow('正在读取…', '');
@@ -2459,16 +2519,19 @@
         stRow('机型', (d && d.device) || '—'),
         stPlayRow(),
         stHealthRow(),
-        stSkipRows()
+        stSkipRows(),
+        stWatchRow()
       ].join('');
       bindStPlay();
       bindStSkip();
       bindStHealth();
+      bindStWatch();
     }).catch(function () {
-      rows.innerHTML = stRow('读取失败', '手机端的服务没应答') + stPlayRow() + stHealthRow() + stSkipRows();
+      rows.innerHTML = stRow('读取失败', '手机端的服务没应答') + stPlayRow() + stHealthRow() + stSkipRows() + stWatchRow();
       bindStPlay();
       bindStSkip();
       bindStHealth();
+      bindStWatch();
     });
   }
   function closeSettings() { $('settings').classList.remove('on'); paintFocus($('btnSet')); }
@@ -2546,10 +2609,34 @@
     bars(true);
   }
 
+  /** 焦点在「继续观看」卡片上时删掉这一条：菜单键、长按确定（Shield 没有菜单键）都走这里。
+      删完把焦点交给旁边那张卡，遥控器不会「丢焦点」。 */
+  function dropFocusedCont() {
+    if (!focusEl || !focusEl.__cont || !focusEl.__rec) return false;
+    var rec0 = focusEl.__rec;
+    var cards0 = Array.prototype.slice.call(document.querySelectorAll('#recBox .rec'));
+    var at0 = cards0.indexOf(focusEl), nextKey = '';
+    for (var ci = at0 + 1; ci < cards0.length; ci++) {
+      if (cards0[ci].__cont) { nextKey = recKey(cards0[ci].__rec); break; }
+    }
+    if (!nextKey) {
+      for (var cj = at0 - 1; cj >= 0; cj--) {
+        if (cards0[cj].__cont) { nextKey = recKey(cards0[cj].__rec); break; }
+      }
+    }
+    dropCont(recKey(rec0));
+    toast('已从「继续观看」移除「' + (rec0.name || '') + '」');
+    refreshRecRows(nextKey);
+    return true;
+  }
+
   function handle(a) {
     /* 长按确定键（原生侧识别）：Shield 一类遥控器没有菜单键，这条是主入口 */
     if (a === 'menulong') {
-      if (!inPlayer()) return false;
+      if (!inPlayer()) {
+        if (dropFocusedCont()) return true;
+        return false;
+      }
       if ($('nx').classList.contains('on') || $('eps-sheet').classList.contains('on')) return true;
       if ($('spd-sheet').classList.contains('on')) { closeSpeeds(); return true; }
       if (!barFocus) enterBar();
@@ -2570,7 +2657,11 @@
     if (inPlayer()) return handlePlayer(a);
     if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); bars(true); return true; }
     if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
-    if (a === 'menu') { bars(true); return true; }
+    if (a === 'menu') {
+      /* 首页：焦点在「继续观看」卡片上按菜单键＝移除这一条记录（不必进设置） */
+      if (dropFocusedCont()) return true;
+      bars(true); return true;
+    }
     if (a === 'back') {
       if (stack.length > 1) {
         stack.pop();

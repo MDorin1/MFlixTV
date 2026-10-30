@@ -102,12 +102,20 @@ export const MAX_SEARCH_HISTORY = 10;
 export async function upsertHistory(entry: Omit<HistoryEntry, 'id'>): Promise<void> {
   const id = `${entry.sourceKey}_${entry.vodId}`;
   const existing = await db.history.get(id);
+  // 换集了就以新一集的位置为准：以前只在「新位置 > 10 秒」时才更新位置，
+  // 换到下一集刚开播（0–10 秒）会把上一集的进度留在记录里，
+  // 「继续观看」就显示成「第 4 集 · 已看 80%」但点进去从头开始。
+  const sameEpisode = !existing || existing.episodeIndex === entry.episodeIndex;
   const merged: HistoryEntry = {
     ...existing,
     ...entry,
     id,
-    playbackPosition: entry.playbackPosition > 10 ? entry.playbackPosition : existing?.playbackPosition ?? 0,
-    duration: entry.duration || existing?.duration || 0,
+    playbackPosition: sameEpisode
+      ? entry.playbackPosition > 10
+        ? entry.playbackPosition
+        : existing?.playbackPosition ?? 0
+      : entry.playbackPosition,
+    duration: sameEpisode ? entry.duration || existing?.duration || 0 : entry.duration || 0,
     timestamp: Date.now(),
   };
   await db.history.put(merged);
