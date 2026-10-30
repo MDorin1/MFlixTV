@@ -27,6 +27,8 @@ class MFlixApp : Application() {
         try {
             Sources.init(this)
             Net.init(this)
+            // 片源体检要排在前面之后：它读的就是 Sources 里那份列表
+            SourceHealth.init(this)
         } catch (_: Throwable) {
         }
         // 常驻自愈：15 分钟一次的闹钟，服务被系统杀了也能自己回来

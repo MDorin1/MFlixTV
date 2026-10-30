@@ -36,7 +36,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val portNum = port
 
     companion object {
-        const val VERSION = "android-0.31"
+        const val VERSION = "android-0.32"
     }
 
     /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
@@ -111,6 +111,10 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 uri == "/api/sources/save" -> saveSources(session, p["json"]?.firstOrNull())
                 uri == "/api/sources/reset" -> json("{\"ok\":true,\"count\":" + Sources.reset() + "}")
                 uri == "/api/diag" -> json(Sources.probeJson(useCache = p["force"]?.firstOrNull() != "1"))
+                // 片源测速 / 维护：force=1 当场重测（设置页点「重新测速」），否则给缓存并在后台补测
+                uri == "/api/sources/health" -> json(healthJson(p["force"]?.firstOrNull() == "1"))
+                // 没源了：去远端拉最新源清单，合并后重测
+                uri == "/api/sources/autofix" -> json(autofixJson())
                 uri == "/api/netcfg" -> netcfg(p["proxy"]?.firstOrNull())
                 uri == "/api/proxy" -> proxy(session)
                 // 外部播放器用的整条线路播放列表（连播不断，切集不用回 App）
@@ -128,11 +132,33 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     }
 
     /**
+     * 片源体检：force=true 当场重测（12 个源并发，几秒），否则先给上次结果、
+     * 同时在后台补测一份，页面不用等。
+     */
+    private fun healthJson(force: Boolean): String {
+        try {
+            if (force) SourceHealth.maintain(true) else SourceHealth.maintainAsync()
+        } catch (_: Throwable) {
+        }
+        return SourceHealth.snapshot().toString()
+    }
+
+    /** 没源了：去远端拉最新源清单，合并去重，再重测一次。 */
+    private fun autofixJson(): String {
+        var added = 0
+        try {
+            added = SourceHealth.autoFix()
+            if (added > 0) SourceHealth.maintain(true)
+        } catch (_: Throwable) {
+        }
+        return SourceHealth.snapshot().put("added", added).toString()
+    }
+
+    /**
      * 首页：有缓存先给缓存；客户端点「重新载入」时强制重建。
      * 重建很慢（多源并发抓），所以这里从不阻塞太久的重复请求。
      */
-    private fun home(session: IHTTPSession, force: Boolean): Response {
-        if (!force) {
+    private fun home(session: IHTTPSession, force: Boolean): Response {        if (!force) {
             HomeFeed.cached(ctx)?.let { return json(it.toString()) }
             HomeFeed.stale(ctx)?.let {
                 HomeFeed.refreshAsync(ctx)

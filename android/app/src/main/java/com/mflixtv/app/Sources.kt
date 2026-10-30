@@ -223,12 +223,40 @@ object Sources {
         return list
     }
 
-    /** 首页/搜索用的源池：优先用自检通过的；一个都不通时退回全部（让首页自己再试一次）。 */
+    /** 首页/搜索用的源池：按体检结果排序（通的、快的在前）；没有体检数据就按原顺序。 */
     fun usableSources(): List<Src> {
-        val probes = readProbeCache() ?: return ALL
-        val okBases = probes.filter { it.ok }.map { it.base }.toSet()
-        val picked = ALL.filter { it.base in okBases }
-        return if (picked.isEmpty()) ALL else picked
+        val ranked = try {
+            SourceHealth.ranked()
+        } catch (_: Throwable) {
+            ALL
+        }
+        return if (ranked.isEmpty()) ALL else ranked
+    }
+
+    /** 让老的 probeAll 缓存作废（体检结果更新后调用）。 */
+    fun invalidateProbe() {
+        probeCache = null
+    }
+
+    /**
+     * 把远端拉回来的候选源合并进本地列表：按 base 去重，已有的保留原来的 key / 名字。
+     * 返回新增了几个。源站换了域名的时候靠这个自动补回来。
+     */
+    fun mergeRemote(remote: List<Src>): Int {
+        val cur = ArrayList(ALL)
+        var added = 0
+        remote.forEach { s ->
+            if (cur.none { it.base == s.base }) {
+                val k = if (cur.any { it.key == s.key }) keyOf(s.base) + (cur.size) else s.key
+                cur.add(Src(k, s.name, s.base))
+                added++
+            }
+        }
+        if (added > 0) {
+            sp?.edit()?.putString(KEY_SOURCES, toJson(cur))?.apply()
+            current = cur
+        }
+        return added
     }
 
     fun probeJson(useCache: Boolean = true): String {

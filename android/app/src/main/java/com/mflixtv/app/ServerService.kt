@@ -92,6 +92,9 @@ class ServerService : Service() {
 
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
+    /** 看门狗每秒跳 60 下 = 30 分钟，顺手做一次片源体检（TTL 30 分钟，不会白跑） */
+    private var healthTick = 0
+
     private val watchdogTask = object : Runnable {
         override fun run() {
             try {
@@ -112,6 +115,15 @@ class ServerService : Service() {
                 }
                 if (KeepAlive.alwaysOn(this@ServerService) && !KeepAlive.isHeld()) {
                     KeepAlive.hold(this@ServerService)
+                }
+                /* 片源维护：过期才真去测（SourceHealth 自己判断），这里只负责定期来敲一下门 */
+                healthTick++
+                if (healthTick >= 30) {
+                    healthTick = 0
+                    try {
+                        SourceHealth.maintainAsync()
+                    } catch (_: Throwable) {
+                    }
                 }
             } catch (_: Throwable) {
             }

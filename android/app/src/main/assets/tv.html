@@ -121,8 +121,7 @@
   .card .ep-tag{position:absolute;right:.35rem;top:.35rem;font-size:.56rem;font-weight:900;color:#f2f2f2;
     background:rgba(0,0,0,.7);padding:.12rem .34rem;border-radius:.2rem;max-width:70%;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:4}
-  /* 「剩 23 分钟」压在片名上面一行 */
-  .card .resume{position:absolute;left:.45rem;right:.45rem;bottom:1.58rem;font-size:.58rem;font-weight:700;
+  /* 「剩 23 分钟」压在片名上面一行 */  .card .resume{position:absolute;left:.45rem;right:.45rem;bottom:1.58rem;font-size:.58rem;font-weight:700;
     color:#c9c9c9;text-shadow:0 .08rem .4rem rgba(0,0,0,.95);z-index:4;letter-spacing:.01em;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* 记录卡片的片名只留一行：两行会跟剩余时长那行挤在一起 */
@@ -325,6 +324,8 @@
   .st-row b{color:#fff;font-weight:800;margin-left:1.2rem;text-align:right}
   .st-row.fx.on{background:#fff;color:#111;transform:none;box-shadow:0 0 0 .08rem #fff}
   .st-row.fx.on b{color:#111}
+  /* 一个源都不通时把数值标红，一眼看出来该处理 */
+  .st-row.warn b{color:#ff5a5f}
   .st-btns{display:flex;gap:.7rem;margin-top:1.3rem;flex-wrap:wrap}
   .st-tip{font-size:.7rem;color:#777;margin-top:.85rem;letter-spacing:.1em}
 
@@ -2140,8 +2141,42 @@
     };
   }
   /* 追剧连播：点一下切一档，遥控器不用输数字 */
-  function stSkipRows() {
-    return '<div class="st-row fx" id="stSkipHead"><span>跳过片头</span><b id="stSkipHeadV">' +
+  function stHealthRow() {
+    return '<div class="st-row fx" id="stHealth"><span>片源体检</span><b id="stHealthV">读取中…</b></div>';
+  }
+  function setHealthTxt(d) {
+    var b = $('stHealthV');
+    if (!b) return;
+    if (!d) { b.textContent = '读取失败'; return; }
+    var ok = Number(d.ok) || 0, total = Number(d.total) || 0;
+    if (!total) { b.textContent = '—'; return; }
+    b.textContent = ok + '/' + total + (d.fastest && d.fastest !== '—' ? ' · 最快 ' + d.fastest : '');
+    var row = $('stHealth');
+    if (row) row.classList.toggle('warn', ok === 0);
+  }
+  /** 点一下：当场重测全部源。一个都不通时服务端会自己去远端把源找回来。 */
+  function bindStHealth() {
+    var r = $('stHealth');
+    if (!r) return;
+    r.onclick = function () {
+      var b = $('stHealthV');
+      if (b) b.textContent = '测速中…（约 5 秒）';
+      getJSON('/api/sources/health?force=1').then(function (d) {
+        setHealthTxt(d);
+        if (d && Number(d.ok) > 0) {
+          toast('片源可用 ' + d.ok + '/' + d.total + (d.fastest && d.fastest !== '—' ? '，最快 ' + d.fastest : ''));
+        } else {
+          toast('一个源都没通，已经在自动找源了');
+        }
+      }).catch(function (e) {
+        if (b) b.textContent = '测速失败';
+        toast('测速失败：' + (e && e.message ? e.message : '网络错误'));
+      });
+    };
+    getJSON('/api/sources/health').then(setHealthTxt).catch(function () { setHealthTxt(null); });
+  }
+  /* 追剧连播：点一下切一档，遥控器不用输数字 */
+  function stSkipRows() {    return '<div class="st-row fx" id="stSkipHead"><span>跳过片头</span><b id="stSkipHeadV">' +
       skipTxt(skipHead()) + '</b></div>' +
       '<div class="st-row fx" id="stSkipTail"><span>片尾提前提示</span><b id="stSkipTailV">' +
       skipTxt(skipTail()) + '</b></div>';
@@ -2179,14 +2214,17 @@
         stRow('局域网地址', (d && (d.lan || d.ip)) || '未联网'),
         stRow('机型', (d && d.device) || '—'),
         stPlayRow(),
+        stHealthRow(),
         stSkipRows()
       ].join('');
       bindStPlay();
       bindStSkip();
+      bindStHealth();
     }).catch(function () {
-      rows.innerHTML = stRow('读取失败', '手机端的服务没应答') + stPlayRow() + stSkipRows();
+      rows.innerHTML = stRow('读取失败', '手机端的服务没应答') + stPlayRow() + stHealthRow() + stSkipRows();
       bindStPlay();
       bindStSkip();
+      bindStHealth();
     });
   }
   function closeSettings() { $('settings').classList.remove('on'); paintFocus($('btnSet')); }

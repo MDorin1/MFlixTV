@@ -1,0 +1,18 @@
+{
+  "_note": "MFlixTV 远端候选源清单。App 在「一个可用源都没有」时会自动拉这份清单（jsDelivr / GitHub 原始链接 / 镜像轮流试），合并去重后逐个测速——测速不通的不会进源池，本地已有的源也不会被删。源站换域名时，改这里、客户端下次自愈就拿到新的。",
+  "updated": "2026-10-30",
+  "sources": [
+    { "key": "wujin", "name": "无尽", "base": "https://api.wujinapi.me/api.php/provide/vod" },
+    { "key": "360zy", "name": "360", "base": "https://360zy.com/api.php/provide/vod" },
+    { "key": "zuid", "name": "最大", "base": "https://api.zuidapi.com/api.php/provide/vod" },
+    { "key": "bdzy", "name": "百度云", "base": "https://api.apibdzy.com/api.php/provide/vod" },
+    { "key": "modu", "name": "魔都", "base": "https://caiji.moduapi.cc/api.php/provide/vod" },
+    { "key": "hhzy", "name": "豪华", "base": "https://hhzyapi.com/api.php/provide/vod" },
+    { "key": "ffzy", "name": "非凡", "base": "https://api.ffzyapi.com/api.php/provide/vod" },
+    { "key": "bfzy", "name": "暴风", "base": "https://bfzyapi.com/api.php/provide/vod" },
+    { "key": "lzi", "name": "量子", "base": "https://cj.lziapi.com/api.php/provide/vod" },
+    { "key": "wolong", "name": "卧龙", "base": "https://wolongzyw.com/api.php/provide/vod" },
+    { "key": "rycj", "name": "如意", "base": "https://cj.rycjapi.com/api.php/provide/vod" },
+    { "key": "ikun", "name": "iKun", "base": "https://ikunzyapi.com/api.php/provide/vod" }
+  ]
+}

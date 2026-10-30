@@ -142,4 +142,12 @@ object Net {
         val head = e.javaClass.simpleName
         return if (m.isEmpty()) head else "$head: " + m.take(70)
     }
+
+    /** 一行日志（logcat tag=MFlixTV）：换源、自愈这类后台动作，出问题时有据可查。 */
+    fun log(msg: String) {
+        try {
+            android.util.Log.i("MFlixTV", msg)
+        } catch (_: Throwable) {
+        }
+    }
 }
