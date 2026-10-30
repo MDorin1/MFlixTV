@@ -111,9 +111,13 @@
 | --- | --- |
 | ![电视版选集](docs/images/tv-player-eps.png) | ![电视版倍速](docs/images/tv-player-speed.png) |
 
-| 电视版首页「继续观看 / 我的列表」（红条是进度） | 电视版设置（片源体检 / 跳过片头 / 片尾提前，点一下切一档） |
+| 电视版首页「继续观看 / 我的列表」（红条是进度） | 电视版设置（片源体检 / 跳过片头 / 本机观看记录可清空） |
 | --- | --- |
 | ![电视版继续观看](docs/images/tv-home-031.png) | ![电视版设置](docs/images/tv-settings.png) |
+
+| 电视版删记录（停在记录卡上按菜单键 / 长按确定） | 手机端「继续观看」（卡片左上角 × 只删记录） |
+| --- | --- |
+| ![电视版删记录](docs/images/tv-continue-delete.png) | ![手机端继续观看](docs/images/phone-continue.png) |
 
 ## 快速开始
 
