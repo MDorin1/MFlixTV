@@ -41,9 +41,11 @@ object Sources {
 
     private const val SP = "mflixtv"
     private const val KEY_SOURCES = "sources_json"
+    private const val KEY_OFF = "sources_off"
 
     @Volatile private var sp: android.content.SharedPreferences? = null
     @Volatile private var current: List<Src>? = null
+    @Volatile private var offCache: MutableSet<String>? = null
 
     /** 进程启动时调用一次：读出用户存过的源，没有就写入出厂源。 */
     fun init(ctx: Context) {
@@ -230,7 +232,67 @@ object Sources {
         } catch (_: Throwable) {
             ALL
         }
-        return if (ranked.isEmpty()) ALL else ranked
+        val base = if (ranked.isEmpty()) ALL else ranked
+        // 停用的源不参与搜索与首页取数；全被停用时退回全集，别让用户自己把自己锁死
+        val alive = base.filter { !isOff(it.key) }
+        return if (alive.isEmpty()) base else alive
+    }
+
+    // ===== 停用清单（片源体检里手动关掉，或连续失败自动关掉）=====
+
+    private fun offSet(): MutableSet<String> {
+        offCache?.let { return it }
+        val cur = try {
+            (sp?.getString(KEY_OFF, "") ?: "").split(',').filter { it.isNotBlank() }.toMutableSet()
+        } catch (_: Exception) {
+            mutableSetOf()
+        }
+        offCache = cur
+        return cur
+    }
+
+    fun isOff(key: String): Boolean = offSet().contains(key)
+
+    fun offKeys(): Set<String> = offSet().toSet()
+
+    fun setOff(key: String, value: Boolean): Boolean {
+        if (key.isBlank()) return false
+        val s = offSet()
+        if (value) s.add(key) else s.remove(key)
+        try {
+            sp?.edit()?.putString(KEY_OFF, s.joinToString(","))?.apply()
+        } catch (_: Exception) {
+        }
+        return true
+    }
+
+    /** 导出配置：源清单 + 停用清单。换设备时把这段 JSON 粘过去就能还原。 */
+    fun exportJson(): String = JSONObject()
+        .put("version", 1)
+        .put("sources", JSONArray(toJson(ALL)))
+        .put("off", JSONArray(offSet().toList()))
+        .toString()
+
+    /** 导入配置：替换源清单并恢复停用清单。返回导入后的源条数，-1 表示格式不对。 */
+    fun importJson(text: String): Int {
+        val o = try {
+            JSONObject(text)
+        } catch (_: Exception) {
+            return -1
+        }
+        val arr = o.optJSONArray("sources") ?: return -1
+        val n = save(arr.toString())
+        if (n < 0) return -1
+        val s = mutableSetOf<String>()
+        val offs = o.optJSONArray("off")
+        if (offs != null) for (i in 0 until offs.length()) s.add(offs.optString(i))
+        try {
+            sp?.edit()?.putString(KEY_OFF, s.joinToString(","))?.apply()
+        } catch (_: Exception) {
+        }
+        offCache = s
+        invalidateProbe()
+        return n
     }
 
     /** 让老的 probeAll 缓存作废（体检结果更新后调用）。 */

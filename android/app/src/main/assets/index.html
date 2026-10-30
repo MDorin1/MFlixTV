@@ -97,6 +97,18 @@
   .row-h{display:flex;align-items:baseline;gap:8px;padding:0 14px 10px}
   .row-t{font-size:17px;font-weight:800;letter-spacing:.2px}
   .row-n{font-size:11.5px;color:#8a8a8a}
+  /* 手机遥控面板：方向键用大一点的圆角块，拇指按得准 */
+  .rcpad{display:flex;flex-direction:column;align-items:center;gap:8px;margin:12px 0 4px}
+  .rcmid{display:flex;gap:8px;align-items:center}
+  .rcbtn{min-width:58px;height:46px;border-radius:13px;background:rgba(255,255,255,.09);color:#fff;
+    font-size:15px;font-weight:800}
+  .rcbtn.ok{min-width:76px;background:rgba(255,255,255,.18)}
+  .srcrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;
+    border-bottom:1px solid rgba(255,255,255,.07);font-size:13px}
+  .srcrow:last-child{border-bottom:0}
+  .srcrow b{font-weight:700;color:#cfcfcf}
+  .srcrow .off{color:#ff6b6b}
+  .srcrow button{font-size:12px;padding:6px 12px;border-radius:9px;background:rgba(255,255,255,.12);color:#fff}
   .strip{display:flex;gap:9px;overflow-x:auto;padding:0 14px 2px;scroll-snap-type:x proximity;
     scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .strip::-webkit-scrollbar{display:none}
@@ -767,6 +779,66 @@
       <div class="kv"><span>继续观看 / 我的列表</span><b id="sRecCnt">—</b></div>
       <div class="row-btns"><button id="sClear">清空本机记录</button></div>
       <div class="hint">记录只存在这台设备上，清空不影响别的设备。</div>
+    </div>
+
+    <div class="card-box">
+      <div class="box-t">遥控这台设备 <span class="s">同一网络下用手机控制电视</span></div>
+      <input class="inp" id="rcWord" placeholder="输入片名，点「搜」让电视去搜">
+      <div class="row-btns">
+        <button class="primary" id="rcSearch">搜</button>
+        <button id="rcHome">回首页</button>
+        <button id="rcBack">返回</button>
+        <button id="rcSet">设置</button>
+      </div>
+      <div class="rcpad">
+        <button class="rcbtn" data-rc="up">▲</button>
+        <div class="rcmid">
+          <button class="rcbtn" data-rc="left">◀</button>
+          <button class="rcbtn ok" data-rc="ok">OK</button>
+          <button class="rcbtn" data-rc="right">▶</button>
+        </div>
+        <button class="rcbtn" data-rc="down">▼</button>
+      </div>
+      <div class="row-btns">
+        <button data-rc="play">播放 / 暂停</button>
+        <button data-rc="prev">上一集</button>
+        <button data-rc="next">下一集</button>
+        <button data-rc="menu">菜单</button>
+      </div>
+      <div class="hint">指令只在局域网里走：电视每 0.8 秒取一次并执行。要用「电视的地址」打开本页才有人接；打开的是本机地址时发的指令没人收。</div>
+    </div>
+
+    <div class="card-box">
+      <div class="box-t">片源开关 <span class="s">停用的源不参与搜索与首页</span></div>
+      <div id="sSrcHealth"><div class="hint">读取中…</div></div>
+      <div class="row-btns">
+        <button id="sHealthTest">重新测一遍</button>
+        <button id="sExport">导出配置</button>
+      </div>
+      <textarea class="inp" id="sIOText" placeholder="点「导出配置」会把 JSON 放在这里；粘贴别人的配置后点「导入」" style="height:100px"></textarea>
+      <div class="row-btns"><button id="sImport">导入配置</button></div>
+      <div class="hint">导出的 JSON 里带着源清单和停用清单，换设备时粘过去就能还原。</div>
+    </div>
+
+    <div class="card-box">
+      <div class="box-t">谁在看 <span class="s">每个人的观看记录各存一份</span></div>
+      <div id="sUsers"></div>
+      <input class="inp" id="sUserNew" placeholder="新使用者名字，例如：小朋友">
+      <div class="row-btns"><button id="sUserAdd">添加使用者</button></div>
+      <div class="hint">切换后「继续观看 / 我的列表」换成那个人的一份；片源、代理、播放偏好全家人共用。</div>
+    </div>
+
+    <div class="card-box">
+      <div class="box-t">家长控制 <span class="s">密码 + 屏蔽词 + 限时时段</span></div>
+      <div class="kv"><span>状态</span><b id="sParState">关闭</b></div>
+      <input class="inp" id="sParPin" placeholder="4 位数字密码（开启必填）" inputmode="numeric" maxlength="4">
+      <input class="inp" id="sParKids" placeholder="屏蔽词，逗号分隔，例如：恐怖,暴力">
+      <input class="inp" id="sParTime" placeholder="限时时段，例如 22-7（这段时间内播放要密码）">
+      <div class="row-btns">
+        <button class="primary" id="sParSave">保存并同步到电视</button>
+        <button id="sParOff">关闭家长控制</button>
+      </div>
+      <div class="hint">命中屏蔽词的片子在列表里直接不显示；限时时段内播放要先输密码。保存会通过局域网把配置推给电视（电视开着、同一个网络才推得到）。</div>
     </div>
 
     <div class="card-box">
@@ -2862,6 +2934,247 @@
     $('top').classList.toggle('solid', y > 8);
     lastY = y;
   }, { passive: true });
+
+  /* ================= 1.1 手机遥控 =================
+     手机打开「电视那台设备」的地址时，这些按键会经 /api/remote 推过去，
+     电视上的 tv.html 每 0.8 秒取一次就执行。 */
+  function rcSend(cmd, arg) {
+    var u = '/api/remote/push?cmd=' + encodeURIComponent(cmd) + '&to=any&from=phone';
+    if (arg) u += '&arg=' + encodeURIComponent(arg);
+    return fetch(u).then(function (r) { return r.json(); });
+  }
+  function bindRemote() {
+    var w = $('rcWord');
+    if ($('rcSearch')) $('rcSearch').onclick = function () {
+      var t = ((w && w.value) || '').trim();
+      if (!t) { toast('先输入片名'); return; }
+      rcSend('search', t).then(function () { toast('已让电视搜「' + t + '」'); })
+        .catch(function () { toast('电视没应答'); });
+    };
+    if ($('rcHome')) $('rcHome').onclick = function () { rcSend('exit'); };
+    if ($('rcBack')) $('rcBack').onclick = function () { rcSend('back'); };
+    if ($('rcSet')) $('rcSet').onclick = function () { rcSend('settings'); };
+    var pad = document.querySelectorAll('[data-rc]');
+    for (var i = 0; i < pad.length; i++) {
+      (function (b) {
+        b.onclick = function () {
+          var c = b.getAttribute('data-rc');
+          rcSend(c).catch(function () { toast('电视没应答'); });
+        };
+      })(pad[i]);
+    }
+  }
+
+  /* ================= 1.2 片源开关 / 配置导入导出 ================= */
+  function paintSrcHealth(d) {
+    var box = $('sSrcHealth');
+    if (!box) return;
+    var list = (d && d.list) || [];
+    if (!list.length) { box.innerHTML = '<div class="hint">还没测过，点「重新测一遍」。</div>'; return; }
+    var h = '';
+    list.forEach(function (x) {
+      var state = x.off ? '<span class="off">已停用</span>' : (x.ok ? (x.ms + 'ms') : '不通');
+      h += '<div class="srcrow"><span>' + esc(x.name || '') + '</span><b>' + state + '</b>' +
+        '<button data-key="' + esc(x.key || '') + '" data-on="' + (x.off ? '1' : '0') + '">' +
+        (x.off ? '启用' : '停用') + '</button></div>';
+    });
+    box.innerHTML = h;
+    var bs = box.querySelectorAll('button[data-key]');
+    for (var i = 0; i < bs.length; i++) {
+      (function (b) {
+        b.onclick = function () {
+          var k = b.getAttribute('data-key'), on = b.getAttribute('data-on');
+          fetch('/api/sources/toggle?key=' + encodeURIComponent(k) + '&on=' + on).then(function (r) { return r.json(); })
+            .then(function () { toast(on === '1' ? '已启用' : '已停用'); loadSrcHealth(false); })
+            .catch(function () { toast('改不动：服务没应答'); });
+        };
+      })(bs[i]);
+    }
+  }
+  function loadSrcHealth(force) {
+    var box = $('sSrcHealth');
+    if (box && force) box.innerHTML = '<div class="hint">正在测速（约 5 秒）…</div>';
+    fetch('/api/sources/health' + (force ? '?force=1' : '')).then(function (r) { return r.json(); })
+      .then(paintSrcHealth).catch(function () {
+        if (box) box.innerHTML = '<div class="hint">读取失败：服务没应答。</div>';
+      });
+  }
+  function bindSourceIO() {
+    if ($('sHealthTest')) $('sHealthTest').onclick = function () { loadSrcHealth(true); };
+    if ($('sExport')) $('sExport').onclick = function () {
+      fetch('/api/sources/export').then(function (r) { return r.text(); }).then(function (t) {
+        $('sIOText').value = t;
+        toast('已导出，长按文本框复制');
+      }).catch(function () { toast('导出失败'); });
+    };
+    if ($('sImport')) $('sImport').onclick = function () {
+      var t = ($('sIOText').value || '').trim();
+      if (!t) { toast('先把配置粘进文本框'); return; }
+      fetch('/api/sources/import?json=' + encodeURIComponent(t)).then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.ok) { toast('已导入 ' + d.count + ' 个源'); loadSrcHealth(true); }
+          else toast('导入失败：' + ((d && d.error) || '格式不对'));
+        }).catch(function () { toast('导入失败'); });
+    };
+  }
+
+  /* ================= 2.0 使用者 + 家长控制 ================= */
+  var PROFILE_KEYS = ['mfl:continue', 'mfl:list', 'mfl:hn', 'mfl:hs'];
+  function profiles() {
+    var a = null;
+    try { a = JSON.parse(localStorage.getItem('mfl:profiles') || 'null'); } catch (e) { a = null; }
+    if (!a || !a.length || !a.filter) a = ['默认'];
+    if (a.indexOf('默认') < 0) a.unshift('默认');
+    return a;
+  }
+  function activeProfile() {
+    var p = '默认';
+    try { p = localStorage.getItem('mfl:profile') || '默认'; } catch (e) { p = '默认'; }
+    return profiles().indexOf(p) >= 0 ? p : '默认';
+  }
+  function profileSnap() {
+    var o = {};
+    PROFILE_KEYS.forEach(function (k) {
+      var v = null;
+      try { v = localStorage.getItem(k); } catch (e) {}
+      if (v !== null) o[k] = v;
+    });
+    return o;
+  }
+  function profileLoad(name) {
+    var raw = null;
+    try { raw = localStorage.getItem('mfl:p:' + name); } catch (e) {}
+    var o = {};
+    try { o = raw ? JSON.parse(raw) : {}; } catch (e) { o = {}; }
+    PROFILE_KEYS.forEach(function (k) {
+      try { if (o[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, o[k]); } catch (e) {}
+    });
+  }
+  function switchProfile(name) {
+    var cur = activeProfile();
+    if (!name || name === cur) return false;
+    try { localStorage.setItem('mfl:p:' + cur, JSON.stringify(profileSnap())); } catch (e) {}
+    try { localStorage.setItem('mfl:profile', name); } catch (e) {}
+    profileLoad(name);
+    return true;
+  }
+  function paintUsers() {
+    var box = $('sUsers');
+    if (!box) return;
+    var cur = activeProfile(), h = '';
+    profiles().forEach(function (p, i) {
+      h += '<div class="srcrow"><span>' + esc(p) + '</span><b>' + (p === cur ? '正在使用' : '') + '</b>' +
+        (p === cur ? '' : '<button data-use="' + i + '">切换</button>') +
+        (p === '默认' ? '' : '<button data-del="' + i + '">删除</button>') + '</div>';
+    });
+    box.innerHTML = h;
+    var sw = box.querySelectorAll('button[data-use]');
+    for (var i = 0; i < sw.length; i++) {
+      (function (b) {
+        b.onclick = function () {
+          var name = profiles()[Number(b.getAttribute('data-use'))];
+          if (switchProfile(name)) { toast('已切换到「' + name + '」'); paintUsers(); if (typeof paintLocal === 'function') paintLocal(); }
+        };
+      })(sw[i]);
+    }
+    var dl = box.querySelectorAll('button[data-del]');
+    for (var j = 0; j < dl.length; j++) {
+      (function (b) {
+        b.onclick = function () {
+          var a = profiles(), name = a[Number(b.getAttribute('data-del'))];
+          a = a.filter(function (x) { return x !== name; });
+          try { localStorage.setItem('mfl:profiles', JSON.stringify(a)); localStorage.removeItem('mfl:p:' + name); } catch (e) {}
+          syncCfgToTv();
+          paintUsers();
+          toast('已删除「' + name + '」');
+        };
+      })(dl[j]);
+    }
+  }
+  function parentalCfg() {
+    var o = {};
+    try { o = JSON.parse(localStorage.getItem('mfl:parental') || '{}') || {}; } catch (e) { o = {}; }
+    return { on: !!o.on, pin: String(o.pin || ''), kids: o.kids || [], from: o.from, to: o.to };
+  }
+  function setParentalCfg(o) {
+    try { localStorage.setItem('mfl:parental', JSON.stringify(o || {})); } catch (e) {}
+  }
+  function paintParental() {
+    var c = parentalCfg();
+    if ($('sParState')) $('sParState').textContent = c.on ? '已开启' : '关闭';
+    if ($('sParKids') && !$('sParKids').value) $('sParKids').value = (c.kids || []).join(',');
+    if ($('sParTime') && !$('sParTime').value && c.from != null && c.to != null) $('sParTime').value = c.from + '-' + c.to;
+  }
+  /** 把使用者 / 家长控制配置推给电视（电视没开或不同网络时会失败，本地照常生效） */
+  function syncCfgToTv() {
+    var payload = { profiles: profiles(), parental: parentalCfg() };
+    rcSend('cfg', JSON.stringify(payload)).catch(function () {});
+  }
+  function bindProfiles() {
+    if ($('sUserAdd')) $('sUserAdd').onclick = function () {
+      var inp = $('sUserNew');
+      var name = ((inp && inp.value) || '').trim();
+      if (!name) { toast('先起个名字'); return; }
+      var a = profiles();
+      if (a.indexOf(name) >= 0) { toast('已经有这个名字了'); return; }
+      a.push(name);
+      try { localStorage.setItem('mfl:profiles', JSON.stringify(a)); } catch (e) {}
+      if (inp) inp.value = '';
+      syncCfgToTv();
+      paintUsers();
+      toast('已添加「' + name + '」');
+    };
+  }
+  function bindParental() {
+    if ($('sParSave')) $('sParSave').onclick = function () {
+      var pin = (($('sParPin') && $('sParPin').value) || '').trim();
+      if (!/^[0-9]{4}$/.test(pin)) { toast('密码要 4 位数字'); return; }
+      var kids = (($('sParKids') && $('sParKids').value) || '').split(/[,，\s]+/)
+        .map(function (x) { return x.trim(); }).filter(function (x) { return x; });
+      var times = (($('sParTime') && $('sParTime').value) || '').trim();
+      var from = null, to = null;
+      if (times) {
+        var m = times.match(/^([0-9]{1,2})\s*-\s*([0-9]{1,2})$/);
+        if (!m) { toast('时段写成 22-7 这样'); return; }
+        from = Number(m[1]); to = Number(m[2]);
+        if (from > 23 || to > 23) { toast('小时要在 0-23 之间'); return; }
+      }
+      setParentalCfg({ on: true, pin: pin, kids: kids, from: from, to: to });
+      syncCfgToTv();
+      paintParental();
+      toast('家长控制已开启（已推给电视）');
+    };
+    if ($('sParOff')) $('sParOff').onclick = function () {
+      var c = parentalCfg();
+      c.on = false;
+      setParentalCfg(c);
+      syncCfgToTv();
+      paintParental();
+      toast('家长控制已关闭');
+    };
+  }
+  /** 命中屏蔽词、且还没解锁 → 这条不该出现在列表里 */
+  function kidHidden(name) {
+    var c = parentalCfg();
+    if (!c.on) return false;
+    try {
+      if (Date.now() - Number(sessionStorage.getItem('mfl:punlock') || 0) < 30 * 60 * 1000) return false;
+    } catch (e) {}
+    var n = String(name || '').toLowerCase();
+    var ks = c.kids || [];
+    for (var i = 0; i < ks.length; i++) {
+      var k = String(ks[i] || '').toLowerCase();
+      if (k && n.indexOf(k) >= 0) return true;
+    }
+    return false;
+  }
+
+  try { bindRemote(); } catch (e) {}
+  try { bindSourceIO(); } catch (e) {}
+  try { bindProfiles(); } catch (e) {}
+  try { bindParental(); } catch (e) {}
+  try { paintUsers(); paintParental(); } catch (e) {}
+  try { loadSrcHealth(false); } catch (e) {}
 
   loadHome(false);
   // 追剧日历跟片单并行取：片单慢的时候首页照样先有「今天更新了什么」

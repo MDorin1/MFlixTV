@@ -6,6 +6,8 @@ import { ToastProvider } from './toast';
 import { AuthProvider } from './auth';
 import { ThemeProvider } from './theme';
 import { GlobalDownloadManager } from './download-manager';
+import { RemoteSink } from './remote-sink';
+import { FirstRun } from './first-run';
 import { useAppStore, hydrateLiveProbeResults } from '@/lib/store';
 import { api, STATUS_QUERY_KEY } from '@/lib/client-api';
 import { applyEnvPresets } from '@/lib/subscription-sync';
@@ -50,6 +52,9 @@ export function Providers({ children }: { children: ReactNode }) {
           {/* 全站常驻：下载事件监听（enqueueDownload）依赖它存在——
               挂在 Header 里会让 /watch 等不渲染 Header 的页面派发的事件凭空丢失 */}
           <GlobalDownloadManager />
+          {/* 手机遥控的接收端：全站常驻，手机上按的键在这里被执行 */}
+          <RemoteSink />
+          <FirstRun />
           <AuthProvider>{children}</AuthProvider>
         </ToastProvider>
       </ThemeProvider>

@@ -55,6 +55,13 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
     submitSearch(text);
   };
 
+  // 手机遥控点「设置」：电脑端没有独立的设置页，直接把顶栏的设置抽屉拉起来
+  useEffect(() => {
+    const onRc = () => setSettingsOpen(true);
+    window.addEventListener('mfl:rc-settings', onRc);
+    return () => window.removeEventListener('mfl:rc-settings', onRc);
+  }, []);
+
   return (
     <>
       <header

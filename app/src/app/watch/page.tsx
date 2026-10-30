@@ -35,13 +35,14 @@ import {
   db,
 } from '@/lib/db';
 import { cn } from '@/lib/utils';
+import { ParentalGate } from '@/components/parental-gate';
 
 /**
  * 播放页（唯一入口，替代旧版 watch.html → player.html 跳转链）。
  * 状态全部由 URL 驱动：/watch?source=xx&id=..&index=..&title=..
  * 集数列表由服务端详情接口获取；进度与历史走 IndexedDB。
  */
-export default function WatchPage() {
+function WatchPageInner() {
   return (
     <Suspense>
       <WatchContent />
@@ -574,5 +575,17 @@ function HomeButton() {
     >
       <Icon name="home" className="w-5 h-5" />
     </Link>
+  );
+}
+
+/**
+ * 播放页外壳：家长控制门禁包在最外面。
+ * 没开家长控制时它是透明的（直接渲染原页面），开了才可能先要密码。
+ */
+export default function WatchPage() {
+  return (
+    <ParentalGate>
+      <WatchPageInner />
+    </ParentalGate>
   );
 }

@@ -150,10 +150,13 @@ object SourceHealth {
         val arr = JSONArray()
         map.values.sortedWith(compareByDescending<H> { it.ok }.thenBy { if (it.ms == 0) 999999 else it.ms })
             .forEach {
+                val src = Sources.ALL.firstOrNull { s -> s.base == it.base }
                 arr.put(
                     JSONObject().put("name", it.name).put("base", it.base)
+                        .put("key", src?.key ?: Sources.keyOf(it.base))
                         .put("ok", it.ok).put("ms", it.ms).put("items", it.items)
                         .put("fails", it.fails).put("err", it.err)
+                        .put("off", src != null && Sources.isOff(src.key))
                 )
             }
         val okList = map.values.filter { it.ok }
@@ -164,6 +167,7 @@ object SourceHealth {
             .put("ok", okList.size)
             .put("fastest", if (fastest == null) "—" else fastest.name + " " + fastest.ms + "ms")
             .put("checkedAt", lastProbeAt)
+            .put("offCount", Sources.offKeys().size)
             .put("stale", System.currentTimeMillis() - lastProbeAt > TTL)
     }
 

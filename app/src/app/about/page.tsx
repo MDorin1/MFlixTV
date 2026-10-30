@@ -3,6 +3,7 @@
 import { Header } from '@/components/header';
 import { SiteFooter } from '@/components/site-footer';
 import { LanBadge } from '@/components/lan-badge';
+import { ParentalSettings } from '@/components/parental-settings';
 
 /** 一条说明：Netflix 那种「标题一行、正文一段、下面一条淡线」的节奏 */
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
@@ -56,6 +57,20 @@ export default function AboutPage() {
                 第一次打开要输这台电脑上设的访问密码，之后同一个浏览器会记住。电脑上的 MFlixTV 关掉，这个地址就打不开了。
               </p>
               <LanBadge showOnMobile className="px-0 text-sm" />
+            </Block>
+
+            <Block title="片源健康">
+              <p>
+                每个源现在通不通、快不快，看一页就知道；停用的源不参与搜索（随时能恢复）。
+                整套源地址可以导出成一段 JSON 带到别的设备，不用手抄。
+              </p>
+              <a className="text-accent hover:underline" href="/sources">
+                打开片源健康
+              </a>
+            </Block>
+
+            <Block title="家长控制">
+              <ParentalSettings />
             </Block>
 
             <Block title="隐私与数据">

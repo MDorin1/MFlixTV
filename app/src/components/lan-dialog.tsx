@@ -5,11 +5,14 @@ import { createPortal } from 'react-dom';
 import { copyToClipboard } from '@/lib/clipboard';
 import { useToast } from '@/components/toast';
 import { cn } from '@/lib/utils';
+import { RemotePad } from '@/components/remote-pad';
 
 export interface LanInfo {
   port: string;
   url: string | null;
   addresses: { name: string; ip: string; private: boolean }[];
+  /** 最近 15 秒来过心跳的设备数（手机遥控、别的设备开着网页版都算一台） */
+  devices?: number;
 }
 
 /**
@@ -24,6 +27,7 @@ export function LanDialog({ open, info, onClose }: { open: boolean; info: LanInf
   const { toast } = useToast();
   const [pick, setPick] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [tab, setTab] = useState<'qr' | 'remote'>('qr');
 
   useEffect(() => {
     setMounted(true);
@@ -117,6 +121,36 @@ export function LanDialog({ open, info, onClose }: { open: boolean; info: LanInf
             </div>
           </div>
         </div>
+
+        <div className="px-5 pb-1 flex items-center gap-2">
+          <button
+            onClick={() => setTab('qr')}
+            className={cn(
+              'text-[11.5px] px-2.5 py-1 rounded-md border transition-colors',
+              tab === 'qr' ? 'border-accent/70 text-content bg-accent/12' : 'border-line/60 text-muted hover:text-content'
+            )}
+          >
+            扫码打开
+          </button>
+          <button
+            onClick={() => setTab('remote')}
+            className={cn(
+              'text-[11.5px] px-2.5 py-1 rounded-md border transition-colors',
+              tab === 'remote' ? 'border-accent/70 text-content bg-accent/12' : 'border-line/60 text-muted hover:text-content'
+            )}
+          >
+            用这台手机遥控
+          </button>
+          <span className="ml-auto text-[11px] text-muted">
+            {(info.devices || 0) > 1 ? `当前 ${info.devices} 台设备连着` : '目前只有这台在用'}
+          </span>
+        </div>
+
+        {tab === 'remote' && (
+          <div className="px-5 pb-2">
+            <RemotePad />
+          </div>
+        )}
 
         {urls.length > 1 && (
           <div className="px-5 pb-1">

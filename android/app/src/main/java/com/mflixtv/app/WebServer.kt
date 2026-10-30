@@ -36,7 +36,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val portNum = port
 
     companion object {
-        const val VERSION = "android-1.0"
+        const val VERSION = "android-1.1"
     }
 
     /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
@@ -110,6 +110,43 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 )
                 uri == "/api/sources/save" -> saveSources(session, p["json"]?.firstOrNull())
                 uri == "/api/sources/reset" -> json("{\"ok\":true,\"count\":" + Sources.reset() + "}")
+                // 停用 / 启用单个源（片源体检列表里点一下）
+                // on=1 表示「启用这个源」，on=0 表示「停用」；也接受 off=1 的反向写法
+                uri == "/api/sources/toggle" -> {
+                    val key = p["key"]?.firstOrNull().orEmpty()
+                    val useOff = p["on"]?.firstOrNull() == null && p["off"]?.firstOrNull() != null
+                    val raw = (p["on"]?.firstOrNull() ?: p["off"]?.firstOrNull() ?: "1")
+                        .trim().lowercase()
+                    val truth = raw == "1" || raw == "true" || raw == "on" || raw == "yes"
+                    val enable = if (useOff) !truth else truth
+                    json(
+                        "{\"ok\":" + Sources.setOff(key, !enable) +
+                            ",\"on\":" + enable +
+                            ",\"off\":" + Sources.offKeys().size + "}"
+                    )
+                }
+                // 片源配置导出 / 导入：换设备时把这段 JSON 粘过去就能还原（含停用清单）
+                uri == "/api/sources/export" -> json(Sources.exportJson())
+                uri == "/api/sources/import" -> {
+                    val n = Sources.importJson(p["json"]?.firstOrNull().orEmpty())
+                    json(if (n >= 0) "{\"ok\":true,\"count\":" + n + "}" else "{\"ok\":false,\"error\":\"格式不对\"}")
+                }
+                // 手机遥控：手机 push，电视 poll（只在局域网内走，不外发）
+                uri == "/api/remote/push" -> json(
+                    "{\"ok\":true,\"id\":" + Remote.push(
+                        p["cmd"]?.firstOrNull().orEmpty(),
+                        p["arg"]?.firstOrNull().orEmpty(),
+                        p["to"]?.firstOrNull().orEmpty(),
+                        p["from"]?.firstOrNull().orEmpty()
+                    ) + "}"
+                )
+                uri == "/api/remote/poll" -> json(
+                    Remote.poll(
+                        (p["since"]?.firstOrNull() ?: "0").toLongOrNull() ?: 0L,
+                        p["role"]?.firstOrNull() ?: "tv",
+                        p["who"]?.firstOrNull().orEmpty()
+                    )
+                )
                 uri == "/api/diag" -> json(Sources.probeJson(useCache = p["force"]?.firstOrNull() != "1"))
                 // 片源测速 / 维护：force=1 当场重测（设置页点「重新测速」），否则给缓存并在后台补测
                 uri == "/api/sources/health" -> json(healthJson(p["force"]?.firstOrNull() == "1"))
@@ -385,6 +422,8 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             // 息屏常驻：wake=是否持着 CPU 唤醒锁，wakeAlways=用户选的策略
             put("wake", KeepAlive.isHeld())
             put("wakeAlways", KeepAlive.alwaysOn(ctx))
+            // 局域网里最近 15 秒有过来的设备数（手机遥控、别的设备开着网页版都会算一台）
+            put("devices", Remote.active())
             // 机型指纹 + 最近一次崩溃：别人反馈闪退时，让用户截设置页就能拿到真因
             put("device", CrashLog.deviceLine(ctx))
             put("lastCrash", CrashLog.lastSummary(ctx))

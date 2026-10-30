@@ -315,6 +315,22 @@
   #settings{position:fixed;top:0;right:0;bottom:0;left:0;z-index:120;display:none;align-items:center;
     justify-content:center;background:rgba(0,0,0,.66)}
   #settings.on{display:flex}
+  #orderPanel{position:fixed;top:0;right:0;bottom:0;left:0;z-index:130;display:none;align-items:center;
+    justify-content:center;background:rgba(0,0,0,.72)}
+  #orderPanel.on{display:flex}
+  #srcPanel,#userPanel{position:fixed;top:0;right:0;bottom:0;left:0;z-index:130;display:none;
+    align-items:center;justify-content:center;background:rgba(0,0,0,.72)}
+  #srcPanel.on,#userPanel.on{display:flex}
+  #pinPanel{position:fixed;top:0;right:0;bottom:0;left:0;z-index:140;display:none;align-items:center;
+    justify-content:center;background:rgba(0,0,0,.86)}
+  #pinPanel.on{display:flex}
+  .pin-dots{display:flex;gap:.7rem;justify-content:center;margin:.2rem 0 1.2rem}
+  .pin-dots i{width:1.05rem;height:1.05rem;border-radius:50%;background:rgba(255,255,255,.16)}
+  .pin-dots i.on{background:#fff}
+  .pin-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:.55rem}
+  .pin-keys .pk{height:2.7rem;border-radius:.5rem;background:rgba(255,255,255,.09);color:#fff;
+    font-size:1.05rem;font-weight:800;display:grid;place-items:center}
+  .pin-keys .pk.fx.on{background:#fff;color:#111}
   .st-box{width:54rem;max-width:86vw;background:rgba(22,22,22,.94);border:1px solid rgba(255,255,255,.12);
     border-radius:1rem;padding:2rem 2.2rem 1.5rem;box-shadow:0 2rem 5rem rgba(0,0,0,.75)}
   .st-h{font-size:1.2rem;font-weight:900;margin-bottom:1.15rem;letter-spacing:.02em}
@@ -714,6 +730,48 @@
   </div>
 </section>
 
+<section id="orderPanel">
+  <div class="st-box">
+    <div class="st-h">首页行顺序</div>
+    <div class="st-rows" id="ordRows"></div>
+    <div class="st-btns">
+      <button class="pb fx" id="ordClose">关闭</button>
+    </div>
+    <div class="st-tip">上下选择 · 回车把这一行往上挪（到顶就回到底）· 返回关闭</div>
+  </div>
+</section>
+
+<section id="srcPanel">
+  <div class="st-box">
+    <div class="st-h">片源开关</div>
+    <div class="st-rows" id="srcRows"></div>
+    <div class="st-btns">
+      <button class="pb fx" id="srcClose">关闭</button>
+    </div>
+    <div class="st-tip">回车停用 / 启用这一个源 · 停用的源不参与搜索与首页 · 返回关闭</div>
+  </div>
+</section>
+
+<section id="userPanel">
+  <div class="st-box">
+    <div class="st-h">谁在看</div>
+    <div class="st-rows" id="userRows"></div>
+    <div class="st-btns">
+      <button class="pb fx" id="userClose">关闭</button>
+    </div>
+    <div class="st-tip">回车切换使用者 · 每个人的观看记录各存一份 · 新使用者请用手机打开本页添加</div>
+  </div>
+</section>
+
+<section id="pinPanel">
+  <div class="st-box" style="width:34rem">
+    <div class="st-h" id="pinTitle">家长控制 · 输入密码</div>
+    <div class="pin-dots" id="pinDots"></div>
+    <div class="pin-keys" id="pinKeys"></div>
+    <div class="st-tip">方向键选数字 · 回车 · 返回取消</div>
+  </div>
+</section>
+
 <main id="home" class="view on">
   <section id="hero">
     <div class="hb" id="hb1"></div>
@@ -932,6 +990,11 @@
   }
   function pool() {
     if ($('extcard').classList.contains('on')) return visibleIn($('extcard'), '.fx');
+    /* 这几层小面板在 handle() 里各自拦按键，但 pool() 里漏了它们，方向键就点不动里面的行 / 数字键 */
+    if ($('pinPanel').classList.contains('on')) return visibleIn($('pinPanel'), '.fx');
+    if ($('srcPanel').classList.contains('on')) return visibleIn($('srcPanel'), '.fx');
+    if ($('userPanel').classList.contains('on')) return visibleIn($('userPanel'), '.fx');
+    if ($('orderPanel').classList.contains('on')) return visibleIn($('orderPanel'), '.fx');
     if ($('settings').classList.contains('on')) return visibleIn($('settings'), '.fx');
     var view = document.querySelector('.view.on');
     var list = visibleIn($('navItems'), '.nv');
@@ -1315,8 +1378,8 @@
 
   /** 把「继续观看 / 我的列表」两行挂上去（本地数据，同步、不等网络）。 */
   function mountRecRows(box) {
-    var conts = contAll().filter(function (r) { return r && r.name; });
-    var lists = listAll().filter(function (r) { return r && r.name; });
+    var conts = contAll().filter(function (r) { return r && r.name && !kidHidden(r.name); });
+    var lists = listAll().filter(function (r) { return r && r.name && !kidHidden(r.name); });
     if (conts.length) {
       var rc = railNode('继续观看', '本机 ' + conts.length + ' 部');
       conts.slice(0, 20).forEach(function (r) { rc.strip.appendChild(recCardNode(r, true)); });
@@ -1481,6 +1544,9 @@
     /* 业务行单独一个容器：刷新只重建这块，记录行不闪、焦点不丢 */
     var bizBox = el('div'); bizBox.id = 'bizBox';
     rails.appendChild(bizBox);
+    /* 「今天更新」单独一个容器：首页行顺序要能把它挪到别的位置 */
+    var todayBox = el('div'); todayBox.id = 'todayBox';
+    rails.appendChild(todayBox);
     for (var i = 0; i < 3; i++) {
       var sk = railNode(i === 0 ? '最近更新' : '\u00a0', '');
       for (var k = 0; k < 9; k++) {
@@ -1503,7 +1569,7 @@
       S.heroList = (pool0.length ? pool0 : (S.rows[0].items || [])).slice(0, 5);
       if (S.heroList.length) { S.heroAt = 0; paintHero(S.heroList[0]); startHeroRotate(); }
       S.rows.forEach(function (row) {
-        var items = (row.items || []).filter(function (x) { return x && x.name; });
+        var items = (row.items || []).filter(function (x) { return x && x.name && !kidHidden(x.name); });
         if (!items.length) return;
         var r = railNode(row.title || '片单', items.length + ' 部');
         items.forEach(function (it) { r.strip.appendChild(cardNode(it)); });
@@ -1514,12 +1580,28 @@
         gs.forEach(function (g) { (g.items || []).forEach(function (x) { list.push(x); }); });
         if (!list.length) return;
         var r = railNode('今天更新', (c.selected && c.selected.totals ? c.selected.totals.all : list.length) + ' 部');
-        list.slice(0, 26).forEach(function (it) { r.strip.appendChild(cardNode(it, it.remarks || '更新')); });
-        bizBox.appendChild(r.sec);
+        list.filter(function (it) { return !kidHidden(it && it.name); })
+          .slice(0, 26).forEach(function (it) { r.strip.appendChild(cardNode(it, it.remarks || '更新')); });
+        var tb = $('todayBox') || bizBox;
+        tb.appendChild(r.sec);
         buildHot();
       }).catch(function () { buildHot(); });
+      try { applyRowOrder(); } catch (e) {}
       try { fitHome(); } catch (e) {}
-      if (!focusEl) focusFirst('#heroPlay');
+      if (!focusEl) {
+        /* 冷启动也回到上次停的那张卡上（不只是同一次会话内） */
+        var hn0 = '';
+        try { hn0 = localStorage.getItem('mfl:hn') || ''; } catch (e) {}
+        var picked = null;
+        if (hn0) {
+          var cs0 = document.querySelectorAll('#rails .card');
+          for (var hi = 0; hi < cs0.length; hi++) {
+            if (cs0[hi].dataset.name === hn0) { picked = cs0[hi]; break; }
+          }
+        }
+        if (picked) { homeName = hn0; homeFocus = picked; homeScroll = Number(localStorage.getItem('mfl:hs') || 0) || 0; recallHome(); }
+        else focusFirst('#heroPlay');
+      }
     }).catch(function (e) {
       bizBox.innerHTML = '';
       var n = el('div', 'rail-note');
@@ -1564,7 +1646,7 @@
     $('resH').textContent = '正在搜「' + wd + '」…';
     $('sres').innerHTML = '';
     getJSON('/api/search?wd=' + encodeURIComponent(wd)).then(function (d) {
-      var list = (d && d.list) || [];
+      var list = ((d && d.list) || []).filter(function (it) { return !kidHidden(it && it.name); });
       $('sres').innerHTML = '';
       if (!list.length) { $('hot').classList.remove('off'); $('resH').textContent = '没找到「' + wd + '」，换个词'; return; }
       $('resH').textContent = '搜索结果 · ' + list.length + ' 部';
@@ -1931,6 +2013,12 @@
     }
   }
   function playEp(i) {
+    /* 家长控制：命中关键词或正处于限时时段，先跟用户要密码，通过后自动继续 */
+    var blocked = parentalGate(S.title, function () { playEpRaw(i); });
+    if (blocked) return;
+    playEpRaw(i);
+  }
+  function playEpRaw(i) {
     var g = S.groups[S.group] || {};
     var eps = g.episodes || [];
     var e = eps[i];
@@ -2077,6 +2165,23 @@
     $('pcur').textContent = fmt(v.currentTime);
     $('played').style.width = (100 * v.currentTime / v.duration) + '%';
     showBub(v.currentTime);
+  }
+  /* 快进档位：默认 10 秒，设置里可切 10 / 15 / 30。
+     长按同一个方向不松手时（遥控器会连发同一个键）从第 3 次开始三倍步长，
+     松手 0.5 秒内不复位——所以「长按右」＝一路快进，不用戳几十下。 */
+  var SEEK_STEPS = [10, 15, 30];
+  var seekDir = 0, seekChain = 0, seekAt = 0;
+  function seekStepCfg() {
+    var n = 0;
+    try { n = parseInt(localStorage.getItem('mfl:seekstep') || '10', 10) || 10; } catch (e) { n = 10; }
+    return SEEK_STEPS.indexOf(n) >= 0 ? n : 10;
+  }
+  function seekByDirection(dir) {
+    var now = Date.now();
+    if (dir === seekDir && now - seekAt < 600) seekChain++; else seekChain = 0;
+    seekDir = dir; seekAt = now;
+    var mul = seekChain >= 2 ? 3 : 1;
+    seekBy(dir * seekStepCfg() * mul);
   }
   function seekBy(s) {
     if (!v.duration) return;
@@ -2348,7 +2453,13 @@
   function showView(name) {
     var cur = '';
     ['home', 'search', 'detail'].forEach(function (k) { if ($(k).classList.contains('on')) cur = k; });
-    if (cur === 'home') homeScroll = window.scrollY || window.pageYOffset || 0;
+    if (cur === 'home') {
+      homeScroll = window.scrollY || window.pageYOffset || 0;
+      try {
+        localStorage.setItem('mfl:hs', String(homeScroll || 0));
+        if (homeName) localStorage.setItem('mfl:hn', homeName);
+      } catch (e) {}
+    }
     ['home', 'search', 'detail'].forEach(function (k) { $(k).classList.toggle('on', k === name); });
     $('nav').style.display = '';
     if (name === 'home') {
@@ -2471,6 +2582,124 @@
       toast(TAILS[i] ? '片尾剩 ' + TAILS[i] + ' 秒时提示下一集' : '片尾不再提前提示');
     };
   }
+  /* 快进档位：点一下切 10 / 15 / 30 秒（长按同一个方向会更快，见 seekByDirection） */
+  function stSeekRow() {
+    return '<div class="st-row fx" id="stSeek"><span>快进档位</span><b id="stSeekV">' +
+      seekStepCfg() + ' 秒</b></div>';
+  }
+  function bindStSeek() {
+    var r = $('stSeek');
+    if (!r) return;
+    r.onclick = function () {
+      var i = SEEK_STEPS.indexOf(seekStepCfg());
+      i = (i + 1) % SEEK_STEPS.length;
+      try { localStorage.setItem('mfl:seekstep', String(SEEK_STEPS[i])); } catch (e) {}
+      var b = $('stSeekV');
+      if (b) b.textContent = SEEK_STEPS[i] + ' 秒';
+      toast('方向键左右每次 ' + SEEK_STEPS[i] + ' 秒，长按会更快');
+    };
+  }
+
+  /* ===== 首页行顺序：家里那台电视看什么顺序，用户自己说了算 ===== */
+  var ROW_KEYS = ['rec', 'home', 'today'];
+  var ROW_NAMES = { rec: '继续观看', home: '推荐片单', today: '今天更新' };
+  function rowOrder() {
+    var a = null;
+    try { a = JSON.parse(localStorage.getItem('mfl:roworder') || 'null'); } catch (e) { a = null; }
+    if (!a || !a.length || !a.filter) a = ROW_KEYS.slice();
+    a = a.filter(function (k) { return ROW_KEYS.indexOf(k) >= 0; });
+    ROW_KEYS.forEach(function (k) { if (a.indexOf(k) < 0) a.push(k); });
+    return a;
+  }
+  function rowOrderText() { return rowOrder().map(function (k) { return ROW_NAMES[k]; }).join(' → '); }
+  function applyRowOrder() {
+    var rails = $('rails');
+    if (!rails) return;
+    var map = { rec: $('recBox'), home: $('bizBox'), today: $('todayBox') };
+    rowOrder().forEach(function (k) { if (map[k]) rails.appendChild(map[k]); });
+  }
+  function openOrderPanel() {
+    var box = $('ordRows');
+    if (!box) return;
+    $('orderPanel').classList.add('on');
+    box.innerHTML = '';
+    rowOrder().forEach(function (k, i) {
+      var d = el('div', 'st-row fx');
+      d.dataset.k = k;
+      d.innerHTML = '<span>' + ROW_NAMES[k] + '</span><b>' + (i + 1) + '</b>';
+      d.onclick = function () {
+        var a = rowOrder(), at = a.indexOf(k);
+        if (at <= 0) { a.splice(at, 1); a.push(k); } else { a.splice(at, 1); a.splice(at - 1, 0, k); }
+        try { localStorage.setItem('mfl:roworder', JSON.stringify(a)); } catch (e) {}
+        applyRowOrder();
+        var v = $('stOrderV');
+        if (v) v.textContent = rowOrderText();
+        toast('顺序：' + rowOrderText());
+        setTimeout(function () {
+          var hit = box.querySelector('[data-k="' + k + '"]');
+          if (hit) paintFocus(hit);
+        }, 30);
+      };
+      box.appendChild(d);
+    });
+    var f = box.querySelector('.st-row.fx');
+    if (f) paintFocus(f);
+  }
+  function closeOrderPanel() {
+    $('orderPanel').classList.remove('on');
+    paintFocus($('stOrder'));
+  }
+  function stOrderRow() {
+    return '<div class="st-row fx" id="stOrder"><span>首页行顺序</span><b id="stOrderV">' +
+      rowOrderText() + '</b></div>';
+  }
+  function bindStOrder() {
+    var r = $('stOrder');
+    if (r) r.onclick = openOrderPanel;
+  }
+
+  /* 片源开关 / 使用者 / 家长控制的设置行 */
+  function stSrcRow() {
+    return '<div class="st-row fx" id="stSrc"><span>片源开关</span><b id="stSrcV">管理</b></div>';
+  }
+  function bindStSrc() {
+    var r = $('stSrc');
+    if (r) r.onclick = openSrcPanel;
+  }
+  function stUsrRow() {
+    return '<div class="st-row fx" id="stUsr"><span>谁在看</span><b id="stUsrV">' + activeProfile() + '</b></div>';
+  }
+  function bindStUsr() {
+    var r = $('stUsr');
+    if (r) r.onclick = openUserPanel;
+  }
+  function stParentalRow() {
+    var c = parentalCfg();
+    var txt = '关闭（手机可设置）';
+    if (c.on) {
+      txt = '已开启';
+      if (c.kids && c.kids.length) txt += ' · ' + c.kids.length + ' 个词';
+      if (inBlockTime(c)) txt += ' · 现在限时';
+    }
+    return '<div class="st-row fx" id="stParental"><span>家长控制</span><b id="stParentalV">' + txt + '</b></div>';
+  }
+  function bindStParental() {
+    var r = $('stParental');
+    if (!r) return;
+    r.onclick = function () {
+      var c = parentalCfg();
+      if (!c.on) { toast('用手机打开本页 → 家长控制，设置密码与关键词'); return; }
+      askPin('关闭家长控制 · 输入密码', function () {
+        var c2 = parentalCfg();
+        c2.on = false;
+        setParentalCfg(c2);
+        var b = $('stParentalV');
+        if (b) b.textContent = '关闭（手机可设置）';
+        toast('家长控制已关闭');
+      });
+    };
+  }
+
   /* 本机观看记录：点两下清空（只清「继续观看」，我的列表不动） */
   function stWatchRow() {
     return '<div class="st-row fx" id="stWatch"><span>本机观看记录</span><b id="stWatchV">' +
@@ -2518,19 +2747,35 @@
         stRow('局域网地址', (d && (d.lan || d.ip)) || '未联网'),
         stRow('机型', (d && d.device) || '—'),
         stPlayRow(),
+        stSeekRow(),
+        stOrderRow(),
         stHealthRow(),
+        stSrcRow(),
+        stUsrRow(),
+        stParentalRow(),
         stSkipRows(),
         stWatchRow()
       ].join('');
       bindStPlay();
+      bindStSeek();
+      bindStOrder();
       bindStSkip();
       bindStHealth();
+      bindStSrc();
+      bindStUsr();
+      bindStParental();
       bindStWatch();
     }).catch(function () {
-      rows.innerHTML = stRow('读取失败', '手机端的服务没应答') + stPlayRow() + stHealthRow() + stSkipRows() + stWatchRow();
+      rows.innerHTML = stRow('读取失败', '手机端的服务没应答') + stPlayRow() + stSeekRow() + stOrderRow() +
+        stHealthRow() + stSrcRow() + stUsrRow() + stParentalRow() + stSkipRows() + stWatchRow();
       bindStPlay();
+      bindStSeek();
+      bindStOrder();
       bindStSkip();
       bindStHealth();
+      bindStSrc();
+      bindStUsr();
+      bindStParental();
       bindStWatch();
     });
   }
@@ -2548,6 +2793,9 @@
     setTimeout(function () { location.reload(); }, 600);
   });
   $('stClose').addEventListener('click', closeSettings);
+  $('ordClose').addEventListener('click', closeOrderPanel);
+  $('srcClose').addEventListener('click', closeSrcPanel);
+  $('userClose').addEventListener('click', closeUserPanel);
 
   $('heroPlay').addEventListener('click', function () {
     if (S.heroCur) openDetail(S.heroCur);
@@ -2586,8 +2834,8 @@
       return true;
     }
     if (a === 'ok') { togglePlay(); return true; }
-    if (a === 'left') { seekBy(-10); return true; }
-    if (a === 'right') { seekBy(10); return true; }
+    if (a === 'left') { seekByDirection(-1); return true; }
+    if (a === 'right') { seekByDirection(1); return true; }
     if (a === 'up') { stepEp(-1); return true; }
     if (a === 'down') { stepEp(1); return true; }
     if (a === 'back') { closePlayer(); return true; }
@@ -2648,6 +2896,30 @@
       if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); return true; }
       return true;
     }
+    if ($('pinPanel').classList.contains('on')) {
+      if (a === 'back') { closePin(); return true; }
+      if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); return true; }
+      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
+      return true;
+    }
+    if ($('srcPanel').classList.contains('on')) {
+      if (a === 'back') { closeSrcPanel(); return true; }
+      if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); return true; }
+      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
+      return true;
+    }
+    if ($('userPanel').classList.contains('on')) {
+      if (a === 'back') { closeUserPanel(); return true; }
+      if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); return true; }
+      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
+      return true;
+    }
+    if ($('orderPanel').classList.contains('on')) {
+      if (a === 'back') { closeOrderPanel(); return true; }
+      if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); return true; }
+      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
+      return true;
+    }
     if ($('settings').classList.contains('on')) {
       if (a === 'back') { closeSettings(); return true; }
       if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); return true; }
@@ -2681,6 +2953,296 @@
     }
     return false;
   }
+  /* ================= 手机遥控 =================
+     手机在同一个网络打开这台电视的网页版，点「遥控这台设备」之后，
+     手机上的方向键 / 搜索框 / 播放键都会变成指令，经 /api/remote 送到这里执行。
+     全程只走局域网：指令存在电视上的内存队列里，电视每 0.8 秒取一次。 */
+  var RC = { since: 0, on: false, wasThere: false, who: '' };
+  function rcWho() {
+    var k = '';
+    try { k = localStorage.getItem('mfl:rcid') || ''; } catch (e) {}
+    if (!k) {
+      k = 'tv' + Math.random().toString(36).slice(2, 8);
+      try { localStorage.setItem('mfl:rcid', k); } catch (e) {}
+    }
+    return k;
+  }
+  function rcSearch(w) {
+    var t = String(w || '').trim();
+    if (!t) return;
+    word = t;
+    showView('search');
+    paintWord();
+    doSearch();
+  }
+  /** 执行一条来自手机的指令。返回 true 表示认识并处理了。 */
+  function rcApply(c) {
+    var cmd = String(c.cmd || ''), arg = String(c.arg || '');
+    if (!cmd) return false;
+    if (cmd === 'toast') { toast(arg || '来自手机的提示'); return true; }
+    if (cmd === 'settings') { try { openSettings(); } catch (e) {} return true; }
+    if (cmd === 'cfg') {
+      try {
+        var o = JSON.parse(arg || '{}');
+        if (o.parental) { setParentalCfg(o.parental); toast('家长控制已更新'); return true; }
+        if (o.profiles) {
+          try { localStorage.setItem('mfl:profiles', JSON.stringify(o.profiles)); } catch (e) {}
+          toast('使用者已更新');
+          return true;
+        }
+        if (o.reload) { location.reload(); return true; }
+      } catch (e) {}
+      return false;
+    }
+    if (cmd === 'search') { rcSearch(arg); return true; }
+    if (cmd === 'seek') { if (inPlayer()) { seekBy(Number(arg) || 15); return true; } return false; }
+    if (cmd === 'play') { if (inPlayer()) { try { if (v && v.paused) togglePlay(); } catch (e) {} return true; } return false; }
+    if (cmd === 'pause') { if (inPlayer()) { try { if (v && !v.paused) togglePlay(); } catch (e) {} return true; } return false; }
+    if (cmd === 'next') { if (inPlayer()) { stepEp(1); return true; } return false; }
+    if (cmd === 'prev') { if (inPlayer()) { stepEp(-1); return true; } return false; }
+    if (cmd === 'exit') { if (inPlayer()) { closePlayer(); return true; } goHome(); return true; }
+    // 其余当作遥控器按键：up / down / left / right / ok / back / menu
+    return handle(cmd) === true;
+  }
+  function rcPoll() {
+    var url = '/api/remote/poll?role=tv&since=' + RC.since + '&who=' + encodeURIComponent(rcWho());
+    getJSON(url).then(function (d) {
+      if (!d) return;
+      var list = d.cmds || [];
+      var n = Number(d.devices) || 0;
+      if (n > 1 && !RC.wasThere) toast('手机已连上，可以用它遥控这台电视');
+      RC.wasThere = n > 1;
+      RC.on = true;
+      for (var i = 0; i < list.length; i++) {
+        try { rcApply(list[i]); } catch (e) {}
+        RC.since = Math.max(RC.since, Number(list[i].id) || 0);
+      }
+      if (list.length) RC.since = Math.max(RC.since, Number(d.now) || 0);
+      else RC.since = Math.max(RC.since, Number(d.now) || 0);
+    }).catch(function () { RC.on = false; }).then(function () {
+      setTimeout(rcPoll, 800);
+    });
+  }
+
+  /* ================= 使用者（多 profile） =================
+     一台电视一家人看：每个人的「继续观看 / 我的列表」各存一份。
+     做法不侵入原有记录代码——切换时把当前这几个键的值整体搬到 mfl:p:<名字>，
+     再把目标那份搬回来，其余代码照旧读写同一批键。 */
+  var PROFILE_KEYS = ['mfl:continue', 'mfl:list', 'mfl:hn', 'mfl:hs'];
+  function profiles() {
+    var a = null;
+    try { a = JSON.parse(localStorage.getItem('mfl:profiles') || 'null'); } catch (e) { a = null; }
+    if (!a || !a.length || !a.filter) a = ['默认'];
+    if (a.indexOf('默认') < 0) a.unshift('默认');
+    return a;
+  }
+  function activeProfile() {
+    var p = '默认';
+    try { p = localStorage.getItem('mfl:profile') || '默认'; } catch (e) { p = '默认'; }
+    return profiles().indexOf(p) >= 0 ? p : '默认';
+  }
+  function profileSnap() {
+    var o = {};
+    PROFILE_KEYS.forEach(function (k) {
+      var v = null;
+      try { v = localStorage.getItem(k); } catch (e) {}
+      if (v !== null) o[k] = v;
+    });
+    return o;
+  }
+  function profileLoad(name) {
+    var raw = null;
+    try { raw = localStorage.getItem('mfl:p:' + name); } catch (e) {}
+    var o = {};
+    try { o = raw ? JSON.parse(raw) : {}; } catch (e) { o = {}; }
+    PROFILE_KEYS.forEach(function (k) {
+      try {
+        if (o[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, o[k]);
+      } catch (e) {}
+    });
+  }
+  function switchProfile(name) {
+    var cur = activeProfile();
+    if (!name || name === cur) return false;
+    try { localStorage.setItem('mfl:p:' + cur, JSON.stringify(profileSnap())); } catch (e) {}
+    try { localStorage.setItem('mfl:profile', name); } catch (e) {}
+    profileLoad(name);
+    return true;
+  }
+  function openUserPanel() {
+    $('userPanel').classList.add('on');
+    var box = $('userRows');
+    box.innerHTML = '';
+    var cur = activeProfile();
+    profiles().forEach(function (p) {
+      var r = el('div', 'st-row fx');
+      r.innerHTML = '<span>' + esc(p) + '</span><b>' + (p === cur ? '正在使用' : '切换') + '</b>';
+      r.onclick = function () {
+        if (switchProfile(p)) {
+          toast('已切换到「' + p + '」');
+          try { refreshRecRows(); } catch (e) {}
+          openUserPanel();
+        }
+      };
+      box.appendChild(r);
+    });
+    var f = box.querySelector('.st-row.fx');
+    if (f) paintFocus(f);
+  }
+  function closeUserPanel() {
+    $('userPanel').classList.remove('on');
+    paintFocus($('stUsr'));
+  }
+
+  /* ================= 家长控制 =================
+     配置在手机端（打开本页 → 家长控制）设置，通过 /api/remote 的 cfg 指令推过来：
+     电视上没有键盘，让人拿遥控器一个字母一个字母敲关键词是不现实的。 */
+  function parentalCfg() {
+    var o = {};
+    try { o = JSON.parse(localStorage.getItem('mfl:parental') || '{}') || {}; } catch (e) { o = {}; }
+    return { on: !!o.on, pin: String(o.pin || ''), kids: o.kids || [], from: o.from, to: o.to };
+  }
+  function setParentalCfg(o) {
+    try { localStorage.setItem('mfl:parental', JSON.stringify(o || {})); } catch (e) {}
+  }
+  function inBlockTime(c) {
+    if (c.from == null || c.to == null) return false;
+    var a = Number(c.from), b = Number(c.to);
+    if (isNaN(a) || isNaN(b) || a === b) return false;
+    var h = new Date().getHours();
+    return a < b ? (h >= a && h < b) : (h >= a || h < b);
+  }
+  function kidsHit(name, c) {
+    var n = String(name || '').toLowerCase();
+    var ks = c.kids || [];
+    for (var i = 0; i < ks.length; i++) {
+      var k = String(ks[i] || '').toLowerCase();
+      if (k && n.indexOf(k) >= 0) return true;
+    }
+    return false;
+  }
+  function pinUnlocked() {
+    try {
+      var t = Number(sessionStorage.getItem('mfl:punlock') || 0);
+      return Date.now() - t < 30 * 60 * 1000;
+    } catch (e) { return false; }
+  }
+  function markUnlock() { try { sessionStorage.setItem('mfl:punlock', String(Date.now())); } catch (e) {} }
+  /** 命中家长控制（关键词 / 限时）且还没解锁 → 这张卡不该出现 */
+  function kidHidden(name) {
+    var c = parentalCfg();
+    if (!c.on || pinUnlocked()) return false;
+    return kidsHit(name, c);
+  }
+  /** 播放门禁：拦下就先要密码，通过后自动继续播放。返回 true 表示已拦下。 */
+  function parentalGate(title, cb) {
+    var c = parentalCfg();
+    if (!c.on || pinUnlocked()) return false;
+    if (!kidsHit(title, c) && !inBlockTime(c)) return false;
+    askPin(inBlockTime(c) && !kidsHit(title, c) ? '现在是限时时段 · 输入密码继续' : '这个内容受家长控制保护 · 输入密码', cb);
+    return true;
+  }
+  var PINIUM = { buf: '', cb: null };
+  function paintPin() {
+    var d = $('pinDots');
+    if (!d) return;
+    d.innerHTML = '';
+    for (var i = 0; i < 4; i++) {
+      var x = el('i');
+      if (i < PINIUM.buf.length) x.className = 'on';
+      d.appendChild(x);
+    }
+  }
+  function buildPinKeys() {
+    var box = $('pinKeys');
+    if (!box) return;
+    box.innerHTML = '';
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '✕'].forEach(function (t) {
+      var b = el('button', 'pk fx');
+      b.textContent = t;
+      b.onclick = function () {
+        if (t === '✕') { closePin(); return; }
+        if (t === '⌫') { PINIUM.buf = PINIUM.buf.slice(0, -1); paintPin(); return; }
+        if (PINIUM.buf.length >= 4) return;
+        PINIUM.buf += t;
+        paintPin();
+        if (PINIUM.buf.length < 4) return;
+        var c = parentalCfg();
+        if (PINIUM.buf === c.pin) {
+          var cb = PINIUM.cb;
+          closePin();
+          markUnlock();
+          toast('已解锁 30 分钟');
+          if (cb) { try { cb(); } catch (e) {} }
+        } else {
+          PINIUM.buf = '';
+          paintPin();
+          toast('密码不对，再试一次');
+        }
+      };
+      box.appendChild(b);
+    });
+  }
+  function askPin(title, cb) {
+    PINIUM.buf = '';
+    PINIUM.cb = cb || null;
+    $('pinTitle').textContent = title || '家长控制 · 输入密码';
+    buildPinKeys();
+    paintPin();
+    $('pinPanel').classList.add('on');
+    var f = $('pinKeys').querySelector('.pk');
+    if (f) paintFocus(f);
+  }
+  function closePin() {
+    $('pinPanel').classList.remove('on');
+    PINIUM.buf = '';
+    PINIUM.cb = null;
+    paintPin();
+  }
+
+  /* ================= 片源开关 ================= */
+  function openSrcPanel() {
+    $('srcPanel').classList.add('on');
+    var box = $('srcRows');
+    box.innerHTML = '<div class="st-row"><span>读取中…</span><b></b></div>';
+    getJSON('/api/sources/health').then(function (d) {
+      var list = (d && d.list) || [];
+      box.innerHTML = '';
+      if (!list.length) {
+        box.innerHTML = '<div class="st-row"><span>还没测过</span><b>回设置页点「片源体检」</b></div>';
+        return;
+      }
+      list.forEach(function (s) {
+        var r = el('div', 'st-row fx');
+        function paint() {
+          var state = s.off ? '已停用' : (s.ok ? (s.ms + 'ms') : '不通');
+          r.innerHTML = '<span>' + esc(s.name || '') + '</span><b>' + state + '</b>';
+        }
+        paint();
+        r.onclick = function () {
+          var turnOn = s.off ? '1' : '0';
+          getJSON('/api/sources/toggle?key=' + encodeURIComponent(s.key || '') + '&on=' + turnOn).then(function () {
+            s.off = !s.off;
+            paint();
+            toast((s.name || '') + (s.off ? ' 已停用' : ' 已启用'));
+          }).catch(function () { toast('改不动：服务没应答'); });
+        };
+        box.appendChild(r);
+      });
+      var f = box.querySelector('.st-row.fx');
+      if (f) paintFocus(f);
+    }).catch(function () {
+      box.innerHTML = '<div class="st-row"><span>读取失败</span><b>服务没应答</b></div>';
+    });
+  }
+  function closeSrcPanel() {
+    $('srcPanel').classList.remove('on');
+    paintFocus($('stSrc'));
+  }
+
+  /* 调试/自动化用：直接投一条遥控指令进来说成执行一遍（手机上也是走同一条路径） */
+  window.mflTvRc = function (c) { try { return rcApply(c) === true; } catch (e) { return false; } };
+
   window.mflTvKey = function (a) {
     try { return handle(String(a || '')) === true; } catch (e) { return false; }
   };
@@ -2707,7 +3269,7 @@
   });
 
   /* ================= 起飞 ================= */
-  paintWord(); buildKbd(); loadHome();
+  paintWord(); buildKbd(); loadHome(); rcPoll();
   setTimeout(function () { $('boot').classList.add('off'); setTimeout(function () { try { $('boot').remove(); } catch (e) {} }, 500); }, 260);
   setTimeout(function () { if (!focusEl) focusFirst('#heroPlay'); }, 1000);
   /* 换分辨率 / 转屏 / 老盒子改 DPI 都要重算首屏，否则第一行又会被切掉 */

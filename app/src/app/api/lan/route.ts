@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import os from 'node:os';
 import { guardRequest } from '@/lib/api-guard';
+import { activeDevices } from '@/lib/remote-bus';
 
 export const runtime = 'nodejs';
 
@@ -47,5 +48,7 @@ export async function GET(req: Request) {
     addresses: list,
     // 前端直接可用的地址（没有局域网地址时为 null）
     url: list.length > 0 ? `http://${list[0].ip}:${port}` : null,
+    // 最近 15 秒内来过心跳的设备数（手机遥控 / 别的设备开着网页版都算一台）
+    devices: activeDevices(),
   });
 }
