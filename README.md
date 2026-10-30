@@ -109,7 +109,7 @@
 
 | 电视版首页「继续观看 / 我的列表」（红条是进度） | 电视版设置（跳过片头 / 片尾提前，点一下切一档） |
 | --- | --- |
-| ![电视版继续观看](docs/images/tv-home-030.png) | ![电视版设置](docs/images/tv-settings.png) |
+| ![电视版继续观看](docs/images/tv-home-031.png) | ![电视版设置](docs/images/tv-settings.png) |
 
 ## 快速开始
 
