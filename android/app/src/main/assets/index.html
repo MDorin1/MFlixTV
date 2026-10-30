@@ -723,8 +723,12 @@
         <button id="sProxySave">保存代理</button>
         <button id="sProxyClear">清除</button>
       </div>
-      <div class="row-btns"><button class="primary" id="sDiag">源站自检</button></div>
+      <div class="row-btns">
+        <button class="primary" id="sDiag">源站测速</button>
+        <button id="sFix">重新获取片源</button>
+      </div>
       <div id="sDiagBox"></div>
+      <div class="hint">「源站测速」会并发打一遍所有源，按耗时排序，慢的沉到后面；一个都不通时会自动去远端把源清单拉回来。「重新获取片源」是手动触发同一件事。</div>
       <div class="hint">代理填手机上梯子的 HTTP 端口（v2ray / Clash 都可）。留空表示直连；改完会重新取一次片单。</div>
     </div>
 
@@ -2539,26 +2543,54 @@
   }
   $('sProxySave').onclick = function () { saveProxy(($('sProxyIn').value || '').trim()); };
   $('sProxyClear').onclick = function () { $('sProxyIn').value = ''; saveProxy(''); };
+  /** 手机端源列表：按体检结果排（通的、快的在前），并标出失败次数。 */
+  function paintHealth(d) {
+    var list = (d && d.list) || [];
+    var html = '<div class="hint">' + (d && d.ok ? d.ok : 0) + '/' + (d && d.total ? d.total : list.length) +
+      ' 个源可用' +
+      (d && d.fastest && d.fastest !== '—' ? ('　最快：' + esc(d.fastest)) : '') +
+      (d && d.ok === 0 ? '　<b style="color:#e5a100">一个都不通，已自动去远端找源</b>' : '') + '</div>';
+    list.forEach(function (s) {
+      var color = s.ok ? '#3ddc84' : '#e5a100';
+      html += '<div class="src-item" style="border-color:#161616"><div style="flex:1;min-width:0">' +
+        '<div class="nm">' + esc(s.name) + ' <span style="color:' + color + ';font-size:11px">' +
+        (s.ok ? ('通 · ' + (s.ms | 0) + 'ms · ' + (s.items | 0) + '条') : ('不通' + (s.fails > 1 ? ' ×' + s.fails : ''))) +
+        '</span></div>' +
+        '<div class="bs">' + esc(s.base) + (s.err ? ('<br><span style="color:#8a6d3b">' + esc(s.err) + '</span>') : '') +
+        '</div></div></div>';
+    });
+    $('sDiagBox').innerHTML = html;
+  }
   $('sDiag').onclick = function () {
-    $('sDiagBox').innerHTML = '<div class="hint">正在逐个探测（最多十几秒）…</div>';
-    fetch('/api/diag?force=1')
+    $('sDiagBox').innerHTML = '<div class="hint">正在并发测速（约 5 秒）…</div>';
+    fetch('/api/sources/health?force=1')
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        var list = d.sources || [];
-        var html = '<div class="hint">' + (d.ok || 0) + '/' + list.length + ' 个源可用' +
-          (d.proxy ? ('　代理：' + esc(d.proxy)) : '　未设代理') + '</div>';
-        list.forEach(function (s) {
-          var color = s.ok ? '#3ddc84' : '#e5a100';
-          html += '<div class="src-item" style="border-color:#161616"><div style="flex:1;min-width:0">' +
-            '<div class="nm">' + esc(s.name) + ' <span style="color:' + color + ';font-size:11px">' +
-            (s.ok ? '通' : '不通') + ' · ' + (s.ms | 0) + 'ms</span></div>' +
-            '<div class="bs">' + esc(s.base) + (s.err ? ('<br><span style="color:#8a6d3b">' + esc(s.err) + '</span>') : '') +
-            '</div></div></div>';
-        });
-        $('sDiagBox').innerHTML = html;
+        paintHealth(d);
+        if (d && d.ok > 0) toast('片源可用 ' + d.ok + '/' + d.total);
+        else toast('一个源都不通，已在自动找源');
       })
-      .catch(function (e) { $('sDiagBox').innerHTML = '<div class="hint">自检失败：' + esc(e.message) + '</div>'; });
+      .catch(function (e) { $('sDiagBox').innerHTML = '<div class="hint">测速失败：' + esc(e.message) + '</div>'; });
   };
+  $('sFix').onclick = function () {
+    $('sDiagBox').innerHTML = '<div class="hint">正在从远端取源清单并测速…</div>';
+    fetch('/api/sources/autofix')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        paintHealth(d);
+        toast(d && d.added ? ('找回了 ' + d.added + ' 个新源') : '源清单已是最新');
+        fetch('/api/sources').then(function (r) { return r.json(); }).then(function (s) {
+          SET.list = s.list || [];
+          SET.builtin = s.builtin || [];
+          renderSources();
+        }).catch(function () {});
+        loadHome(true);
+      })
+      .catch(function (e) { $('sDiagBox').innerHTML = '<div class="hint">获取失败：' + esc(e.message) + '</div>'; });
+  };
+  /** 打开设置时先把上次的体检结果摆出来（不阻塞、不重测） */
+  fetch('/api/sources/health').then(function (r) { return r.json(); })
+    .then(paintHealth).catch(function () {});
   function renderSources() {
     var list = SET.list;
     $('sSrcCnt').textContent = list.length ? ('共 ' + list.length + ' 个') : '';

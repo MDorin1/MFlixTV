@@ -146,6 +146,7 @@ object SourceHealth {
     }
 
     fun snapshot(): JSONObject {
+        prune()
         val arr = JSONArray()
         map.values.sortedWith(compareByDescending<H> { it.ok }.thenBy { if (it.ms == 0) 999999 else it.ms })
             .forEach {
@@ -193,6 +194,18 @@ object SourceHealth {
     }
 
     fun okCount(): Int = map.values.count { it.ok }
+
+    /**
+     * 用户在设置里删掉源以后，体检记录里还留着它 —— 列表里就会一直挂着一个「不通」的死条目。
+     * 每次取快照前按当前源列表裁一遍。
+     */
+    private fun prune() {
+        val alive = Sources.ALL.map { it.base }.toSet()
+        if (map.keys.any { it !in alive }) {
+            map = LinkedHashMap(map.filterKeys { it in alive })
+            persist()
+        }
+    }
 
     /**
      * 维护：缓存过期就跑一次体检；体检完一个源都不通，就自动去远端把源清单更新回来再测一遍。
