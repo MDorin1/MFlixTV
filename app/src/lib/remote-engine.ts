@@ -89,6 +89,12 @@ const S = {
   stateBusy: false,
   /** 连续失败次数：断网时用来退避，别拿满速空转打失败请求 */
   fails: 0,
+  /**
+   * 连续 404 次数。
+   * 单次 404 可能只是服务端刚重启 / 刚好在 Worker 换手，直接丢 token 会让用户
+   * 莫名其妙的「需要重新扫码」；连丢三次才判定会话真的没了。
+   */
+  miss: 0,
   /** 刚从 sessionStorage 接手会话：第一条 host 回执只对齐序号，不回放旧指令 */
   resume: false,
   started: false,
@@ -163,9 +169,20 @@ function liveVideo(): HTMLVideoElement | null {
   return hit || all[0];
 }
 
-/** `当前下标|名|名…`；竖线是分隔符，名字里的竖线换掉 */
-function packList(arr: string[], cur: number, limit = 60): string {
-  const items = arr.slice(0, limit).map((s) => String(s || '').replace(/\|/g, '/').slice(0, 24));
+/**
+ * `当前下标|名|名…`；竖线是分隔符，名字里的竖线换掉。
+ *
+ * 以前这里写死 `limit = 60`，真人秀这种动辄 60+ 集的长剧在遥控器上就只剩前 60 集，
+ * 用户会以为后面压根没有（实测某档节目 66 集、遥控器只显示 60 集）。
+ * 现在不按条数砍，改成按「整串长度」控制：集数多就把每个名字压缩短一点，
+ * 但每一集都还在，顺序和下标也不变（ep 指令靠下标，砍掉一集就整排错位）。
+ */
+function packList(arr: string[], cur: number, budget = 6000): string {
+  if (!arr.length) return '';
+  const n = arr.length;
+  // 名字上限：集数少就留长一点，集数多就缩短，保证整串不超预算
+  const nameMax = Math.max(6, Math.min(24, Math.floor((budget - 8) / Math.max(1, n)) - 1));
+  const items = arr.map((s) => String(s || '').replace(/\|/g, '/').slice(0, nameMax));
   return `${Math.max(0, cur)}|${items.join('|')}`;
 }
 
@@ -239,7 +256,42 @@ function layeredBack() {
     top.close.click();
     return;
   }
-  handlers.back();
+  navigate('back');
+}
+
+/**
+ * 导航类指令的统一出口。
+ *
+ * 遥控器按「返回 / 回首页 / 搜索」时，被控页正在跑的可能是任意一个路由：
+ * 路由还没挂好、正在卸载、或者组件里抛了异常，都会让 `router.back()` 抛出来，
+ * 那条异常会被 Next 的 error boundary 接住 —— 表现就是「按一下返回，整个页面白了」。
+ * 所以这里永远不把异常往上丢：先试路由，出问题就退回整页跳转。
+ */
+function navigate(kind: 'back' | 'home' | 'search', q = '') {
+  const hard = () => {
+    try {
+      // 没有上一页（直接打开 / 刷新过）时「返回」等于把自己再退一次，
+      // Next 的 App Router 在这种历史栈上有可能直接抛错把页面弄白，所以退回首页更稳
+      if (kind === 'back') {
+        if (window.history.length > 1) window.history.back();
+        else window.location.assign('/');
+      } else if (kind === 'home') window.location.assign('/');
+      else window.location.assign('/?s=' + encodeURIComponent(q));
+    } catch {
+      /* 连整页跳转都不行就算了，至少别把页面搞崩 */
+    }
+  };
+  try {
+    if (kind === 'back' && window.history.length <= 1) {
+      hard();
+      return;
+    }
+    if (kind === 'back') handlers.back();
+    else if (kind === 'home') handlers.home();
+    else handlers.search(q);
+  } catch {
+    hard();
+  }
 }
 
 export function exec(cmd: string, arg: string) {
@@ -384,7 +436,7 @@ export function exec(cmd: string, arg: string) {
     case 'home':
       nav?.clear();
       window.dispatchEvent(new CustomEvent('mfl:rc-back-all'));
-      handlers.home();
+      navigate('home');
       return;
     case 'search': {
       // 手机上打片名、点搜索 → 这个页面直接搜一遍（和顶栏搜索走同一条路径）
@@ -392,7 +444,7 @@ export function exec(cmd: string, arg: string) {
       if (!q) return;
       if (panelOpen) window.dispatchEvent(new CustomEvent('mfl:rc-panel-close'));
       window.dispatchEvent(new CustomEvent('mfl:rc-back-all'));
-      handlers.search(q);
+      navigate('search', q);
       return;
     }
     case 'settings':
@@ -519,16 +571,23 @@ async function tick() {
     try {
       const r = await fetch(`/api/rs/host?t=${t}&since=${S.since}&wait=${WAIT_MS}`, { cache: 'no-store' });
       if (r.status === 404) {
-        // 会话过期（30 分钟或服务重启）：清掉，遥控器那边会提示已关闭
-        S.token = '';
-        S.url = '';
-        S.since = 0;
-        S.peers = 0;
-        S.fails = 0;
-        rememberSession('');
-        emit();
+        // 会话可能已经过期：但一次 404 不足以判死刑（长轮询断在重启的那一瞬很常见），
+        // 连丢三次才清掉，让手机那边不会因为一次抖动就得重新扫码。
+        S.miss += 1;
+        S.fails += 1;
+        if (S.miss >= 3) {
+          S.token = '';
+          S.url = '';
+          S.since = 0;
+          S.peers = 0;
+          S.fails = 0;
+          S.miss = 0;
+          rememberSession('');
+          emit();
+        }
       } else if (r.ok) {
         S.fails = 0;
+        S.miss = 0;
         const d = (await r.json()) as {
           now: number;
           cmds: { id: number; cmd: string; arg: string }[];
@@ -601,6 +660,22 @@ export function start() {
     S.peers = 0;
     S.resume = true;
     emit();
+  }
+  // 切走再切回来（隐藏标签页、最小化）：浏览器会把定时器压到 1 分钟一次，
+  // 回来时立刻补一次轮询 + 状态上报，遥控器那边不用等半分钟才发现「其实还连着」
+  try {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      S.fails = 0;
+      S.miss = 0;
+      if (S.started) {
+        window.clearTimeout(S.timer);
+        void tick();
+      }
+      flushState();
+    });
+  } catch {
+    /* ignore */
   }
   void tick();
 }

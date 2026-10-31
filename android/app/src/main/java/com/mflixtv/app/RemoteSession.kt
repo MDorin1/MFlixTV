@@ -28,6 +28,8 @@ object RemoteSession {
 
     private class Session(val token: String, val name: String) {
         val created = System.currentTimeMillis()
+        /** 最后一次有动静的时间：有人在用就一直续期，别让长片看到一半就掉线 */
+        @Volatile var seen = System.currentTimeMillis()
         @Volatile var hostBeat = System.currentTimeMillis()
         var seq = 0L
         val cmds = ArrayDeque<JSONObject>()
@@ -66,7 +68,7 @@ object RemoteSession {
 
     private fun sweep() {
         val now = System.currentTimeMillis()
-        val dead = sessions.entries.filter { now - it.value.created > TTL_MS }.map { it.key }
+        val dead = sessions.entries.filter { now - it.value.seen > TTL_MS }.map { it.key }
         dead.forEach { sessions.remove(it) }
     }
 
@@ -80,10 +82,13 @@ object RemoteSession {
 
     private fun get(token: String): Session? {
         val s = sessions[token] ?: return null
-        if (System.currentTimeMillis() - s.created > TTL_MS) {
+        val now = System.currentTimeMillis()
+        // 只要还有人在轮询就续期：用得着的时候永远不会「自己过期」
+        if (now - s.seen > TTL_MS) {
             sessions.remove(token)
             return null
         }
+        s.seen = now
         return s
     }
 
@@ -141,8 +146,9 @@ object RemoteSession {
         if (body.has("pos")) s.pos = body.optInt("pos")
         if (body.has("dur")) s.dur = body.optInt("dur")
         if (body.has("page")) s.page = body.optString("page").take(200)
-        if (body.has("eps")) s.eps = body.optString("eps").take(2400)
-        if (body.has("lines")) s.lines = body.optString("lines").take(800)
+        // 选集别按字数硬砍：长剧（60+ 集）砍掉之后遥控器上就只剩前几十集
+        if (body.has("eps")) s.eps = body.optString("eps").take(8000)
+        if (body.has("lines")) s.lines = body.optString("lines").take(2000)
         if (body.has("vol")) s.vol = body.optInt("vol", s.vol).coerceIn(0, 100)
         if (body.has("rate")) s.rate = body.optInt("rate", s.rate).coerceIn(25, 400)
         if (body.has("muted")) s.muted = body.optBoolean("muted", s.muted)

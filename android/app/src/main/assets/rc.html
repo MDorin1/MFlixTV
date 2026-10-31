@@ -62,10 +62,27 @@
   .chips .b{height:44px;padding:0 14px;-webkit-flex:1;flex:1}
   .chips .b.dim{opacity:.4}
 
+  /* 十字键 + 竖音量条：音量条就在上下左右的右边，跟苹果手机的音量键一样往上拖变大声 */
+  .padwrap{display:-webkit-flex;display:flex;-webkit-justify-content:center;justify-content:center;
+    -webkit-align-items:flex-start;align-items:flex-start;gap:12px;margin:14px auto 0;width:252px}
   .pad{display:-webkit-grid;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
-    gap:8px;width:196px;margin:14px auto 0}
+    gap:8px;width:196px}
   .pad .b{height:54px;font-size:15px}
   .pad .ok{font-weight:600}
+
+  .vcol{display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;
+    -webkit-align-items:center;align-items:center;gap:6px;padding-top:2px}
+  .vtrack{position:relative;width:30px;height:170px;border-radius:15px;background:rgba(255,255,255,.08);
+    overflow:hidden;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:none}
+  .vfill{position:absolute;left:0;right:0;bottom:0;background:rgba(255,255,255,.85);
+    -webkit-transition:height .08s linear;transition:height .08s linear}
+  .vfill.mute{background:rgba(255,255,255,.18)}
+  .vtick{position:absolute;left:6px;right:6px;height:1px;background:rgba(0,0,0,.2)}
+  .vnum{position:absolute;top:2px;left:0;right:0;text-align:center;font-size:10px;font-weight:600;color:rgba(0,0,0,.7)}
+  .vmute{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.06);display:-webkit-flex;
+    display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center}
+  .vmute.on{background:#fff;color:#0a0a0d}
+  .vlab{font-size:10px;color:rgba(255,255,255,.45);height:12px;line-height:12px}
 
   /* 音量 / 倍速：都能长按连发 */
   .kb{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;
@@ -177,17 +194,36 @@
     <button class="b dim" id="btnLines">线路</button>
   </div>
 
-  <div class="pad">
-    <span></span><button class="b" data-cmd="up" data-hold="1" aria-label="上">▲</button><span></span>
-    <button class="b" data-cmd="left" data-hold="1" aria-label="左">◀</button>
-    <button class="b ok" data-cmd="ok" aria-label="确定">确定</button>
-    <button class="b" data-cmd="right" data-hold="1" aria-label="右">▶</button>
-    <span></span><button class="b" data-cmd="down" data-hold="1" aria-label="下">▼</button><span></span>
+  <div class="padwrap">
+    <div class="pad">
+      <span></span><button class="b" data-cmd="up" data-hold="1" aria-label="上">▲</button><span></span>
+      <button class="b" data-cmd="left" data-hold="1" aria-label="左">◀</button>
+      <button class="b ok" data-cmd="ok" aria-label="确定">确定</button>
+      <button class="b" data-cmd="right" data-hold="1" aria-label="右">▶</button>
+      <span></span><button class="b" data-cmd="down" data-hold="1" aria-label="下">▼</button><span></span>
+    </div>
+    <div class="vcol">
+      <div class="vtrack" id="volTrack" role="slider" tabindex="0"
+        aria-label="音量" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+        <div class="vfill" id="volFill" style="height:100%"></div>
+        <span class="vtick" style="bottom:20%"></span>
+        <span class="vtick" style="bottom:40%"></span>
+        <span class="vtick" style="bottom:60%"></span>
+        <span class="vtick" style="bottom:80%"></span>
+        <span class="vnum" id="volNum" hidden></span>
+      </div>
+      <button class="vmute" id="muteBtn" aria-label="静音">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z" stroke-linejoin="round"/>
+          <path d="M15.5 9a4 4 0 010 6M18 6.5a7.5 7.5 0 010 11" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <span class="vlab" id="volLab">100%</span>
+    </div>
   </div>
 
   <div class="kb">
     <button id="volDown" aria-label="音量减">音量 −</button>
-    <button id="muteBtn">静音</button>
     <button id="volUp" aria-label="音量加">音量 +</button>
     <button id="rateDown" aria-label="减速">倍速 −</button>
     <button id="rateUp" aria-label="加速">倍速 +</button>
@@ -393,6 +429,57 @@
     send('mute');
   });
 
+  /* ---------- 竖音量条：按住跟着手指走，松手补发最后一个值 ---------- */
+  var volTrack = document.getElementById('volTrack');
+  var volFill = document.getElementById('volFill');
+  var volNum = document.getElementById('volNum');
+  var volLab = document.getElementById('volLab');
+  var volHold = false, volSentAt = 0, volLatest = 100;
+
+  function pctAt(clientY) {
+    var r = volTrack.getBoundingClientRect();
+    var p = 1 - (clientY - r.top) / Math.max(1, r.height);
+    return Math.round(Math.min(1, Math.max(0, p)) * 100);
+  }
+  function setVol(p, force) {
+    var v = Math.max(0, Math.min(100, Math.round(p)));
+    volLatest = v;
+    mark({ vol: v, muted: false });
+    volNum.hidden = false;
+    volNum.textContent = v;
+    var now = Date.now();
+    if (!force && now - volSentAt < 90) return;
+    volSentAt = now;
+    send('volset', String(v), 3);
+  }
+  if (volTrack) {
+    volTrack.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      volHold = true;
+      try { volTrack.setPointerCapture(e.pointerId); } catch (err) {}
+      setVol(pctAt(e.clientY), true);
+    });
+    volTrack.addEventListener('pointermove', function (e) {
+      if (!volHold) return;
+      setVol(pctAt(e.clientY));
+    });
+    function endVol(e) {
+      if (!volHold) return;
+      volHold = false;
+      try { volTrack.releasePointerCapture(e.pointerId); } catch (err) {}
+      // 节流可能吞掉最后一格，松手必补一次
+      send('volset', String(volLatest), 3);
+      setTimeout(function () { volNum.hidden = true; }, 260);
+    }
+    volTrack.addEventListener('pointerup', endVol);
+    volTrack.addEventListener('pointercancel', endVol);
+    volTrack.addEventListener('keydown', function (e) {
+      var v = Math.round(eff('vol', curState && curState.vol != null ? curState.vol : 100));
+      if (e.key === 'ArrowUp') { setVol(v + VOL_STEP, true); e.preventDefault(); }
+      else if (e.key === 'ArrowDown') { setVol(v - VOL_STEP, true); e.preventDefault(); }
+    });
+  }
+
   /* 全屏：被控端在浏览器里，原生全屏必须由「真实用户手势」触发，手机上的按键传过去不算，
      所以被控端走网页全屏（纯 CSS 铺满）。这里不猜结果：发完 1.8 秒拿真实状态比对一次，
      没变化就把原因说出来，而不是留一个按了没反应的按钮。 */
@@ -562,13 +649,27 @@
     paintPlay();
     paintStat();
     paintMute();
+    paintVol();
     paintFs();
     paintEpsButtons();
   }
 
+  function paintVol() {
+    var muted = eff('muted', curState ? !!curState.muted : false);
+    var v = Math.round(eff('vol', curState && curState.vol != null ? curState.vol : 100));
+    if (volFill) {
+      volFill.style.height = (muted ? 0 : v) + '%';
+      volFill.className = 'vfill' + (muted ? ' mute' : '');
+    }
+    if (volLab) volLab.textContent = muted ? '静音' : v + '%';
+    if (volTrack) volTrack.setAttribute('aria-valuenow', String(v));
+    if (volNum && !volHold) volNum.hidden = true;
+  }
+
   function paintMute() {
     var muted = eff('muted', curState ? !!curState.muted : false);
-    muteBtn.className = muted ? 'on' : '';
+    muteBtn.className = 'vmute' + (muted ? ' on' : '');
+    muteBtn.setAttribute('aria-label', muted ? '取消静音' : '静音');
   }
 
   function paintFs() {

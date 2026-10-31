@@ -157,6 +157,7 @@ export default function RemoteControlPage() {
   const [word, setWord] = useState('');
   const [flashMsg, setFlashMsg] = useState('');
   const [optim, setOptim] = useState<Optim>({ at: 0 });
+  const [volDrag, setVolDrag] = useState<number | null>(null);
   const [, setClock] = useState(0);
 
   const flashTimer = useRef<number | undefined>(undefined);
@@ -320,16 +321,6 @@ export default function RemoteControlPage() {
   const dim = 'opacity-40';
 
   /* 音量 / 倍速 / 方向键的长按连发 */
-  const volDown = useRepeat(() => {
-    const next = Math.max(0, Math.min(100, vol - VOL_STEP));
-    markOptim({ vol: next, muted: false });
-    void send('volset', String(next), 6);
-  });
-  const volUp = useRepeat(() => {
-    const next = Math.max(0, Math.min(100, vol + VOL_STEP));
-    markOptim({ vol: next, muted: false });
-    void send('volset', String(next), 6);
-  });
   const rateDown = useRepeat(() => {
     const next = Math.max(RATE_MIN, Math.round((rate - RATE_STEP) * 4) / 4);
     markOptim({ rate: next });
@@ -344,6 +335,60 @@ export default function RemoteControlPage() {
   const navDown = useRepeat(() => void send('down', '', 5));
   const navLeft = useRepeat(() => void send('left', '', 5));
   const navRight = useRepeat(() => void send('right', '', 5));
+
+  /* 竖音量条：按住就跟着手指走，松手补发最后一个值（节流期间可能跳过） */
+  const volTrackRef = useRef<HTMLDivElement | null>(null);
+  const volHold = useRef(false);
+  const volSentAt = useRef(0);
+  const volLatest = useRef(vol);
+
+  const pctAt = (clientY: number): number => {
+    const el = volTrackRef.current;
+    if (!el) return vol;
+    const r = el.getBoundingClientRect();
+    const p = 1 - (clientY - r.top) / Math.max(1, r.height);
+    return Math.round(Math.min(1, Math.max(0, p)) * 100);
+  };
+
+  const volSet = (p: number, force = false) => {
+    const v = Math.max(0, Math.min(100, Math.round(p)));
+    volLatest.current = v;
+    setVolDrag(v);
+    markOptim({ vol: v, muted: false });
+    const now = Date.now();
+    if (!force && now - volSentAt.current < 90) return;
+    volSentAt.current = now;
+    void send('volset', String(v), 3);
+  };
+
+  const onVolDown = (e: RPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    volHold.current = true;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* 老浏览器没有捕获也无所谓 */
+    }
+    volSet(pctAt(e.clientY), true);
+  };
+
+  const onVolMove = (e: RPointerEvent<HTMLDivElement>) => {
+    if (!volHold.current) return;
+    volSet(pctAt(e.clientY));
+  };
+
+  const onVolUp = (e: RPointerEvent<HTMLDivElement>) => {
+    if (!volHold.current) return;
+    volHold.current = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    // 松手必发一次：节流可能把最后那一格吞掉，不补发就会「拖到 20 实际停在 30」
+    void send('volset', String(volLatest.current), 3);
+    window.setTimeout(() => setVolDrag(null), 260);
+  };
 
   const togglePlay = () => {
     const next = !playing;
@@ -523,48 +568,107 @@ export default function RemoteControlPage() {
       </div>
 
       <div className="px-4 mt-4">
-        <div className="mx-auto w-[196px] grid grid-cols-3 grid-rows-3 gap-2">
-          <span />
-          <button className={`${btn} h-14`} {...navUp} aria-label="上">
-            ▲
-          </button>
-          <span />
-          <button className={`${btn} h-14`} {...navLeft} aria-label="左">
-            ◀
-          </button>
-          <button className={`${btn} h-14 font-semibold`} onClick={() => void send('ok')} aria-label="确定">
-            确定
-          </button>
-          <button className={`${btn} h-14`} {...navRight} aria-label="右">
-            ▶
-          </button>
-          <span />
-          <button className={`${btn} h-14`} {...navDown} aria-label="下">
-            ▼
-          </button>
-          <span />
+        <div className="mx-auto flex items-start justify-center gap-3">
+          <div className="w-[196px] grid grid-cols-3 grid-rows-3 gap-2">
+            <span />
+            <button className={`${btn} h-14`} {...navUp} aria-label="上">
+              ▲
+            </button>
+            <span />
+            <button className={`${btn} h-14`} {...navLeft} aria-label="左">
+              ◀
+            </button>
+            <button className={`${btn} h-14 font-semibold`} onClick={() => void send('ok')} aria-label="确定">
+              确定
+            </button>
+            <button className={`${btn} h-14`} {...navRight} aria-label="右">
+              ▶
+            </button>
+            <span />
+            <button className={`${btn} h-14`} {...navDown} aria-label="下">
+              ▼
+            </button>
+            <span />
+          </div>
+
+          {/* 竖着的音量条：和进度条一样可以直接拖，跟苹果手机的音量键一个手感 */}
+          <div className="flex flex-col items-center gap-1.5 select-none">
+            <div
+              ref={volTrackRef}
+              role="slider"
+              tabIndex={0}
+              aria-label="音量"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={vol}
+              onPointerDown={onVolDown}
+              onPointerMove={onVolMove}
+              onPointerUp={onVolUp}
+              onPointerCancel={onVolUp}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowUp') volSet(Math.min(100, vol + VOL_STEP));
+                else if (e.key === 'ArrowDown') volSet(Math.max(0, vol - VOL_STEP));
+              }}
+              className="relative w-[30px] h-[172px] rounded-[15px] bg-white/[0.08] overflow-hidden touch-none cursor-pointer"
+            >
+              <div
+                className={`absolute inset-x-0 bottom-0 transition-[height] duration-75 ${
+                  muted ? 'bg-white/20' : 'bg-white/85'
+                }`}
+                style={{ height: `${muted ? 0 : vol}%` }}
+              />
+              {/* 刻度：五格，方便一眼看出大概几成 */}
+              {[20, 40, 60, 80].map((p) => (
+                <span
+                  key={p}
+                  className="absolute left-1.5 right-1.5 h-px bg-black/20"
+                  style={{ bottom: `${p}%` }}
+                  aria-hidden
+                />
+              ))}
+              {volDrag !== null ? (
+                <span className="absolute inset-x-0 -top-0.5 text-center text-[10px] font-semibold text-black/70 tabular-nums">
+                  {volDrag}
+                </span>
+              ) : null}
+            </div>
+            <button
+              className={`w-[30px] h-[30px] grid place-items-center rounded-full ${
+                muted ? 'bg-white text-[#0a0a0d]' : 'bg-white/[0.06] text-white/70'
+              }`}
+              onClick={doMute}
+              aria-label={muted ? '取消静音' : '静音'}
+            >
+              {muted ? (
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                  <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z" strokeLinejoin="round" />
+                  <path d="M16 9.5l4 5M20 9.5l-4 5" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                  <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z" strokeLinejoin="round" />
+                  <path d="M15.5 9a4 4 0 010 6M18 6.5a7.5 7.5 0 010 11" strokeLinecap="round" />
+                </svg>
+              )}
+            </button>
+            <span className="text-[10px] tabular-nums text-white/45 h-3">{muted ? '静音' : `${vol}%`}</span>
+          </div>
         </div>
       </div>
 
-      {/* 音量 / 倍速：都能长按连发 */}
-      <div className="px-4 mt-4 flex items-center justify-center gap-1.5 text-[12px]">
-        <button className={`${btn} h-11 px-2`} {...volDown} aria-label="音量减">
+      {/* 倍速：还能长按连发。音量已经换成左边那根竖条 */}
+      <div className="px-4 mt-4 flex items-center justify-center gap-2 text-[12px]">
+        <button className={`${btn} h-11 px-3`} onClick={() => volSet(vol - VOL_STEP, true)} aria-label="音量减">
           音量 −
         </button>
-        <button
-          className={`${btn} h-11 px-2 ${muted ? 'bg-white text-[#0a0a0d] font-semibold' : ''}`}
-          onClick={doMute}
-        >
-          静音
-        </button>
-        <button className={`${btn} h-11 px-2`} {...volUp} aria-label="音量加">
-          音量 +
-        </button>
-        <button className={`${btn} h-11 px-2`} {...rateDown} aria-label="减速">
+        <button className={`${btn} h-11 px-3`} {...rateDown} aria-label="减速">
           倍速 −
         </button>
-        <button className={`${btn} h-11 px-2`} {...rateUp} aria-label="加速">
+        <button className={`${btn} h-11 px-3`} {...rateUp} aria-label="加速">
           倍速 +
+        </button>
+        <button className={`${btn} h-11 px-3`} onClick={() => volSet(vol + VOL_STEP, true)} aria-label="音量加">
+          音量 +
         </button>
       </div>
 

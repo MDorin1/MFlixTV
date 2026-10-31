@@ -158,12 +158,23 @@
     return br + ' · ' + os;
   }
 
-  /** 选集 / 线路压成一行：cur|名字|名字|…（名字里的竖线换成斜杠，省得解析歧义） */
-  function packList(arr, cur, limit) {
+  /** 选集 / 线路压成一行：cur|名字|名字|…（名字里的竖线换成斜杠，省得解析歧义）
+      以前按固定字数硬切，长剧（60+ 集）会连集数一起被切掉；现在先按条数把名字压短，
+      保证每一集都还在、下标对得上，真的还超才在条目边界处收尾。 */
+  function packList(arr, cur, budget) {
     if (!arr || !arr.length) return '';
+    var lim = budget || 6000;
+    var n = arr.length;
+    var nameMax = Math.max(6, Math.min(24, Math.floor((lim - 8) / Math.max(1, n)) - 1));
     var out = String(cur == null ? -1 : cur), i;
-    for (i = 0; i < arr.length; i++) out += '|' + String(arr[i] == null ? '' : arr[i]).replace(/\|/g, '/');
-    return out.length > limit ? out.slice(0, limit) : out;
+    for (i = 0; i < n; i++) {
+      out += '|' + String(arr[i] == null ? '' : arr[i]).replace(/\|/g, '/').slice(0, nameMax);
+    }
+    if (out.length > lim) {
+      var cut = out.lastIndexOf('|', lim);
+      out = cut > 0 ? out.slice(0, cut) : out.slice(0, lim);
+    }
+    return out;
   }
 
   var S = {
@@ -614,8 +625,8 @@
       S.listAt = now;
       var L = null;
       try { L = typeof h.lists === 'function' ? h.lists() : null; } catch (e4) { L = null; }
-      S.lastEps = L ? packList(L.eps, L.ep, 2400) : '';
-      S.lastLines = L ? packList(L.lines, L.ln, 800) : '';
+      S.lastEps = L ? packList(L.eps, L.ep, 6000) : '';
+      S.lastLines = L ? packList(L.lines, L.ln, 2000) : '';
     }
     // 空串也要发：离开播放器后遥控器上不能再留着上一部的集数
     qs += '&eps=' + encodeURIComponent(S.lastEps) + '&lines=' + encodeURIComponent(S.lastLines);

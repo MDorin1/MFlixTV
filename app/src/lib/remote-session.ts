@@ -43,6 +43,8 @@ export interface RsSession {
   token: string;
   name: string;
   created: number;
+  /** 最后一次有动静的时间：只要还有人在用（被控端轮询 / 遥控器轮询），会话就一直续期 */
+  seen: number;
   hostBeat: number;
   seq: number;
   cmds: RsCmd[];
@@ -58,6 +60,13 @@ interface Store {
 const MAX_CMDS = 48;
 const HOST_ALIVE_MS = 45_000;
 const CTL_ALIVE_MS = 20_000;
+/**
+ * 空闲多久才真的过期。
+ *
+ * 以前按「创建时间」算 30 分钟，结果只要一部片看得久一点，遥控器就毫无征兆地掉线、
+ * 必须重新扫码——而用户完全不知道自己「超时」了。现在只要还有人在轮询就一直续期，
+ * 只有真的一段时间没人用（关掉页面、放下手机）才回收。
+ */
 const TTL_MS = 30 * 60 * 1000;
 
 // 去掉容易看错的 0/O/1/I/L，扫码后手抄也不会错
@@ -84,7 +93,7 @@ function sweep() {
   const s = store();
   const now = Date.now();
   for (const [k, v] of s.sessions) {
-    if (now - v.created > TTL_MS) s.sessions.delete(k);
+    if (now - (v.seen || v.created) > TTL_MS) s.sessions.delete(k);
   }
 }
 
@@ -96,6 +105,7 @@ export function createSession(name: string): RsSession {
     token,
     name: (name || '').slice(0, 40) || '未命名设备',
     created: Date.now(),
+    seen: Date.now(),
     hostBeat: Date.now(),
     seq: 0,
     cmds: [],
@@ -110,10 +120,13 @@ export function getSession(token: string): RsSession | undefined {
   const s = store();
   const v = s.sessions.get(token);
   if (!v) return undefined;
-  if (Date.now() - v.created > TTL_MS) {
+  const now = Date.now();
+  // 只要这一轮还在被访问，就续一次命：用得着的时候永远不会「自己过期」
+  if (now - (v.seen || v.created) > TTL_MS) {
     s.sessions.delete(token);
     return undefined;
   }
+  v.seen = now;
   return v;
 }
 
@@ -157,8 +170,10 @@ export function setState(token: string, patch: Partial<RsState>): boolean {
     pos: Number.isFinite(Number(patch.pos)) ? Number(patch.pos) : v.state.pos,
     dur: Number.isFinite(Number(patch.dur)) ? Number(patch.dur) : v.state.dur,
     page: String(patch.page ?? v.state.page).slice(0, 200),
-    eps: String(patch.eps ?? v.state.eps).slice(0, 2400),
-    lines: String(patch.lines ?? v.state.lines).slice(0, 800),
+    // 选集别按 60 集砍：长剧（真人秀之类几十上百集）砍掉之后，
+    // 遥控器上只能选到前 60 集，用户会以为后面的集数不存在
+    eps: String(patch.eps ?? v.state.eps).slice(0, 8000),
+    lines: String(patch.lines ?? v.state.lines).slice(0, 2000),
     vol: clampInt(patch.vol, v.state.vol, 0, 100),
     rate: clampInt(patch.rate, v.state.rate, 25, 400),
     muted: Boolean(patch.muted ?? v.state.muted),
