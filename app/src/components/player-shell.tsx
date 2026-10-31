@@ -167,6 +167,8 @@ export function PlayerShell({
   const hlsRef = useRef<Hls | null>(null);
   const [error, setError] = useState('');
   const [hint, setHint] = useState('');
+  /** 快捷键帮助面板：按 ? 呼出。这套键一直在，但从来没人告诉过用户有哪些 */
+  const [helpOpen, setHelpOpen] = useState(false);
   // 起播前的品牌占位图（沿用旧版 nomedia 素材），实际开始播放后隐藏
   const [showPoster, setShowPoster] = useState(true);
   /**
@@ -181,6 +183,9 @@ export function PlayerShell({
    */
   const [switchFrame, setSwitchFrame] = useState<string | null>(null);
   const [switchLabel, setSwitchLabel] = useState('');
+  /** 键盘事件监听器是在老闭包里跑的，读 helpOpen 要走 ref，否则永远读到 false */
+  const helpRef = useRef(false);
+  helpRef.current = helpOpen;
   /** 长按临时 2 倍速：画面角上给个明确提示，否则用户不知道速度被改了 */
   const [rateBoost, setRateBoost] = useState(false);
   /**
@@ -1281,6 +1286,27 @@ export function PlayerShell({
       if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.closest?.('button')) return;
       const current = artRef.current;
       if (!current) return;
+      // ? 呼出快捷键表：这是唯一「所有键都能被看见」的地方
+      if (e.key === '?' || (e.shiftKey && e.code === 'Slash')) {
+        // ref 立刻改：state 要等下一次渲染，紧接着按的键会以为表还没开
+        setHelpOpen((v) => {
+          helpRef.current = !v;
+          return !v;
+        });
+        e.preventDefault();
+        return;
+      }
+      if (e.key === 'Escape' && helpRef.current) {
+        helpRef.current = false;
+        setHelpOpen(false);
+        e.preventDefault();
+        return;
+      }
+      // 表开着就不要再动底下的画面：J/L/0–9 这些键一按就会改播放位置
+      if (helpRef.current) {
+        e.preventDefault();
+        return;
+      }
       if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); return; } // 由父层处理集数切换
       if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); return; }
       // 数字键 0–9：跳到整集的百分比位置（0 = 片头，5 = 一半，9 = 九成）
@@ -1649,6 +1675,62 @@ export function PlayerShell({
           <div className="brand-splash-sub">PLEASE ENJOY</div>
         </div>
       )}
+      {helpOpen && (
+        // 快捷键表：按 ? 呼出。这些键一直都在，但没有任何地方写出来过
+        <div
+          className="absolute inset-0 z-30 flex items-center justify-center bg-black/78 p-6 backdrop-blur-sm"
+          onClick={() => setHelpOpen(false)}
+          role="dialog"
+          aria-label="快捷键"
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#101013] p-5 text-[13px] text-white/80 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-[14px] font-semibold text-white">快捷键</span>
+              <button
+                type="button"
+                className="rounded-md px-2 py-1 text-[12px] text-white/50 hover:bg-white/10 hover:text-white"
+                onClick={() => setHelpOpen(false)}
+              >
+                关闭 · Esc
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-1.5">
+              {[
+                ['空格 / K', '播放 / 暂停'],
+                ['J / L', '快退 / 快进 10 秒'],
+                ['← / →', '快退 / 快进 5 秒'],
+                ['↑ / ↓', '音量'],
+                ['M', '静音'],
+                ['0 – 9', '跳到 0% – 90%'],
+                [', / .', '倍速 - / +'],
+                ['F', '全屏'],
+                ['P', '画中画'],
+                ['Esc', '退出全屏 / 关面板'],
+                ['Shift + I', '把当前位置记成片头结尾'],
+                ['Shift + O', '把当前位置记成片尾起点'],
+                ['Shift + S', '记片段起点'],
+                ['Shift + E', '记片段终点'],
+                ['?', '打开 / 关闭这张表'],
+                ['Alt + ← / →', '上一集 / 下一集'],
+              ].map(([k, v]) => (
+                <div key={k} className="flex items-baseline gap-3">
+                  <kbd className="min-w-[76px] shrink-0 rounded-md border border-white/15 bg-white/[0.06] px-2 py-[3px] text-center font-mono text-[11px] text-white/85">
+                    {k}
+                  </kbd>
+                  <span className="text-white/60">{v}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 text-[11.5px] leading-relaxed text-white/35">
+              标记类（Shift 开头）会写进本机、影响整部剧的自动跳过，所以故意要求按住 Shift；手机上是横滑拖进度、左右半屏竖滑调亮度与音量、双击左右 ±10 秒、长按 2 倍速。
+            </div>
+          </div>
+        </div>
+      )}
+
       {!error && skipPrompt && (
         <button
           type="button"
