@@ -72,8 +72,17 @@ export default function RemoteControlPage() {
   const [gone, setGone] = useState(false);
   const [vibrate, setVibrate] = useState(true);
   const [drag, setDrag] = useState<number | null>(null);
-  const [sheet, setSheet] = useState<'' | 'eps' | 'lines'>('');
+  const [sheet, setSheet] = useState<'' | 'eps' | 'lines' | 'search'>('');
+  const [word, setWord] = useState('');
+  const [flashMsg, setFlashMsg] = useState('');
+  const flashTimer = useRef<number | undefined>(undefined);
+  const setFlash = (s: string) => {
+    setFlashMsg(s);
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlashMsg(''), 1800);
+  };
   const dragRef = useRef<number | null>(null);
+  const wordRef = useRef<HTMLInputElement | null>(null);
   dragRef.current = drag;
   const whoRef = useRef('');
 
@@ -131,6 +140,24 @@ export default function RemoteControlPage() {
     },
     [token, vibrate]
   );
+
+  /** 手机上打完片名点搜索：发给被控页，它自己回到首页搜这个词 */
+  const submitSearch = () => {
+    const q = word.trim();
+    if (!q) {
+      wordRef.current?.focus();
+      return;
+    }
+    void send('search', q);
+    setSheet('');
+    setWord('');
+    setFlash(`已让「${info?.name || '对方页面'}」搜索「${q}」`);
+    try {
+      wordRef.current?.blur();
+    } catch {
+      /* ignore */
+    }
+  };
 
   const st = info?.state;
   const playing = !!st?.playing;
@@ -230,16 +257,23 @@ export default function RemoteControlPage() {
         </button>
       </div>
 
-      {/* 选集 / 线路 / 全屏 */}
+      {/* 搜索 / 选集 / 线路 */}
       <div className="px-4 mt-3 flex items-center justify-center gap-2.5 text-[12px]">
+        <button
+          className={`${btn} h-11 flex-1`}
+          onClick={() => {
+            setSheet('search');
+            // 输入框一直在 DOM 里（只是移出屏幕），所以这里 focus 能直接把手机键盘顶起来
+            wordRef.current?.focus();
+          }}
+        >
+          搜索
+        </button>
         <button className={`${btn} h-11 flex-1`} onClick={() => setSheet('eps')}>
           {eps.list.length > 1 && eps.cur >= 0 ? `选集 ${eps.cur + 1}/${eps.list.length}` : '选集'}
         </button>
         <button className={`${btn} h-11 flex-1`} onClick={() => setSheet('lines')}>
           {lines.list.length > 1 && lines.cur >= 0 ? `线路 ${lines.cur + 1}/${lines.list.length}` : '线路'}
-        </button>
-        <button className={`${btn} h-11 px-4`} onClick={() => void send('fullscreen')}>
-          全屏
         </button>
       </div>
 
@@ -280,6 +314,9 @@ export default function RemoteControlPage() {
       </div>
 
       <div className="px-4 mt-3 mb-6 flex items-center justify-center gap-2 text-[12px]">
+        <button className={`${btn} h-11 flex-1`} onClick={() => void send('fullscreen')}>
+          全屏
+        </button>
         <button className={`${btn} h-11 flex-1`} onClick={() => void send('back')}>
           返回
         </button>
@@ -293,8 +330,57 @@ export default function RemoteControlPage() {
         这个页面只控制发起方的那一个页面，关掉对方页面后这里会显示「已关闭」。
       </p>
 
+      {/* 搜索浮层：一直挂在 DOM 里（只是移到屏幕外），点「搜索」时 input.focus() 能直接顶起手机键盘 */}
+      <div
+        className={`fixed inset-0 z-50 flex items-end bg-black/60 transition-opacity duration-200 ${
+          sheet === 'search' ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+        onClick={() => setSheet('')}
+      >
+        <div
+          className={`w-full bg-[#141416] rounded-t-[18px] px-4 pt-3.5 pb-6 transition-transform duration-200 ${
+            sheet === 'search' ? 'translate-y-0' : 'translate-y-full'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[13px] font-semibold">在手机上打片名</span>
+            <button className="text-[12px] text-white/50" onClick={() => setSheet('')}>
+              关闭
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              ref={wordRef}
+              value={word}
+              onChange={(e) => setWord(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitSearch();
+              }}
+              inputMode="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="电影 / 剧集 / 综艺名"
+              className="flex-1 min-w-0 h-12 rounded-xl bg-white/[0.08] px-3 text-[14px] text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/25"
+            />
+            <button
+              className="shrink-0 h-12 px-5 rounded-xl bg-white text-[#0a0a0d] text-[14px] font-semibold active:scale-95 transition-transform"
+              onClick={submitSearch}
+            >
+              搜索
+            </button>
+          </div>
+          <div className="mt-2 text-[10.5px] leading-relaxed text-white/30">
+            发给「{info?.name || '对方页面'}」，它会自己回到首页并搜这个词。
+          </div>
+        </div>
+      </div>
+
       {/* 选集 / 线路 浮层 */}
-      {sheet ? (
+      {sheet === 'eps' || sheet === 'lines' ? (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end" onClick={() => setSheet('')}>
           <div
             className="w-full max-h-[64vh] overflow-auto bg-[#141416] rounded-t-[18px] px-4 pt-3.5 pb-6"
@@ -351,6 +437,12 @@ export default function RemoteControlPage() {
               </div>
             )}
           </div>
+        </div>
+      ) : null}
+      {/* 发完指令的一行反馈 */}
+      {flashMsg ? (
+        <div className="fixed inset-x-4 bottom-6 z-[60] rounded-xl bg-white/12 backdrop-blur px-3 py-2.5 text-center text-[12px] text-white/90">
+          {flashMsg}
         </div>
       ) : null}
     </div>

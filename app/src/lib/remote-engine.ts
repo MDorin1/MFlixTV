@@ -38,6 +38,8 @@ export interface Snapshot {
 type Handlers = {
   back: () => void;
   home: () => void;
+  /** 手机上打了片名点搜索：在被控页上真的搜一遍 */
+  search: (q: string) => void;
 };
 
 const S = {
@@ -58,6 +60,7 @@ let panelOpen = false;
 let handlers: Handlers = {
   back: () => window.history.back(),
   home: () => window.location.assign('/'),
+  search: (q: string) => window.location.assign('/?s=' + encodeURIComponent(q)),
 };
 const listeners = new Set<() => void>();
 
@@ -295,6 +298,15 @@ export function exec(cmd: string, arg: string) {
       window.dispatchEvent(new CustomEvent('mfl:rc-back-all'));
       handlers.home();
       return;
+    case 'search': {
+      // 手机上打片名、点搜索 → 这个页面直接搜一遍（和顶栏搜索走同一条路径）
+      const q = String(arg || '').trim().slice(0, 100);
+      if (!q) return;
+      if (panelOpen) window.dispatchEvent(new CustomEvent('mfl:rc-panel-close'));
+      window.dispatchEvent(new CustomEvent('mfl:rc-back-all'));
+      handlers.search(q);
+      return;
+    }
     case 'settings':
       window.dispatchEvent(new CustomEvent('mfl:rc-settings'));
       return;

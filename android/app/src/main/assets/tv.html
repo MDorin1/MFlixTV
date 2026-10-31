@@ -3339,6 +3339,8 @@
           return true;
         }
         if (cmd === 'line') { if (inPlayer()) rcTvSwitchLine(parseInt(arg, 10)); return true; }
+        /* 手机上打片名点搜索：电视这边自己搜一遍 */
+        if (cmd === 'search') { rcSearch(String(arg || '')); return true; }
         if (cmd === 'toggle') { if (inPlayer()) togglePlay(); else handle('ok'); return true; }
         if (cmd === 'play') { if (inPlayer() && v && v.paused) togglePlay(); return true; }
         if (cmd === 'pause') { if (inPlayer() && v && !v.paused) togglePlay(); return true; }

@@ -3253,6 +3253,14 @@
           playEp(Math.min(keep, state.eps.length - 1));
           return true;
         }
+        /* 手机上打片名点搜索：这个页面自己搜一遍（和点热门搜索同一条路） */
+        if (cmd === 'search') {
+          var wd = String(arg || '').trim();
+          if (!wd) return true;
+          if (inPlayer) closePlayer();
+          startSearch(wd);
+          return true;
+        }
         if (cmd === 'next') {
           if (inPlayer && (state.ep | 0) + 1 < (state.eps || []).length) {
             playEp((state.ep | 0) + 1);

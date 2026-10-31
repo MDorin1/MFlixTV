@@ -32,6 +32,7 @@ export function RemoteHost({ className }: { className?: string }) {
     setHandlers({
       back: () => router.back(),
       home: () => router.push('/'),
+      search: (q: string) => router.push(`/?s=${encodeURIComponent(q)}`),
     });
     const off = subscribe(() => setSnap(snapshot()));
     setSnap(snapshot());
