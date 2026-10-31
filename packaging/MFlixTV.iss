@@ -1,5 +1,5 @@
-﻿#define MyAppName "MFlixTV"
-#define MyAppVersion "1.1.1"
+#define MyAppName "MFlixTV"
+#define MyAppVersion "1.1.2"
 #define MyAppExeName "MFlixTV.exe"
 
 [Setup]
@@ -18,7 +18,9 @@ DisableProgramGroupPage=yes
 ; 默认不弹 UAC（装到当前用户）；仍可在开始页选「为所有用户安装」
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-OutputDir=dist
+; 输出到工作区之外：工作区目录带「禁止删除子项」的保护 ACL，
+; 从那里双击安装包，Inno 的自解压引导阶段会直接静默失败（无日志、无提示）。
+OutputDir=D:\Build\dist
 OutputBaseFilename=MFlixTV-Setup-{#MyAppVersion}
 SetupIconFile=stage\launcher\app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
@@ -179,6 +181,38 @@ begin
     'Stop-Process -Force -ErrorAction SilentlyContinue"',
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(600);
+end;
+
+// 安装前体检：临时目录写不进去时，Inno 只会在复制文件阶段丢一句
+// 「安装程序无法创建目录」，看不出根因。这里先探一次，把它说清楚。
+function InitializeSetup(): Boolean;
+var
+  Tmp: String;
+begin
+  Result := True;
+  Tmp := GetEnv('TEMP');
+  if Tmp = '' then
+    Tmp := GetEnv('TMP');
+  Log('Install check: TEMP = ' + Tmp);
+  if (Tmp = '') or (not TryWriteInto(Tmp)) then
+  begin
+    MsgBox('系统临时目录不可写：' + #13#10 + Tmp + #13#10#13#10 +
+      '常见原因：临时目录被安全软件锁住、磁盘已满、或 %TEMP% 指到了不存在的盘。' + #13#10 +
+      '清理临时文件后重装即可。', mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+// 复制文件之前就动手：先把旧版进程结束掉，再建一遍目标目录。
+// 顺序很关键 —— 0.xx 时代把它放在 ssInstall，那时 Inno 已经开始写文件了。
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  NeedsRestart := False;
+  KillOldProcesses();
+  if not ForceDirectories(ExpandConstant('{app}')) then
+    Result := '无法创建安装目录：' + #13#10 + ExpandConstant('{app}') + #13#10#13#10 +
+      '请换一个短路径（例如 D:\MFlixTV），或者在安装向导第一页选「为所有用户安装」。';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
