@@ -700,6 +700,7 @@
     <button class="nv fx nvr" id="rcBtn" title="用另一台手机扫码当遥控器，控制当前这个页面"><span class="ic">▦</span>遥控</button>
     <button class="nv fx nvr" id="btnSearch"><span class="ic">⌕</span>搜索</button>
     <button class="nv fx nvr" id="btnSet"><span class="ic">⚙</span>设置</button>
+    <button class="nv fx nvr" id="btnPhone" title="换成手机版界面（窄屏卡片，手指点更顺）"><span class="ic">▤</span>手机版</button>
     <div id="lanip"><span>未联网</span></div>
     <div id="clock">--:--</div>
   </div>
@@ -2853,6 +2854,10 @@
     if (!b) return;
     if (b.id === 'btnSearch') navTo('search');
     else if (b.id === 'btnSet') openSettings();
+    else if (b.id === 'btnPhone') {
+      /* 换界面：服务端认 ?ui=m 并把选择记进 cookie（30 天），下次进来还是手机版 */
+      location.href = '/?ui=m';
+    }
   });
   $('stReload').addEventListener('click', function () { location.reload(); });
   $('stClear').addEventListener('click', function () {

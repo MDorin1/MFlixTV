@@ -276,9 +276,14 @@ class MainActivity : AppCompatActivity() {
         return "http://127.0.0.1:" + ServerService.port + "/"
     }
 
-    /** 电视版进 /tv，手机进 /（同一个服务，同一份源，两套界面）。 */
+    /**
+     * 电视版进 /tv，手机进 /（同一个服务，同一份源，两套界面）。
+     *
+     * 带上 ?ui= 是把 App 自己的判断明确告诉服务端：服务端还有一层 UA 兜底给别处的浏览器用，
+     * 但盒子的 WebView 有些报的是普通 Android UA，靠 UA 猜会猜成手机版。
+     */
     private fun pageUrl(): String {
-        return baseUrl() + (if (tvMode) "tv" else "")
+        return if (tvMode) baseUrl() + "tv?ui=tv" else baseUrl() + "?ui=m"
     }
 
     /**

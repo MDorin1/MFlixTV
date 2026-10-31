@@ -164,7 +164,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 uri == "/api/proxy" -> proxy(session)
                 // 外部播放器用的整条线路播放列表（连播不断，切集不用回 App）
                 uri == "/api/list.m3u" -> playlist(p)
-                uri == "/" || uri == "/index.html" -> asset("index.html", "text/html; charset=utf-8")
+                uri == "/" || uri == "/index.html" -> indexFor(session, p)
                 // 电视版（10 英尺界面，遥控器导航）：盒子上 8080/tv 也能直接用浏览器开
                 uri == "/tv" || uri == "/tv.html" -> asset("tv.html", "text/html; charset=utf-8")
                 // 扫码后手机打开的就是这一页（和 index.html / tv.html 共用同一套 /api/rs 接口）
@@ -548,6 +548,80 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         val n = Sources.save(body)
         return if (n < 0) json("{\"ok\":false,\"error\":\"bad json\"}")
         else json("{\"ok\":true,\"count\":$n}")
+    }
+
+    /* ---------------- 端识别：同一个地址，按访问方给最合适的界面 ---------------- */
+
+    /**
+     * 访问方属于哪一类。
+     *
+     * 为什么要分：手机版是竖屏卡片、手指点；电视版是 10 英尺大卡片、靠方向键走。
+     * 用手机打开电视版几乎点不到，用电视 / 电脑打开手机版又窄又小，
+     * 以前只能让用户自己记住 `/tv` 这个地址，没人记。
+     */
+    private enum class Screen { PHONE, TV, DESKTOP }
+
+    /** 是不是要电视版（电视和大屏电脑共用同一套大卡片界面） */
+    private fun wantsTv(screen: Screen) = screen != Screen.PHONE
+
+    /**
+     * 这次的界面选择从哪来：地址栏显式指定（?ui=tv / ?ui=m）> 上次手动选过（cookie）> UA 推断。
+     * 手动选过的优先级高于 UA，否则「我在电脑上想用手机版」这种需求永远做不到。
+     */
+    private fun pickScreen(session: IHTTPSession, p: Map<String, List<String>>): Screen {
+        val q = p["ui"]?.firstOrNull()?.trim()?.lowercase().orEmpty()
+        val want = if (q.isNotEmpty()) q else cookie(session, "mfl_ui")
+        when (want) {
+            "tv", "t", "big", "desktop", "pc" -> return Screen.TV
+            "m", "phone", "mobile", "small" -> return Screen.PHONE
+        }
+        return guessScreen((session.headers["user-agent"] ?: "").lowercase())
+    }
+
+    /**
+     * 只看 UA 的推断。宁可把不确定的当电脑（大卡片在电脑上也好看），
+     * 也不要让电视落到手机版——手机上误判一次还能用，电视上误判一次就是「点不到」。
+     */
+    private fun guessScreen(u: String): Screen {
+        val tvMarks = arrayOf(
+            "leanback", "android tv", "googletv", "google tv", "smart-tv", "smarttv", "hbbtv",
+            "bravia", "aftb", "aftm", "afts", "aftka", "aftmm", "fire tv", "firetv",
+            "shield", "mibox", "mi box", "appletv", "apple tv", "web0s", "netcast", "tizen",
+            "crkey", "chromecast", "hisense", "skyworth", "changhong", "tv box", "tvbox"
+        )
+        if (tvMarks.any { u.contains(it) }) return Screen.TV
+        if (u.contains("iphone") || u.contains("ipod") || u.contains("ipad")) return Screen.PHONE
+        if (u.contains("mobile")) return Screen.PHONE
+        if (u.contains("android")) return Screen.PHONE
+        // 其余（Windows NT / Macintosh / X11 / CrOS）都按电脑
+        return Screen.DESKTOP
+    }
+
+    private fun cookie(session: IHTTPSession, name: String): String {
+        val raw = session.headers["cookie"] ?: return ""
+        for (part in raw.split(';')) {
+            val kv = part.trim().split('=', limit = 2)
+            if (kv.size == 2 && kv[0].trim() == name) return kv[1].trim()
+        }
+        return ""
+    }
+
+    /**
+     * 根路径：按端给界面。带 ?ui= 的请求顺手把选择记进 cookie（30 天），
+     * 这样手机上点过「电视版」以后，再打开同一台设备还是电视版。
+     */
+    private fun indexFor(session: IHTTPSession, p: Map<String, List<String>>): Response {
+        val explicit = p["ui"]?.firstOrNull()?.trim()?.lowercase().orEmpty()
+        val screen = pickScreen(session, p)
+        val resp = if (wantsTv(screen)) asset("tv.html", "text/html; charset=utf-8")
+        else asset("index.html", "text/html; charset=utf-8")
+        if (explicit.isNotEmpty()) {
+            val v = if (wantsTv(screen)) "tv" else "m"
+            resp.addHeader("Set-Cookie", "mfl_ui=$v; Path=/; Max-Age=2592000; SameSite=Lax")
+        }
+        resp.addHeader("Vary", "User-Agent, Cookie")
+        resp.addHeader("Cache-Control", "no-cache")
+        return resp
     }
 
     private fun asset(name: String, mime: String): Response = try {

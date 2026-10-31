@@ -759,6 +759,16 @@
     </div>
 
     <div class="card-box">
+      <div class="box-t">界面 <span class="s">同一个地址，不同设备自动给不同界面</span></div>
+      <div class="kv"><span>当前界面</span><b id="sUiNow">手机版</b></div>
+      <div class="row-btns">
+        <button id="sUiPhone">手机版</button>
+        <button id="sUiTv">电视版</button>
+      </div>
+      <div class="hint">手机 / 平板自动进手机版；电视、盒子、电脑打开同一个地址自动进电视版（大卡片、方向键走）。这里点过就记住 30 天，换回自动判断把浏览器 Cookie 清掉即可。</div>
+    </div>
+
+    <div class="card-box">
       <div class="box-t">点播源 <span class="s" id="sSrcCnt"></span></div>
       <div id="sSrcList"></div>
       <div class="hint">源站挂了就在列表里删掉；找到新的苹果 CMS 接口可以加进来（地址到 <b>/api.php/provide/vod</b> 这一级）。</div>
@@ -2729,6 +2739,7 @@
     $('settings').classList.add('on');
     lockScroll(true);
     $('sLan').textContent = '查询中…';
+    if ($('sUiNow')) $('sUiNow').textContent = '手机版';
     $('sLocal').textContent = location.protocol + '//' + (location.host || '127.0.0.1:8080');
     SET.list = []; SET.builtin = [];
     renderSources();
@@ -2973,6 +2984,9 @@
       } else fallbackCopy(t, done);
     } catch (e) { fallbackCopy(t, done); }
   };
+  /* 界面切换：服务端认 ?ui= 并把选择记进 cookie（30 天），下次进同一个地址就还是这版 */
+  $('sUiPhone').onclick = function () { location.href = '/?ui=m'; };
+  $('sUiTv').onclick = function () { location.href = '/?ui=tv'; };
   function fallbackCopy(t, done) {
     try {
       var ta = document.createElement('textarea');
