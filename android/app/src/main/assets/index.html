@@ -1285,7 +1285,7 @@
 
   function hcardHTML(it, eager) {
     var pic = it.pic && it.pic.indexOf('http') === 0 ? it.pic : '';
-    return '<div class="hcard" data-src="' + esc(it.src) + '" data-id="' + esc(it.vodId) +
+    return '<div class="hcard" role="button" tabindex="0" data-src="' + esc(it.src) + '" data-id="' + esc(it.vodId) +
       '" data-name="' + esc(it.name) + '">' +
       '<div class="hp">' +
       (pic ? '<img ' + (eager ? '' : 'loading="lazy" ') + 'src="' + esc(pic) + '" alt="" onerror="this.onerror=null;this.src=\'' +
@@ -3193,7 +3193,11 @@
     MFlixRC.mount({
       btn: $('rcBtn'),
       nav: {
-        selector: 'button,a[href],.ep,.grp,.cast,[role="button"]',
+        /* 除了标准的按钮/链接，这些「用 div 撑起来、靠事件委托点」的元素也要能聚焦：
+           .hcard 是首页顶部那排推荐缩略卡（8 张），.wcell/.cal-tab/.citem 是追剧日历的
+           星期格子与日期格，.it/[data-set] 是设置页的行，.x 是浮层右上角的关闭。
+           以前它们不在选择器里，遥控器怎么按都选不到——看着就像「这几个卡片是死的」。 */
+        selector: 'button,a[href],[role="button"],.hcard,.ep,.grp,.cast,.wcell,.cal-tab,.citem,.it,[data-set],.x',
         scope: rcTopLayer
       },
       title: function () {

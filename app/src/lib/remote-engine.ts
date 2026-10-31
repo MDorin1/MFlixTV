@@ -581,6 +581,10 @@ export function start() {
       'input',
       'select',
       'summary',
+      // 用 div 撑起来、靠 onClick 点的元素（首页推荐条、日历格子、设置行）也要能聚焦，
+      // 否则遥控器按到这些地方就是「选不到」
+      '[tabindex="0"]',
+      '[onclick]',
       '.ep',
       '.grp',
       '.cast',

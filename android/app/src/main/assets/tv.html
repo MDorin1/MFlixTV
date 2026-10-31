@@ -1056,42 +1056,100 @@
     }
     var r = f.getBoundingClientRect(), vh = window.innerHeight;
     /* 老内核（斐讯 N1 的 WebView 52）的 scrollBy 只认两个数字，传配置对象会抛
-       "2 arguments required"，焦点滚出屏幕就拉不回来。按能力选写法，别用裸 if。 */
-    var smoothOk = ('scrollBehavior' in document.documentElement.style);
+       "2 arguments required"，焦点滚出屏幕就拉不回来。按能力选写法，别用裸 if。
+       另外这里**不用平滑滚动**：遥控器连按时平滑动画会让下一格的坐标还在变，
+       几何导航算出来会跳过一格（按两次右键窜到第四张卡）。 */
     if (r.top < 110) {
-      if (smoothOk) window.scrollBy({ top: r.top - 150, behavior: 'smooth' });
-      else window.scrollBy(0, r.top - 150);
+      window.scrollBy(0, r.top - 150);
     } else if (r.bottom > vh - 36) {
-      if (smoothOk) window.scrollBy({ top: r.bottom - vh + 90, behavior: 'smooth' });
-      else window.scrollBy(0, r.bottom - vh + 90);
+      window.scrollBy(0, r.bottom - vh + 90);
     }
     // 焦点进顶栏时把顶部渐变压深一点
     var inNav = f.closest && f.closest('#nav');
     $('nav').classList.toggle('up', !!inNav);
   }
 
+  /* 方向键打分的三条规则，和 index.html 用的 rc-nav.js 完全同一套：
+     1) 正对着的优先（候选的横/纵向区间盖住源元素的中心线才算「直上直下 / 正左右」）；
+     2) 左右只在同一排里走（以前只比「纵向有没有重叠」，顶栏刚好在同一高度就会把焦点吸走）；
+     3) 视口外的也给分，只是加一点惩罚——否则滚出屏幕的那几集永远走不到。 */
+  function fxGap(a1, a2, b1, b2) {
+    if (b2 < a1) return a1 - b2;
+    if (b1 > a2) return b1 - a2;
+    return 0;
+  }
+  function fxOff(r) {
+    var vw = window.innerWidth || 1280, vh = window.innerHeight || 720, d = 0;
+    if (r.bottom <= 0) d += -r.bottom; else if (r.top >= vh) d += r.top - vh;
+    if (r.right <= 0) d += -r.right; else if (r.left >= vw) d += r.left - vw;
+    return Math.min(1200, d) * 0.35;
+  }
+  function fxEval(a, b, dir) {
+    var horiz = dir === 'left' || dir === 'right';
+    /* 方向判定用「边到边」（留 8px 容差），不用中心点距离：
+       宽元素按右键时，中心点距离会把「横向偏右其实在上面」的顶栏图标也算进来。 */
+    var mainEdge;
+    if (dir === 'right') mainEdge = b.left - a.right;
+    else if (dir === 'left') mainEdge = a.left - b.right;
+    else if (dir === 'down') mainEdge = b.top - a.bottom;
+    else mainEdge = a.top - b.bottom;
+    if (mainEdge < -8) return null;
+    if (mainEdge < 0) mainEdge = 0;
+    var acx = a.left + a.width / 2, acy = a.top + a.height / 2;
+    var crossGap, cover, crossSize;
+    if (horiz) {
+      crossGap = fxGap(a.top, a.bottom, b.top, b.bottom);
+      cover = b.top <= acy && b.bottom >= acy;
+      crossSize = a.height;
+    } else {
+      crossGap = fxGap(a.left, a.right, b.left, b.right);
+      cover = b.left <= acx && b.right >= acx;
+      crossSize = a.width;
+    }
+    var tier = cover ? 0 : (crossGap <= Math.max(20, crossSize * 0.5) ? 1 : 2);
+    var w = tier === 0 ? 0.5 : tier === 1 ? 1.6 : 4;
+    return { tier: tier, score: mainEdge + crossGap * w };
+  }
+  /** 「这一排」：往上找第一个装着两个以上候选的祖先，左右移动只在这一层里走 */
+  function fxRow(el, list) {
+    var p = el.parentElement, d = 0;
+    while (p && p !== document.body && d < 8) {
+      var n = 0;
+      for (var i = 0; i < list.length; i++) if (p.contains(list[i])) n++;
+      if (n > 1) return p;
+      p = p.parentElement; d++;
+    }
+    return document.body;
+  }
   function pick(dir, list, cur) {
     if (!cur) return list.length ? list[0] : null;
-    var r = cur.getBoundingClientRect();
-    var cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
-    var best = null, bs = 1e9;
+    var horiz = dir === 'left' || dir === 'right';
+    var a = cur.getBoundingClientRect();
+    var homeRow = horiz ? fxRow(cur, list) : null;
+    var best = null, bestTier = 9, bestScore = 1e9;
     for (var i = 0; i < list.length; i++) {
       var e = list[i];
       if (e === cur) continue;
-      var q = e.getBoundingClientRect();
-      var dx = (q.left + q.right) / 2 - cx, dy = (q.top + q.bottom) / 2 - cy;
-      var along = dir === 'left' ? -dx : dir === 'right' ? dx : dir === 'up' ? -dy : dy;
-      if (along < 8) continue;
-      var across = (dir === 'left' || dir === 'right') ? Math.abs(dy) : Math.abs(dx);
-      // 横排里别跳到别的排：横向移动时纵向偏差重罚
-      var score = along + across * ((dir === 'left' || dir === 'right') ? 3.2 : 2.4);
-      if (score < bs) { bs = score; best = e; }
+      var b = e.getBoundingClientRect();
+      var ev = fxEval(a, b, dir);
+      if (!ev) continue;
+      var tier = ev.tier;
+      /* 左右只在同一排里走；不同排、垂直方向又差得很远（从左上角甩到页面中间那种）宁可不动 */
+      if (horiz && fxRow(e, list) !== homeRow) {
+        if (fxGap(a.top, a.bottom, b.top, b.bottom) > Math.max(24, a.height * 0.6)) continue;
+        tier += 3;
+      }
+      var score = ev.score + fxOff(b);
+      if (tier < bestTier || (tier === bestTier && score < bestScore)) {
+        bestTier = tier; bestScore = score; best = e;
+      }
     }
-    return best;
+    if (best) return best;
+    /* 这个方向上确实没有东西：保持不动才是遥控器该有的反应 */
+    return null;
   }
   function move(dir) {
-    var list = pool();
-    if (!list.length) return;
+    var list = pool();    if (!list.length) return;
     if (!focusEl || list.indexOf(focusEl) < 0) {
       var v = document.querySelector('.view.on');
       var f = v ? v.querySelector('.fx') : null;

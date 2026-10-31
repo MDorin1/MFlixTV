@@ -1,13 +1,20 @@
 /*
  * 方向键导航（电视遥控器式）——电脑网页版用。
  *
- * 安卓那边的 index.html / tv.html 用的是同名同逻辑的 `public/rc-nav.js`，
- * 两边行为必须一致，改一处记得改另一处。
+ * 安卓那边的 index.html 用的是同名同逻辑的 `rc-nav.js`，两边行为必须一致，改一处记得改另一处。
  *
  * 为什么不用现成的 tabindex 顺序：影视站的页面是网格海报，Tab 顺序是 DOM 顺序，
  * 和眼睛看到的行列对不上，按右键会跳到看不见的地方。这里改成**几何导航**：
- * 往哪个方向按，就在那个半平面里找「主轴最近、次轴偏移最小」的可点元素，
- * 和电视遥控器的手感一致。
+ * 往哪个方向按，就在那个方向里找「正对着、离得近」的可点元素，和电视遥控器的手感一致。
+ *
+ * —— 三条手感规则（按实测重写过）——
+ * 1) **正对着的优先**：候选元素的横/纵向区间要盖住源元素的中心线，才算「直上直下 / 正左右」；
+ *    不盖住的往后排一格。以前只按「主轴距离 + 次轴偏移 ×2」算分，格子一错位就会斜着跳。
+ * 2) **横排里不串排**：左右移动只在同一「排容器」里走。以前靠「纵向有没有重叠」判断，
+ *    顶栏恰好在同一高度就会把焦点吸走（页面向下滚、列表贴着顶栏时必现）。
+ * 3) **看得见的和看不见的都能到**：以前把「滚出视口」的元素直接过滤掉，于是
+ *    带 `max-h + overflow-y` 的剧集列表里，最后几集永远走不到。现在一律算候选，
+ *    只给「不在视口里」的加一点距离惩罚，到了就 scrollIntoView 拉进来。
  */
 
 export type NavDir = 'up' | 'down' | 'left' | 'right';
@@ -48,6 +55,9 @@ function injectStyle() {
   (document.head || document.documentElement).appendChild(s);
 }
 
+const vpW = () => window.innerWidth || 1200;
+const vpH = () => window.innerHeight || 800;
+
 function visible(el: HTMLElement | null): boolean {
   if (!el || el.nodeType !== 1) return false;
   if ((el as HTMLButtonElement).disabled) return false;
@@ -57,10 +67,30 @@ function visible(el: HTMLElement | null): boolean {
   const cs = getComputedStyle(el);
   if (cs.visibility === 'hidden' || cs.display === 'none' || cs.opacity === '0') return false;
   if (el.offsetParent === null && cs.position !== 'fixed') return false;
-  const vh = window.innerHeight || 800;
-  // 完全滚出屏幕的先不算；留一点余量给刚滚进来的
-  if (r.bottom < -60 || r.top > vh + 120) return false;
+  // 注意：这里**不再**因为「滚出视口」就判死。带 overflow 的内层列表、横向长条里的卡片
+  // 都要能被走到，滚动交给 focusEl 的 scrollIntoView。
   return true;
+}
+
+function inView(r: DOMRect): boolean {
+  return r.bottom > 0 && r.top < vpH() && r.right > 0 && r.left < vpW();
+}
+
+/** 元素完全在视口外时给出「有多远」，用来看得见的优先，但看得见的没有出路时也能走 */
+function offPenalty(r: DOMRect): number {
+  let d = 0;
+  if (r.bottom <= 0) d += -r.bottom;
+  else if (r.top >= vpH()) d += r.top - vpH();
+  if (r.right <= 0) d += -r.right;
+  else if (r.left >= vpW()) d += r.left - vpW();
+  return Math.min(1200, d) * 0.35;
+}
+
+/** 两个区间之间的间隙（重叠时为 0） */
+function gapOn(a1: number, a2: number, b1: number, b2: number): number {
+  if (b2 < a1) return a1 - b2;
+  if (b1 > a2) return b1 - a2;
+  return 0;
 }
 
 /** 找最后一个可见的对话框 / aria-modal 容器 */
@@ -73,51 +103,53 @@ export function autoScope(): HTMLElement | null {
   return null;
 }
 
-function overlapGap(a: DOMRect, b: DOMRect, axis: 'x' | 'y'): number {
-  if (axis === 'y') {
-    const top = Math.max(a.top, b.top);
-    const bot = Math.min(a.bottom, b.bottom);
-    if (bot > top) return 0;
-    return Math.min(Math.abs(b.top - a.bottom), Math.abs(a.top - b.bottom));
-  }
-  const l = Math.max(a.left, b.left);
-  const r = Math.min(a.right, b.right);
-  if (r > l) return 0;
-  return Math.min(Math.abs(b.left - a.right), Math.abs(a.left - b.right));
+interface Ev {
+  tier: number;
+  score: number;
 }
 
-function score(from: DOMRect, to: DOMRect, dir: NavDir): number {
-  const ax = from.left + from.width / 2;
-  const ay = from.top + from.height / 2;
-  const bx = to.left + to.width / 2;
-  const by = to.top + to.height / 2;
-  const dx = bx - ax;
-  const dy = by - ay;
-  let main: number;
-  let cross: number;
-  if (dir === 'left') {
-    if (dx > -10) return -1;
-    main = -dx;
-    // 左右只在「同一行」里走：竖直方向完全不挨着的（比如顶栏图标）不算，
-    // 否则在一行的最后一个卡片上按右，焦点会窜到右上角去
-    if (overlapGap(from, to, 'y') > 0) return -1;
-    cross = 0;
-  } else if (dir === 'right') {
-    if (dx < 10) return -1;
-    main = dx;
-    if (overlapGap(from, to, 'y') > 0) return -1;
-    cross = 0;
-  } else if (dir === 'up') {
-    if (dy > -10) return -1;
-    main = -dy;
-    cross = overlapGap(from, to, 'x');
-  } else {
-    if (dy < 10) return -1;
-    main = dy;
-    cross = overlapGap(from, to, 'x');
+/**
+ * 给一个候选打分：null 表示不在这个方向上。
+ * tier 0 = 正对着（中心线被盖住），1 = 差半格，2 = 斜的。
+ */
+function evaluate(a: DOMRect, b: DOMRect, dir: NavDir): Ev | null {
+  // 同一个位置上套着的两层（海报 <a> 套 div[role=button]）算同一个元素，
+  // 否则两个候选的坐标几乎一样，焦点在它们之间来回跳
+  if (
+    Math.abs(a.left - b.left) < 6 &&
+    Math.abs(a.top - b.top) < 6 &&
+    Math.abs(a.width - b.width) < 8 &&
+    Math.abs(a.height - b.height) < 8
+  ) {
+    return null;
   }
-  // 上下可以稍微斜着走（顶栏是全宽的），但别为了斜一点点跑很远
-  return main + cross * (dir === 'up' || dir === 'down' ? 2 : 3);
+  const horiz = dir === 'left' || dir === 'right';
+  /* 方向判定用「边到边」：候选必须真的在源元素的这一侧（留 8px 容差给错位排列）。
+     只用中心点距离的话，一个很宽的元素按右键会挑到「横向偏右、其实在它上面」的顶栏图标。 */
+  let mainEdge: number;
+  if (dir === 'right') mainEdge = b.left - a.right;
+  else if (dir === 'left') mainEdge = a.left - b.right;
+  else if (dir === 'down') mainEdge = b.top - a.bottom;
+  else mainEdge = a.top - b.bottom;
+  if (mainEdge < -8) return null;
+  if (mainEdge < 0) mainEdge = 0;
+  const acx = a.left + a.width / 2;
+  const acy = a.top + a.height / 2;
+  let crossGap: number;
+  let cover: boolean;
+  let crossSize: number;
+  if (horiz) {
+    crossGap = gapOn(a.top, a.bottom, b.top, b.bottom);
+    cover = b.top <= acy && b.bottom >= acy;
+    crossSize = a.height;
+  } else {
+    crossGap = gapOn(a.left, a.right, b.left, b.right);
+    cover = b.left <= acx && b.right >= acx;
+    crossSize = a.width;
+  }
+  const tier = cover ? 0 : crossGap <= Math.max(20, crossSize * 0.5) ? 1 : 2;
+  const w = tier === 0 ? 0.5 : tier === 1 ? 1.6 : 4;
+  return { tier, score: mainEdge + crossGap * w };
 }
 
 export function installNav(cfg: NavOptions = {}): NavHandle {
@@ -144,28 +176,85 @@ export function installNav(cfg: NavOptions = {}): NavHandle {
       if (!visible(el)) continue;
       out.push(el);
     }
-    return out;
+    return dropNested(out);
   };
 
+  /**
+   * 去掉「被外层可点元素整块包住」的内层元素（海报 <a> 里再套一个 div[role=button] 这类）。
+   * 不去掉的话，同一个位置会有两个候选，焦点会在两者之间来回跳，按「下」看着像卡住不动。
+   */
+  const dropNested = (out: HTMLElement[]): HTMLElement[] => {
+    if (out.length < 2) return out;
+    const pool = new Set(out);
+    const keep: HTMLElement[] = [];
+    for (const el of out) {
+      let covered = false;
+      let p = el.parentElement;
+      let d = 0;
+      while (p && p !== document.body && d < 10) {
+        if (pool.has(p) && similarRect(p, el)) {
+          covered = true;
+          break;
+        }
+        p = p.parentElement;
+        d += 1;
+      }
+      if (!covered) keep.push(el);
+    }
+    return keep.length ? keep : out;
+  };
+
+  /** 内层元素有 70% 以上面积落在外层里，就当是同一个可点区域 */
+  function similarRect(outer: HTMLElement, inner: HTMLElement): boolean {
+    const a = outer.getBoundingClientRect();
+    const b = inner.getBoundingClientRect();
+    const oa = a.width * a.height;
+    if (oa <= 0) return false;
+    const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+    const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+    if (w <= 0 || h <= 0) return false;
+    return (w * h) / oa >= 0.7;
+  }
+
+  /**
+   * 「这一排」的容器：往上找一个除了自己还装着别的候选的祖先。
+   * 左右移动时只在同一排里走，避免从日历/卡片串到顶栏或别的排。
+   * 不能要求「容器里第一个候选不是自己」——那会让一排最左边那个直接跳级到 body。
+   */
+  const rowHost = (el: HTMLElement): HTMLElement => {
+    let p = el.parentElement;
+    let d = 0;
+    while (p && p !== document.body && d < 8) {
+      let all: HTMLElement[] | null = null;
+      try {
+        all = Array.from(p.querySelectorAll<HTMLElement>(selector));
+      } catch {
+        all = null;
+      }
+      if (all) {
+        for (const one of all) if (one !== el) return p;
+      }
+      p = p.parentElement;
+      d += 1;
+    }
+    return document.body;
+  };
+
+  /** 没有焦点时往这个方向的第一格：优先视口内、离这个方向最近的那个 */
   const firstIn = (dir: NavDir): HTMLElement | null => {
     const cs = list();
     if (!cs.length) return null;
-    if (dir === 'up') {
-      cs.sort((x, y) => {
-        const a = x.getBoundingClientRect();
-        const b = y.getBoundingClientRect();
-        return b.bottom - a.bottom || a.left - b.left;
-      });
-      return cs[0];
-    }
-    cs.sort((x, y) => {
-      const a = x.getBoundingClientRect();
-      const b = y.getBoundingClientRect();
-      if (dir === 'down') return a.top - b.top || a.left - b.left;
-      if (dir === 'left') return b.right - a.right || a.top - b.top;
-      return a.left - b.left || a.top - b.top;
+    const scored = cs.map((el) => ({ el, r: el.getBoundingClientRect() }));
+    scored.sort((x, y) => {
+      const ox = inView(x.r) ? 0 : 1;
+      const oy = inView(y.r) ? 0 : 1;
+      if (ox !== oy) return ox - oy;
+      if (dir === 'up') return y.r.bottom - x.r.bottom || x.r.left - y.r.left;
+      if (dir === 'down') return x.r.top - y.r.top || x.r.left - y.r.left;
+      if (dir === 'left') return y.r.right - x.r.right || x.r.top - y.r.top;
+      return x.r.left - y.r.left || x.r.top - y.r.top;
     });
-    return cs[0];
+    return scored[0].el;
   };
 
   const focusEl = (el: HTMLElement | null): boolean => {
@@ -192,7 +281,9 @@ export function installNav(cfg: NavOptions = {}): NavHandle {
       }
     }
     try {
-      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+      // 用「立刻到位」而不是平滑滚动：遥控器连按时平滑动画会让下一格的坐标还在变，
+      // 几何导航就会跳过一格（按两次右键窜到第四张卡）
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
     } catch {
       try {
         el.scrollIntoView(false);
@@ -206,23 +297,43 @@ export function installNav(cfg: NavOptions = {}): NavHandle {
   const move = (dir: NavDir): boolean => {
     if (dir !== 'up' && dir !== 'down' && dir !== 'left' && dir !== 'right') return false;
     if (cur && !visible(cur)) {
-      cur.removeAttribute(ATTR);
+      try {
+        cur.removeAttribute(ATTR);
+      } catch {
+        /* ignore */
+      }
       cur = null;
     }
     if (!cur) return focusEl(firstIn(dir));
     const from = cur.getBoundingClientRect();
+    const horiz = dir === 'left' || dir === 'right';
+    const homeRow = horiz ? rowHost(cur) : null;
     const cs = list();
     let best: HTMLElement | null = null;
+    let bestTier = 9;
     let bestScore = 1e12;
     for (const el of cs) {
-      const sc = score(from, el.getBoundingClientRect(), dir);
-      if (sc >= 0 && sc < bestScore) {
+      const to = el.getBoundingClientRect();
+      const ev = evaluate(from, to, dir);
+      if (!ev) continue;
+      let tier = ev.tier;
+      /* 左右只在同一排里走；同一排的优先，别的排靠后（有出路时不会被选）。
+         不同排、而且垂直方向差得很远（从左上角甩到页面中间那种），宁可不动。 */
+      if (horiz && rowHost(el) !== homeRow) {
+        if (gapOn(from.top, from.bottom, to.top, to.bottom) > Math.max(24, from.height * 0.6)) continue;
+        tier += 3;
+      }
+      const sc = ev.score + offPenalty(to);
+      if (tier < bestTier || (tier === bestTier && sc < bestScore)) {
+        bestTier = tier;
         bestScore = sc;
         best = el;
       }
     }
-    if (!best) return false;
-    return focusEl(best);
+    if (best) return focusEl(best);
+    /* 这个方向上确实没有东西（比如已经在最后一行）：保持不动才是遥控器该有的反应。
+       以前这里按 DOM 顺序硬挪一格，结果按「下」沿着页尾那一排横着跳，看着像乱走。 */
+    return false;
   };
 
   const ok = (): boolean => {
