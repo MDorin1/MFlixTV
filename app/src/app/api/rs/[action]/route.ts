@@ -127,6 +127,7 @@ export async function GET(req: Request, ctx: Ctx) {
       vol: g('vol') == null ? undefined : Number(g('vol')),
       rate: g('rate') == null ? undefined : Number(g('rate')),
       muted: g('muted') == null ? undefined : g('muted') === '1',
+      fs: g('fs') == null ? undefined : g('fs') === '1',
     })) return NextResponse.json({ error: '会话已失效' }, { status: 404 });
     return NextResponse.json({ ok: true });
   }

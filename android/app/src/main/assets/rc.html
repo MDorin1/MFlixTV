@@ -194,7 +194,7 @@
   </div>
 
   <div class="bottom">
-    <button class="b" data-cmd="fullscreen">全屏</button>
+    <button class="b" id="fsBtn">全屏</button>
     <button class="b" data-cmd="back">返回</button>
     <button class="b" data-cmd="home">回首页</button>
   </div>
@@ -258,6 +258,7 @@
   var epsBtn = document.getElementById('btnEps');
   var linesBtn = document.getElementById('btnLines');
   var muteBtn = document.getElementById('muteBtn');
+  var fsBtn = document.getElementById('fsBtn');
   var toast = document.getElementById('toast');
   var sheet = document.getElementById('sheet');
   var shTitle = document.getElementById('shTitle');
@@ -390,6 +391,18 @@
     var muted = eff('muted', curState ? !!curState.muted : false);
     mark({ muted: !muted });
     send('mute');
+  });
+
+  /* 全屏：被控端在浏览器里，原生全屏必须由「真实用户手势」触发，手机上的按键传过去不算，
+     所以被控端走网页全屏（纯 CSS 铺满）。这里不猜结果：发完 1.8 秒拿真实状态比对一次，
+     没变化就把原因说出来，而不是留一个按了没反应的按钮。 */
+  fsBtn.addEventListener('click', function () {
+    var before = curState ? !!curState.fs : false;
+    send('fullscreen', '', 10);
+    setTimeout(function () {
+      var now = curState ? !!curState.fs : false;
+      if (now === before) say(before ? '还没退出全屏，对方可能不在这页' : '这个页面没有可全屏的画面');
+    }, 1800);
   });
 
   prevBtn.addEventListener('click', function () {
@@ -549,12 +562,19 @@
     paintPlay();
     paintStat();
     paintMute();
+    paintFs();
     paintEpsButtons();
   }
 
   function paintMute() {
     var muted = eff('muted', curState ? !!curState.muted : false);
     muteBtn.className = muted ? 'on' : '';
+  }
+
+  function paintFs() {
+    var on = curState ? !!curState.fs : false;
+    fsBtn.textContent = on ? '退出全屏' : '全屏';
+    fsBtn.className = 'b' + (on ? ' on' : '');
   }
 
   function paintEpsButtons() {
@@ -603,6 +623,7 @@
     paintPlay();
     paintStat();
     paintMute();
+    paintFs();
     paintEpsButtons();
   }
 

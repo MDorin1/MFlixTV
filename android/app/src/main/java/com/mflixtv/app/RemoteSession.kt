@@ -47,6 +47,8 @@ object RemoteSession {
         /** 倍速 ×100（150 = 1.5×） */
         @Volatile var rate = 100
         @Volatile var muted = false
+        /** 是否全屏：遥控页的全屏键要跟着亮/灭 */
+        @Volatile var fs = false
     }
 
     private val sessions = ConcurrentHashMap<String, Session>()
@@ -144,6 +146,7 @@ object RemoteSession {
         if (body.has("vol")) s.vol = body.optInt("vol", s.vol).coerceIn(0, 100)
         if (body.has("rate")) s.rate = body.optInt("rate", s.rate).coerceIn(25, 400)
         if (body.has("muted")) s.muted = body.optBoolean("muted", s.muted)
+        if (body.has("fs")) s.fs = body.optBoolean("fs", s.fs)
         return true
     }
 
@@ -186,6 +189,7 @@ object RemoteSession {
         .put("vol", s.vol)
         .put("rate", s.rate)
         .put("muted", s.muted)
+        .put("fs", s.fs)
 
     private fun liveCtls(s: Session): Int {
         val now = System.currentTimeMillis()

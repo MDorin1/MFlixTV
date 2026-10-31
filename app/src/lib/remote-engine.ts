@@ -307,20 +307,18 @@ export function exec(cmd: string, arg: string) {
       if (Number.isFinite(num) && num > 0) setRate(num / 100);
       return;
     case 'fullscreen': {
+      // 浏览器只允许「用户手势」触发原生全屏，遥控指令不算手势：
+      // requestFullscreen 会被拒，连脚本点页面上的全屏按钮也一样（合成 click 不算激活）。
+      // 所以顺序是：播放页自己切网页全屏 → 没人接就把画面元素用 CSS 铺满 →
+      // 都不适用（不在播放页）就什么都不做，遥控页那边会提示「这页没有可全屏的画面」。
+      const ev = new CustomEvent('mfl:rc-fullscreen', { detail: { handled: false } });
+      window.dispatchEvent(ev);
+      if ((ev.detail as { handled?: boolean } | null)?.handled) return;
+      if (toggleCssFullscreen()) return;
       if (document.fullscreenElement) {
+        // 本机用户自己按 F 进了原生全屏：遥控按一下就退出去
         void document.exitFullscreen().catch(() => {});
-        return;
       }
-      // 优先点页面自己的全屏按钮：脚本直接调 requestFullscreen 不是用户手势，会被浏览器拒
-      const btn = document.querySelector<HTMLElement>(
-        '[data-rc-fullscreen],button[aria-label="全屏"],button[title="全屏"]'
-      );
-      if (btn) {
-        btn.click();
-        return;
-      }
-      const el = v || document.documentElement;
-      void el.requestFullscreen?.().catch(() => {});
       return;
     }
     case 'ep': {
@@ -407,6 +405,51 @@ export function exec(cmd: string, arg: string) {
 
 /* ------------------------------------------------------------------ 会话循环 */
 
+/* ---------------- 伪全屏：遥控唯一能保证生效的那种全屏 ----------------
+   浏览器要求原生全屏必须由用户手势触发，而遥控走的是 fetch 轮询，永远拿不到手势：
+   requestFullscreen 必被拒，连「脚本点页面上的全屏按钮」也一样（合成 click 不算激活）。
+   这里把画面元素直接铺满视口，纯 CSS，不挑环境、不挑手势，退出同理。 */
+
+const FS_CLASS = 'mfl-fs-video';
+const FS_LOCK = 'mfl-fs-lock';
+const FS_STYLE_ID = 'mfl-fs-style';
+
+function ensureFsStyle() {
+  if (document.getElementById(FS_STYLE_ID)) return;
+  const s = document.createElement('style');
+  s.id = FS_STYLE_ID;
+  s.textContent =
+    `.${FS_CLASS}{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;` +
+    `max-width:none!important;max-height:none!important;object-fit:contain!important;background:#000!important;` +
+    `z-index:2147483000!important;}` +
+    `body.${FS_LOCK}{overflow:hidden!important;}`;
+  document.head.appendChild(s);
+}
+
+/** 返回 true 表示「这一下归我处理了」；页面里没有画面就交回上层 */
+function toggleCssFullscreen(): boolean {
+  const v = mainVideo();
+  if (!v) return false;
+  ensureFsStyle();
+  const on = v.classList.contains(FS_CLASS);
+  if (on) {
+    v.classList.remove(FS_CLASS);
+    document.body.classList.remove(FS_LOCK);
+  } else {
+    v.classList.add(FS_CLASS);
+    document.body.classList.add(FS_LOCK);
+  }
+  return true;
+}
+
+/** 当前是不是处于任何一种全屏（播放页自己的网页全屏会在 dataset.mflFs 里写 1） */
+function fsOn(): boolean {
+  if (document.fullscreenElement) return true;
+  if (document.documentElement.dataset.mflFs === '1') return true;
+  const v = mainVideo();
+  return !!v && v.classList.contains(FS_CLASS);
+}
+
 async function reportState(token: string, force = false) {
   const now = Date.now();
   if (!force && now - S.stateAt < STATE_MS) return;
@@ -443,6 +486,8 @@ async function reportState(token: string, force = false) {
       vol: String(v ? Math.round((v.volume || 0) * 100) : 100),
       rate: String(v ? Math.round((v.playbackRate || 1) * 100) : 100),
       muted: v && v.muted ? '1' : '0',
+      // 全屏状态：遥控页的按钮要跟着亮/灭，按了没生效也得看得出来
+      fs: fsOn() ? '1' : '0',
     });
     // 空串也要发：离开播放页后遥控器上不能再留着上一部的集数
     if (bridge && bridge.episodes.length > 0) {

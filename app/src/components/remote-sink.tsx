@@ -106,9 +106,14 @@ export function RemoteSink() {
           fireKey(k, k, c);
           return;
         }
-        case 'fullscreen':
-          fireKey('f', 'KeyF', 70);
+        case 'fullscreen': {
+          // 和扫码通道同一套：原生全屏需要「真实用户手势」，遥控指令不算，
+          // 所以先请播放页切网页全屏（纯 CSS，不受手势限制），没人接再退回键盘 F。
+          const ev = new CustomEvent('mfl:rc-fullscreen', { detail: { handled: false } });
+          window.dispatchEvent(ev);
+          if (!(ev.detail as { handled?: boolean } | null)?.handled) fireKey('f', 'KeyF', 70);
           return;
+        }
         case 'back':
           router.back();
           return;

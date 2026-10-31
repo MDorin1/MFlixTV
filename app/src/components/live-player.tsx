@@ -359,6 +359,24 @@ export function LivePlayer({ url, title, onPrevChannel, onNextChannel }: LivePla
       } catch { /* 忽略 */ }
     });
 
+    /* 遥控「全屏」→ 网页全屏（纯 CSS，不需要用户手势；原生全屏在无手势时必被拒） */
+    const syncFsFlag = () => {
+      const on = !!art.fullscreen || !!art.fullscreenWeb || !!document.fullscreenElement;
+      document.documentElement.dataset.mflFs = on ? '1' : '0';
+    };
+    const onRemoteFullscreen = (e: Event) => {
+      const detail = (e as CustomEvent<{ handled?: boolean }>).detail;
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      else art.fullscreenWeb = !art.fullscreenWeb;
+      if (detail) detail.handled = true;
+      window.setTimeout(syncFsFlag, 80);
+    };
+    window.addEventListener('mfl:rc-fullscreen', onRemoteFullscreen);
+    art.on('fullscreen', syncFsFlag);
+    art.on('fullscreenWeb', syncFsFlag);
+    art.on('fullscreenWebExit', syncFsFlag);
+    syncFsFlag();
+
     // 15s 内未起播则提示
     const startTimer = setTimeout(() => {
       if (!playbackStarted && !disposed && !destroyed) {
@@ -369,6 +387,8 @@ export function LivePlayer({ url, title, onPrevChannel, onNextChannel }: LivePla
     return () => {
       disposed = true;
       clearTimeout(startTimer);
+      window.removeEventListener('mfl:rc-fullscreen', onRemoteFullscreen);
+      delete document.documentElement.dataset.mflFs;
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
       cleanupEngines();
       art.destroy();

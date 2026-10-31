@@ -34,6 +34,8 @@ interface State {
   /** 倍速 ×100 */
   rate?: number;
   muted?: boolean;
+  /** 对方页面现在是不是全屏 */
+  fs?: boolean;
 }
 
 interface CtlResp {
@@ -169,6 +171,9 @@ export default function RemoteControlPage() {
   const whoRef = useRef('');
   /** 每次收到被控端状态时的本地时刻：进度条从这里往后插值 */
   const infoAt = useRef(0);
+  /** 最新一帧状态：全屏校验要拿它比对，不能在闭包里读旧值 */
+  const infoRef = useRef<CtlResp | null>(null);
+  infoRef.current = info;
   /** 上一次画出来的进度：只允许往前走，服务端快照落后时不要回跳 */
   const lastWalk = useRef(0);
   /** 刚拖完进度条的目标位置：服务端还没追上的这几秒，从这个位置继续走 */
@@ -281,6 +286,7 @@ export default function RemoteControlPage() {
   const fresh = optim.at > 0 && Date.now() - optim.at < OPTIM_TTL;
   const playing = (fresh ? optim.playing : undefined) ?? !!st?.playing;
   const muted = (fresh ? optim.muted : undefined) ?? !!st?.muted;
+  const fsOn = !!st?.fs;
   const vol = (fresh ? optim.vol : undefined) ?? Math.round(st?.vol ?? 100);
   const rawRate = st?.rate ? st.rate / 100 : 1;
   const rate = (fresh ? optim.rate : undefined) ?? rawRate;
@@ -351,6 +357,20 @@ export default function RemoteControlPage() {
     const next = !muted;
     markOptim({ muted: next });
     void send('mute');
+  };
+
+  /**
+   * 全屏：对方页面在浏览器里，原生全屏需要「真实用户手势」——手机上的按键传过去不算，
+   * 所以被控端走的是网页全屏（纯 CSS 铺满）。这里不猜结果：发完 1.8 秒拿真实状态比对一次，
+   * 没变化就明说一句，而不是让人对着一个按了没反应的按钮。
+   */
+  const doFullscreen = () => {
+    const before = fsOn;
+    void send('fullscreen', '', 10);
+    window.setTimeout(() => {
+      const now = !!infoRef.current?.state?.fs;
+      if (now === before) setFlash(before ? '还没退出全屏，对方可能不在这页' : '这个页面没有可全屏的画面');
+    }, 1800);
   };
 
   const stateLine = useMemo(() => {
@@ -549,8 +569,11 @@ export default function RemoteControlPage() {
       </div>
 
       <div className="px-4 mt-3 mb-6 flex items-center justify-center gap-2 text-[12px]">
-        <button className={`${btn} h-11 flex-1`} onClick={() => void send('fullscreen')}>
-          全屏
+        <button
+          className={`${btn} h-11 flex-1 ${fsOn ? 'bg-white text-[#0a0a0d] font-semibold' : ''}`}
+          onClick={doFullscreen}
+        >
+          {fsOn ? '退出全屏' : '全屏'}
         </button>
         <button className={`${btn} h-11 flex-1`} onClick={() => void send('back')}>
           返回

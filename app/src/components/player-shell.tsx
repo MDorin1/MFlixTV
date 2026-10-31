@@ -1424,6 +1424,32 @@ export function PlayerShell({
     };
     window.addEventListener('mfl:rc-seekto', onRemoteSeekTo);
 
+    /**
+     * 遥控端按「全屏」→ 切 Artplayer 的**网页全屏**（fullscreenWeb）。
+     *
+     * 为什么不用原生全屏：浏览器只允许用户手势触发 requestFullscreen，
+     * 而遥控指令来自 fetch 轮询，永远没有手势——直接调必被拒，
+     * 连脚本去点页面上的全屏按钮也一样（合成 click 不算激活）。
+     * 网页全屏是纯 CSS 撑满视口，不挑手势，画面一样铺满，退出也干净。
+     * 顺手把当前状态写到 <html data-mfl-fs>，被控端上报 fs 时读它。
+     */
+    const syncFsFlag = () => {
+      const on = !!art.fullscreen || !!art.fullscreenWeb || !!document.fullscreenElement;
+      document.documentElement.dataset.mflFs = on ? '1' : '0';
+    };
+    const onRemoteFullscreen = (e: Event) => {
+      const detail = (e as CustomEvent<{ handled?: boolean }>).detail;
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      else art.fullscreenWeb = !art.fullscreenWeb;
+      if (detail) detail.handled = true;
+      window.setTimeout(syncFsFlag, 80);
+    };
+    window.addEventListener('mfl:rc-fullscreen', onRemoteFullscreen);
+    art.on('fullscreen', syncFsFlag);
+    art.on('fullscreenWeb', syncFsFlag);
+    art.on('fullscreenWebExit', syncFsFlag);
+    syncFsFlag();
+
     // 长按倍速、双击、横竖滑统一在「手势引擎」里处理（见上方），
     // 这里只留一对鼠标控制条显隐的监听。
     const el = containerRef.current;
@@ -1470,6 +1496,8 @@ export function PlayerShell({
       }
       document.removeEventListener('keydown', shortcuts);
       window.removeEventListener('mfl:rc-seekto', onRemoteSeekTo);
+      window.removeEventListener('mfl:rc-fullscreen', onRemoteFullscreen);
+      delete document.documentElement.dataset.mflFs;
       document.removeEventListener('visibilitychange', saveOnHide);
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);

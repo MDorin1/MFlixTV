@@ -112,6 +112,37 @@
     try { document.dispatchEvent(ev); } catch (e3) {}
   }
 
+  /* ---------------- 方向键导航：按需补齐 ----------------
+     rc-nav.js 是单独一个文件。宿主只要没把它挂出来（安卓 WebServer 的静态路由漏了它、
+     换过静态目录的部署、老版本安装包），MFlixRCNav 就是 undefined，遥控器的
+     上下左右和确定会全部落回 fireKey —— 页面没有键盘导航，按了等于没按，也不会有红框。
+     这里做两层兜底：需要时现场装一次；还是装不上就自己把 /rc-nav.js 拉进来再装。 */
+  var NAV_SRC = '/rc-nav.js';
+  var navLoading = false;
+
+  function installNav() {
+    if (S.nav) return S.nav;
+    if (root.MFlixRCNav) {
+      try { S.nav = root.MFlixRCNav.install(S.navOpts || {}); } catch (e) { S.nav = null; }
+    }
+    return S.nav;
+  }
+
+  function ensureNav() {
+    var n = installNav();
+    if (n || navLoading) return n;
+    navLoading = true;
+    try {
+      var s = document.createElement('script');
+      s.charset = 'utf-8';
+      s.src = NAV_SRC + '?v=' + Date.now();
+      s.onload = function () { navLoading = false; installNav(); };
+      s.onerror = function () { navLoading = false; };
+      (document.head || document.documentElement).appendChild(s);
+    } catch (e) { navLoading = false; }
+    return null;
+  }
+
   function deviceName() {
     var ua = navigator.userAgent || '';
     var os = /Windows/i.test(ua) ? 'Windows'
@@ -140,6 +171,8 @@
     el: null,
     btn: null,
     nav: null,
+    /* mount 传进来的导航配置：rc-nav.js 迟到时用它补装 */
+    navOpts: null,
     token: '',
     since: 0,
     peers: 0,
@@ -245,22 +278,27 @@
       if (done) return;
     }
 
+    /* 方向键：几何导航是主路，红框就是它的 [data-rc-focus] 样式。
+       导航没装好时先就地补装（见 ensureNav），还不行才退回合成键盘事件。 */
+    var navD = ensureNav();
     switch (cmd) {
       case 'up':
       case 'down':
       case 'left':
       case 'right':
-        if (S.nav) S.nav.move(cmd);
+        if (navD) navD.move(cmd);
         else fireKey(cmd, cmd, 0);
         return;
       case 'ok':
-        if (S.nav && S.nav.hasFocus() && S.nav.ok()) return;
+        if (navD && navD.hasFocus() && navD.ok()) return;
         if (liveVideo(v)) { togglePlay(v); return; }
+        // 没焦点时先落一个焦点，让用户看得见「遥控确实动了」，再按确定才点得进去
+        if (navD && !navD.hasFocus() && navD.move('down')) return;
         fireKey('Enter', 'Enter', 13);
         return;
       case 'toggle':
         if (liveVideo(v)) togglePlay(v);
-        else if (S.nav && S.nav.hasFocus()) S.nav.ok();
+        else if (navD && navD.hasFocus()) navD.ok();
         else fireKey(' ', 'Space', 32);
         return;
       case 'play':
@@ -343,6 +381,40 @@
     }
   }
 
+  function fsOn(v) {
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) return true;
+      if (v && v.classList && v.classList.contains('mfl-fs-video')) return true;
+      // 页面自己的伪全屏（#player.pfull），安卓浏览器打开时走的就是这条
+      var pl = byId('player');
+      if (pl && pl.classList && pl.classList.contains('pfull')) return true;
+      // App 内是原生全屏，状态只能看全屏按钮有没有亮
+      var nat = root.MFlixNative;
+      if (nat && nat.fullscreen) {
+        var b = byId('pmFull');
+        if (b && b.classList && b.classList.contains('on')) return true;
+      }
+    } catch (e) { /* 忽略 */ }
+    return false;
+  }
+
+  function cssFullscreen(v) {
+    if (!v) return;
+    if (!document.getElementById('mfl-fs-style')) {
+      var st = document.createElement('style');
+      st.id = 'mfl-fs-style';
+      st.appendChild(document.createTextNode(
+        '.mfl-fs-video{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;' +
+        'max-width:none!important;max-height:none!important;object-fit:contain!important;' +
+        'background:#000!important;z-index:2147483000!important;}' +
+        'body.mfl-fs-lock{overflow:hidden!important;}'
+      ));
+      (document.head || document.documentElement).appendChild(st);
+    }
+    v.classList.add('mfl-fs-video');
+    document.body.classList.add('mfl-fs-lock');
+  }
+
   function toggleFullscreen(v) {
     // 安卓 App 里优先用原生全屏（不受浏览器「必须有用户手势」的限制）
     var nat = root.MFlixNative;
@@ -357,9 +429,25 @@
       try { (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document); } catch (e2) {}
       return;
     }
-    var target = v || document.documentElement;
+    // 已经用 CSS 铺满的：再按一次退出
+    if (v && v.classList && v.classList.contains('mfl-fs-video')) {
+      v.classList.remove('mfl-fs-video');
+      document.body.classList.remove('mfl-fs-lock');
+      return;
+    }
+    // 不在播放器里就别折腾：整页原生全屏对列表页没有意义，还会让人以为按错了
+    if (!v) return;
+    var target = v;
     var fn = target.requestFullscreen || target.webkitRequestFullscreen || target.webkitRequestFullScreen;
-    if (fn) { try { fn.call(target); } catch (e3) {} }
+    if (!fn) { cssFullscreen(v); return; }
+    // 原生全屏在没有用户手势时会被浏览器拒（Promise reject / 抛错）→ 退回 CSS 铺满，
+    // 否则遥控按全屏就是「按了没反应」。
+    try {
+      var p = fn.call(target);
+      if (p && p.catch) p.catch(function () { cssFullscreen(v); });
+    } catch (e3) {
+      cssFullscreen(v);
+    }
   }
 
   /**
@@ -517,7 +605,9 @@
       // 音量 / 倍速 / 静音：遥控器上要能看见自己按到了多少
       '&vol=' + (v ? Math.round((v.volume || 0) * 100) : 100) +
       '&rate=' + (v ? Math.round((v.playbackRate || 1) * 100) : 100) +
-      '&muted=' + (v && v.muted ? '1' : '0');
+      '&muted=' + (v && v.muted ? '1' : '0') +
+      // 全屏状态：遥控页那颗按钮要跟着亮/灭，按了没生效也得看得出来
+      '&fs=' + (fsOn(v) ? '1' : '0');
 
     // 选集 / 线路每 5 秒重算一次就够（列表基本不变，省点带宽）
     if (now - S.listAt > 5000) {
@@ -593,9 +683,10 @@
     S.hooks = opts;
     S.btn = opts.btn || (opts.btnId ? byId(opts.btnId) : null);
     attach(S.btn);
-    if (root.MFlixRCNav && !S.nav) {
-      try { S.nav = root.MFlixRCNav.install(opts.nav || {}); } catch (e) {}
-    }
+    S.navOpts = opts.nav || {};
+    // 先就地装；装不上说明 rc-nav.js 没加载到，立刻后台补一次，
+    // 这样用户第一次按方向键时导航已经就位（红框跟着出现）。
+    if (!installNav()) ensureNav();
     document.addEventListener('keydown', function (e) {
       if (!S.open) return;
       if (e.key === 'Escape' || e.keyCode === 27 || e.keyCode === 4) {
@@ -623,7 +714,7 @@
     }
     return {
       open: open, close: close, attach: attach,
-      nav: function () { return S.nav; },
+      nav: function () { return installNav(); },
       token: function () { return S.token; }
     };
   }
@@ -635,6 +726,6 @@
     close: close,
     exec: exec,
     isOpen: function () { return !!S.open; },
-    nav: function () { return S.nav; }
+    nav: installNav,
   };
 })(typeof window !== 'undefined' ? window : this);

@@ -3278,9 +3278,24 @@
           return true;
         }
         if (cmd === 'fullscreen') {
-          if (inPlayer) { $('pmFull').click(); return true; }
-          if (typeof native === 'function' && native('fullscreen')) return true;
-          return false;
+          if (!inPlayer) return false;
+          /* 以前这里是 $('pmFull').click()。合成 click 不算「用户激活」，
+             浏览器里紧跟其后的原生全屏会被拒——看起来就是「按了没反应」。
+             现在：App 内直接调原生桥（不受手势限制）；浏览器里走页面自己的伪全屏
+             （#player.pfull，纯 CSS 铺满 + 转横），哪条路都不需要手势。 */
+          if (natFull || natWide) { exitNativeFull(); return true; }
+          if (fsElement() || $('player').classList.contains('pfull')) { exitAnyFull(); return true; }
+          if (inApp()) {
+            natFull = true;
+            natWide = true;
+            native('fullscreen', true);
+            paintFullBtns();
+            toast('全屏 · 已转横屏');
+            showCtl();
+            return true;
+          }
+          pfullOn(true);
+          return true;
         }
         /* 播放页里「确定」在没选中控件时就是播放/暂停；其它页面交给方向键导航去点 */
         if (cmd === 'ok' && inPlayer) {

@@ -173,6 +173,10 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 // 自写的二维码生成器 + 扫码遥控的被控端（index.html / tv.html 共用）
                 uri == "/qr.js" -> asset("qr.js", "application/javascript; charset=utf-8")
                 uri == "/rc-host.js" -> asset("rc-host.js", "application/javascript; charset=utf-8")
+                // 方向键几何导航（遥控器上下左右 + 确定的那种红框焦点）。
+                // 之前漏了这一条：index.html 拿不到它，MFlixRCNav 就是 undefined，
+                // 遥控器的上下左右和确定全部落回 fireKey，按了等于没按。
+                uri == "/rc-nav.js" -> asset("rc-nav.js", "application/javascript; charset=utf-8")
                 uri == "/favicon.ico" -> newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "")
                 else -> newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "not found")
             }

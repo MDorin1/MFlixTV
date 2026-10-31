@@ -35,6 +35,8 @@ export interface RsState {
   rate: number;
   /** 是否静音 */
   muted: boolean;
+  /** 是否处于全屏：遥控页的全屏键要跟着亮/灭 */
+  fs: boolean;
 }
 
 export interface RsSession {
@@ -97,7 +99,7 @@ export function createSession(name: string): RsSession {
     hostBeat: Date.now(),
     seq: 0,
     cmds: [],
-    state: { title: '', sub: '', playing: false, pos: 0, dur: 0, page: '', eps: '', lines: '', vol: 100, rate: 100, muted: false },
+    state: { title: '', sub: '', playing: false, pos: 0, dur: 0, page: '', eps: '', lines: '', vol: 100, rate: 100, muted: false, fs: false },
     ctls: new Map(),
   };
   s.sessions.set(token, sess);
@@ -160,6 +162,7 @@ export function setState(token: string, patch: Partial<RsState>): boolean {
     vol: clampInt(patch.vol, v.state.vol, 0, 100),
     rate: clampInt(patch.rate, v.state.rate, 25, 400),
     muted: Boolean(patch.muted ?? v.state.muted),
+    fs: Boolean(patch.fs ?? v.state.fs),
   };
   return true;
 }
