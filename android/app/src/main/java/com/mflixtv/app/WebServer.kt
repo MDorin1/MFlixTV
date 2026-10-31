@@ -148,6 +148,14 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                     )
                 )
                 uri == "/api/diag" -> json(Sources.probeJson(useCache = p["force"]?.firstOrNull() != "1"))
+                // 「扫一扫当遥控器」（会话级）：每个打开页面的标签页各领一个 token，
+                // 二维码里的 /rc?t=TOKEN 只控制发起的那一个页面，不影响别处。
+                uri == "/api/rs/create" -> remoteCreate(p)
+                uri == "/api/rs/host" -> remoteHost(p)
+                uri == "/api/rs/ctl" -> remoteCtl(p)
+                uri == "/api/rs/cmd" -> remoteCmd(p)
+                uri == "/api/rs/state" -> remoteState(p)
+                uri == "/api/rs/info" -> remoteInfo(p)
                 // 片源测速 / 维护：force=1 当场重测（设置页点「重新测速」），否则给缓存并在后台补测
                 uri == "/api/sources/health" -> json(healthJson(p["force"]?.firstOrNull() == "1"))
                 // 没源了：去远端拉最新源清单，合并后重测
@@ -159,13 +167,74 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 uri == "/" || uri == "/index.html" -> asset("index.html", "text/html; charset=utf-8")
                 // 电视版（10 英尺界面，遥控器导航）：盒子上 8080/tv 也能直接用浏览器开
                 uri == "/tv" || uri == "/tv.html" -> asset("tv.html", "text/html; charset=utf-8")
+                // 扫码后手机打开的就是这一页（和 index.html / tv.html 共用同一套 /api/rs 接口）
+                uri == "/rc" || uri == "/rc.html" -> asset("rc.html", "text/html; charset=utf-8")
                 uri == "/hls.min.js" -> asset("hls.min.js", "application/javascript; charset=utf-8")
+                // 自写的二维码生成器 + 扫码遥控的被控端（index.html / tv.html 共用）
+                uri == "/qr.js" -> asset("qr.js", "application/javascript; charset=utf-8")
+                uri == "/rc-host.js" -> asset("rc-host.js", "application/javascript; charset=utf-8")
                 uri == "/favicon.ico" -> newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "")
                 else -> newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "not found")
             }
         } catch (e: Exception) {
             json("{\"error\":\"" + esc(e.message ?: "server error") + "\"}")
         }
+    }
+
+    /* ---------------- 「扫一扫当遥控器」（会话级，见 RemoteSession.kt） ---------------- */
+
+    private fun lanUrl(path: String): String {
+        val ip = LanIp.ip().ifBlank { "127.0.0.1" }
+        return "http://$ip:$portNum$path"
+    }
+
+    private fun remoteCreate(p: Map<String, List<String>>): Response {
+        val o = RemoteSession.create(p["name"]?.firstOrNull().orEmpty())
+        val token = o.optString("token")
+        o.put("url", lanUrl("/rc?t=$token"))
+        return json(o.toString())
+    }
+
+    private fun remoteHost(p: Map<String, List<String>>): Response {
+        val t = (p["t"]?.firstOrNull() ?: "").uppercase()
+        val since = (p["since"]?.firstOrNull() ?: "0").toLongOrNull() ?: 0L
+        val body = RemoteSession.hostPoll(t, since) ?: return json("{\"error\":\"会话已失效\"}")
+        return json(body)
+    }
+
+    private fun remoteCtl(p: Map<String, List<String>>): Response {
+        val t = (p["t"]?.firstOrNull() ?: "").uppercase()
+        val body = RemoteSession.ctlPoll(t, p["who"]?.firstOrNull().orEmpty())
+            ?: return json("{\"error\":\"会话已失效\"}")
+        return json(body)
+    }
+
+    private fun remoteCmd(p: Map<String, List<String>>): Response {
+        val t = (p["t"]?.firstOrNull() ?: "").uppercase()
+        val cmd = (p["cmd"]?.firstOrNull() ?: "").trim()
+        if (cmd.isEmpty()) return json("{\"error\":\"缺少 cmd\"}")
+        val id = RemoteSession.push(t, cmd, p["arg"]?.firstOrNull().orEmpty())
+            ?: return json("{\"error\":\"会话已失效\"}")
+        return json("{\"ok\":true,\"id\":" + id + "}")
+    }
+
+    private fun remoteState(p: Map<String, List<String>>): Response {
+        val t = (p["t"]?.firstOrNull() ?: "").uppercase()
+        val o = JSONObject()
+        p["title"]?.firstOrNull()?.let { o.put("title", it) }
+        p["sub"]?.firstOrNull()?.let { o.put("sub", it) }
+        p["playing"]?.firstOrNull()?.let { o.put("playing", it == "1") }
+        p["pos"]?.firstOrNull()?.let { o.put("pos", it.toIntOrNull() ?: 0) }
+        p["dur"]?.firstOrNull()?.let { o.put("dur", it.toIntOrNull() ?: 0) }
+        p["page"]?.firstOrNull()?.let { o.put("page", it) }
+        if (!RemoteSession.setState(t, o)) return json("{\"error\":\"会话已失效\"}")
+        return json("{\"ok\":true}")
+    }
+
+    private fun remoteInfo(p: Map<String, List<String>>): Response {
+        val t = (p["t"]?.firstOrNull() ?: "").uppercase()
+        val body = RemoteSession.info(t) ?: return json("{\"error\":\"会话已失效\"}")
+        return json(body)
     }
 
     /**

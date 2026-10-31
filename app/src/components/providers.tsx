@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { ToastProvider } from './toast';
 import { AuthProvider } from './auth';
 import { ThemeProvider } from './theme';
@@ -21,6 +22,10 @@ export function Providers({ children }: { children: ReactNode }) {
         },
       })
   );
+  // 扫码遥控器页面（/rc）是个纯工具页：不该弹首启向导、不该挂遥控接收端，
+  // 也不该加载下载管理器——拿手机扫个码就被问「选片源 / 设密码」很膈应。
+  const pathname = usePathname();
+  const bare = !!pathname && pathname.startsWith('/rc');
 
   // store 配置了 skipHydration：等挂载后再读 localStorage，
   // 保证 hydration 阶段客户端与服务端渲染结果一致。
@@ -49,12 +54,12 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <ToastProvider>
-          {/* 全站常驻：下载事件监听（enqueueDownload）依赖它存在——
-              挂在 Header 里会让 /watch 等不渲染 Header 的页面派发的事件凭空丢失 */}
-          <GlobalDownloadManager />
+          {/* 全站常驻：下载事件监听（enqueueDownload）依赖它存在—— */}
+          {/* 挂在 Header 里会让 /watch 等不渲染 Header 的页面派发的事件凭空丢失 */}
+          {!bare && <GlobalDownloadManager />}
           {/* 手机遥控的接收端：全站常驻，手机上按的键在这里被执行 */}
-          <RemoteSink />
-          <FirstRun />
+          {!bare && <RemoteSink />}
+          {!bare && <FirstRun />}
           <AuthProvider>{children}</AuthProvider>
         </ToastProvider>
       </ThemeProvider>

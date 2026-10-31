@@ -694,6 +694,7 @@
     <button class="nv fx" data-nav="variety">综艺</button>
   </nav>
   <div id="navr">
+    <button class="nv fx nvr" id="rcBtn" title="用另一台手机扫码当遥控器，控制当前这个页面"><span class="ic">▦</span>遥控</button>
     <button class="nv fx nvr" id="btnSearch"><span class="ic">⌕</span>搜索</button>
     <button class="nv fx nvr" id="btnSet"><span class="ic">⚙</span>设置</button>
     <div id="lanip"><span>未联网</span></div>
@@ -897,6 +898,8 @@
 <div id="toast"></div>
 
 <script src="/hls.min.js"></script>
+<script src="/qr.js"></script>
+<script src="/rc-host.js"></script>
 <script>
 (function () {
   'use strict';
@@ -3267,6 +3270,79 @@
     if (e.target.closest && e.target.closest('#pbotbar, #ptopbar, #eps-sheet, #nx')) return;
     bars($('pbotbar').classList.contains('hide'));
   });
+
+  /* ================= 扫一扫当遥控器（会话级） =================
+     和设置页里那个「遥控这台设备」不是一回事：那个是整台设备一条队列，
+     手机打开电视的地址就能控；这里领的是「当前这个页面」的 token，
+     二维码给谁扫，就只有那一台手机能控这个页面，互不串台。
+     电视没有键盘，面板开着时按键只作用在面板上：返回 / 确定都直接关掉。 */
+  try {
+    MFlixRC.mount({
+      btn: $('rcBtn'),
+      title: function () {
+        if (!inPlayer()) return S.title || 'MFlixTV';
+        var g = (S.groups || [])[S.group] || {};
+        var e = (g.episodes || [])[S.ep] || {};
+        return (S.title || '正在播放') + (e.label ? ' · ' + e.label : '');
+      },
+      sub: function () { return inPlayer() ? '正在播放' : '浏览中'; },
+      page: function () {
+        if (inPlayer()) return 'player';
+        if ($('detail').classList.contains('on')) return 'detail';
+        if ($('settings').classList.contains('on')) return 'settings';
+        return 'home';
+      },
+      onCmd: function (cmd, arg) {
+        var n = Number(arg) || 0;
+        /* 面板开着：方向键不许去动背后那层页面，返回 / 确定直接关面板 */
+        if (MFlixRC.isOpen() && (cmd === 'up' || cmd === 'down' || cmd === 'left' ||
+          cmd === 'right' || cmd === 'ok' || cmd === 'back')) {
+          if (cmd === 'ok' || cmd === 'back') MFlixRC.close();
+          return true;
+        }
+        if (cmd === 'toggle') { if (inPlayer()) togglePlay(); else handle('ok'); return true; }
+        if (cmd === 'play') { if (inPlayer() && v && v.paused) togglePlay(); return true; }
+        if (cmd === 'pause') { if (inPlayer() && v && !v.paused) togglePlay(); return true; }
+        if (cmd === 'seekb') { if (inPlayer()) seekBy(-(n || 10)); return true; }
+        if (cmd === 'seekf') { if (inPlayer()) seekBy(n || 10); return true; }
+        if (cmd === 'seekto') { if (inPlayer() && n) seekTo(n); return true; }
+        if (cmd === 'next') { if (inPlayer()) stepEp(1); return true; }
+        if (cmd === 'prev') { if (inPlayer()) stepEp(-1); return true; }
+        if (cmd === 'home') { goHome(); return true; }
+        if (cmd === 'fullscreen') return true;   /* 电视端本来就是全屏，按住不动 */
+        if (cmd === 'volup') {
+          if (v) { v.volume = Math.min(1, Math.round((v.volume + 0.1) * 10) / 10); v.muted = false; }
+          return true;
+        }
+        if (cmd === 'voldown') {
+          if (v) v.volume = Math.max(0, Math.round((v.volume - 0.1) * 10) / 10);
+          return true;
+        }
+        if (cmd === 'mute') { if (v) v.muted = !v.muted; return true; }
+        if (cmd === 'up' || cmd === 'down' || cmd === 'left' || cmd === 'right' ||
+          cmd === 'ok' || cmd === 'back') { handle(cmd); return true; }
+        return false;
+      }
+    });
+  } catch (e) {}
+
+  /* 二维码面板是浮层，不在 .fx 焦点体系里：开着时把按键在捕获阶段截下来 */
+  window.addEventListener('keydown', function (e) {
+    if (!(window.MFlixRC && window.MFlixRC.isOpen())) return;
+    var k = e.keyCode;
+    if (k === 8 || k === 27 || k === 461 || k === 13 || k === 10 || k === 23 ||
+      k === 66 || k === 179 || k === 415) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.MFlixRC.close();
+      return;
+    }
+    if (k === 37 || k === 38 || k === 39 || k === 40 || k === 19 || k === 20 ||
+      k === 21 || k === 22) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
 
   /* ================= 起飞 ================= */
   paintWord(); buildKbd(); loadHome(); rcPoll();

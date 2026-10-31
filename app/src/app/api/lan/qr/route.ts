@@ -27,10 +27,16 @@ function looksLikeHostUrl(u: string): boolean {
 }
 
 export async function GET(req: Request) {
-  const denied = guardRequest(req);
-  if (denied) return denied;
-
   const u = new URL(req.url).searchParams.get('u') || '';
+
+  // 「扫码当遥控器」的链接自带 6 位会话 token，本身就是凭证：
+  // 电视端、没登录过的设备也要能出这张码，所以这类链接不走登录校验。
+  const isRemoteLink = /\/rc\?t=[0-9A-Z]{6}$/i.test(u);
+  if (!isRemoteLink) {
+    const denied = guardRequest(req);
+    if (denied) return denied;
+  }
+
   if (!looksLikeHostUrl(u)) {
     return NextResponse.json({ error: 'bad url' }, { status: 400 });
   }

@@ -8,6 +8,7 @@ import { SourceManagerDrawer } from './source-manager';
 import { HistoryPanel } from './history-panel';
 import { requestShowDownloadManager } from './download-manager';
 import { LanBadge } from '@/components/lan-badge';
+import { RemoteHost } from '@/components/remote-host';
 import { Icon } from './icon';
 import { SearchHistoryDropdown, useSearchHistory } from './search-history';
 import { cn } from '@/lib/utils';
@@ -149,6 +150,7 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
               </HeaderLink>
             </span>
             <LanBadge />
+            <RemoteHost />
             <ThemeToggle />
             <IconButton label="观看历史" onClick={() => setHistoryOpen(true)}>
               <Icon name="clock" />

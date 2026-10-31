@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0a0a0d">
+<meta name="robots" content="noindex,nofollow">
+<title>遥控器 - MFlixTV</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:#0a0a0d;color:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  body{min-height:100dvh;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  .top{display:flex;align-items:center;gap:8px;padding:16px 16px 8px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#34d399;flex:none}
+  .dot.off{background:#ef4444}
+  .who{min-width:0;flex:1}
+  .who b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .who span{display:block;font-size:11px;color:rgba(255,255,255,.45);margin-top:2px}
+  .vib{flex:none;border:0;background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);
+    border-radius:8px;padding:6px 10px;font-size:11px;font-family:inherit}
+  .vib:active{background:rgba(255,255,255,.2)}
+  .card{margin:0 16px 12px;background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px}
+  .title{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11px;color:rgba(255,255,255,.5);
+    font-variant-numeric:tabular-nums}
+  .bar input[type=range]{flex:1;accent-color:#fff;height:22px}
+  .row{display:flex;align-items:center;justify-content:center;gap:12px;padding:0 16px}
+  button{font-family:inherit;border:0;background:none;color:#fff;cursor:pointer;user-select:none;
+    transition:background .12s,transform .08s}
+  .b{background:rgba(255,255,255,.06);border-radius:12px;display:grid;place-items:center}
+  .b:active{background:rgba(255,255,255,.2)}
+  .b14{width:56px;height:56px}
+  .play{width:80px;height:80px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center}
+  .play:active{transform:scale(.95)}
+  .chips{display:flex;gap:12px;justify-content:center;margin-top:12px;padding:0 16px;font-size:12px}
+  .chips .b{height:44px;padding:0 16px}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:8px;
+    width:196px;margin:16px auto 0}
+  .pad .b{height:56px;font-size:15px}
+  .pad .ok{font-weight:600}
+  .bottom{display:flex;gap:8px;padding:12px 16px 0;font-size:12px}
+  .bottom .b{flex:1;height:44px}
+  .hint{text-align:center;font-size:10.5px;line-height:1.6;color:rgba(255,255,255,.3);
+    padding:18px 32px 28px;margin:auto 0 0}
+  svg{display:block}
+</style>
+</head>
+<body>
+  <div class="top">
+    <span class="dot" id="dot"></span>
+    <div class="who">
+      <b id="who">正在连接…</b>
+      <span id="sub">遥控已连接</span>
+    </div>
+    <button class="vib" id="vib">震动 开</button>
+  </div>
+
+  <div class="card">
+    <div class="title" id="title">—</div>
+    <div class="bar">
+      <span id="pos">0:00</span>
+      <input type="range" id="seek" min="0" max="1" value="0" step="1" aria-label="进度">
+      <span id="dur">0:00</span>
+    </div>
+  </div>
+
+  <div class="row">
+    <button class="b b14" data-cmd="seekb" data-arg="10" aria-label="快退 10 秒">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M11 7l-5 5 5 5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M18 7l-5 5 5 5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="play" data-cmd="toggle" id="playBtn" aria-label="播放">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="margin-left:3px"><path d="M8 5.5v13l11-6.5z"/></svg>
+    </button>
+    <button class="b b14" data-cmd="seekf" data-arg="10" aria-label="快进 10 秒">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M6 7l5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M13 7l5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="chips">
+    <button class="b" data-cmd="prev">上一集</button>
+    <button class="b" data-cmd="next">下一集</button>
+    <button class="b" data-cmd="fullscreen">全屏</button>
+  </div>
+
+  <div class="pad">
+    <span></span><button class="b" data-cmd="up" aria-label="上">▲</button><span></span>
+    <button class="b" data-cmd="left" aria-label="左">◀</button>
+    <button class="b ok" data-cmd="ok" aria-label="确定">确定</button>
+    <button class="b" data-cmd="right" aria-label="右">▶</button>
+    <span></span><button class="b" data-cmd="down" aria-label="下">▼</button><span></span>
+  </div>
+
+  <div class="row" style="margin-top:16px">
+    <button class="b" style="height:44px;padding:0 14px;font-size:12px" data-cmd="voldown">音量 −</button>
+    <button class="b" style="height:44px;padding:0 14px;font-size:12px" data-cmd="mute">静音</button>
+    <button class="b" style="height:44px;padding:0 14px;font-size:12px" data-cmd="volup">音量 +</button>
+  </div>
+
+  <div class="bottom">
+    <button class="b" data-cmd="back">返回</button>
+    <button class="b" data-cmd="home">回首页</button>
+  </div>
+
+  <p class="hint">这个页面只控制发起方的那一个页面，关掉对方页面后这里会显示「已关闭」。</p>
+
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var T = (q.get('t') || '').toUpperCase();
+  var ctlId = (function () {
+    try {
+      var v = localStorage.getItem('mfl:ctlid');
+      if (v) return v;
+      v = 'c' + Math.random().toString(36).slice(2, 9);
+      localStorage.setItem('mfl:ctlid', v);
+      return v;
+    } catch (e) { return 'c0'; }
+  })();
+
+  var elWho = document.getElementById('who');
+  var elSub = document.getElementById('sub');
+  var elDot = document.getElementById('dot');
+  var elTitle = document.getElementById('title');
+  var elPos = document.getElementById('pos');
+  var elDur = document.getElementById('dur');
+  var elSeek = document.getElementById('seek');
+  var playBtn = document.getElementById('playBtn');
+  var vibBtn = document.getElementById('vib');
+
+  var vibrate = true;
+  var dragging = false;
+  var dragVal = 0;
+  var lastState = { title: '', playing: false, pos: 0, dur: 0 };
+
+  function fmt(s) {
+    s = Math.max(0, Math.floor(s || 0));
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return h > 0 ? h + ':' + p(m) + ':' + p(ss) : m + ':' + p(ss);
+  }
+
+  function send(cmd, arg) {
+    if (!T) return;
+    if (vibrate && navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
+    fetch('/api/rs/cmd?t=' + encodeURIComponent(T) + '&cmd=' + encodeURIComponent(cmd) +
+      '&arg=' + encodeURIComponent(arg || ''), { cache: 'no-store' }).catch(function () {});
+  }
+
+  document.querySelectorAll('[data-cmd]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      send(b.getAttribute('data-cmd'), b.getAttribute('data-arg') || '');
+    });
+  });
+
+  vibBtn.addEventListener('click', function () {
+    vibrate = !vibrate;
+    vibBtn.textContent = vibrate ? '震动 开' : '震动 关';
+  });
+
+  elSeek.addEventListener('input', function () {
+    dragging = true;
+    dragVal = Number(elSeek.value) || 0;
+    elPos.textContent = fmt(dragVal);
+  });
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    send('seekto', String(Math.round(dragVal)));
+    setTimeout(function () { elPos.textContent = fmt(dragVal); }, 300);
+  }
+  elSeek.addEventListener('change', endDrag);
+  elSeek.addEventListener('pointerup', endDrag);
+  elSeek.addEventListener('touchend', endDrag);
+
+  function render(d) {
+    var st = d.state || {};
+    lastState = st;
+    elWho.textContent = d.name ? '正在遥控 ' + d.name : '正在连接…';
+    var alive = d.hostAlive !== false;
+    elDot.className = 'dot' + (alive ? '' : ' off');
+    elSub.textContent = alive ? '遥控已连接' : '对方页面可能已关闭';
+    elTitle.textContent = st.title || '—';
+
+    var dur = st.dur || 0;
+    elDur.textContent = fmt(dur);
+    if (!dragging) {
+      elPos.textContent = fmt(st.pos || 0);
+      elSeek.max = String(Math.max(1, Math.floor(dur)));
+      elSeek.value = String(Math.min(st.pos || 0, Math.max(1, Math.floor(dur))));
+    }
+    var playing = !!st.playing;
+    playBtn.innerHTML = playing
+      ? '<svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>'
+      : '<svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="margin-left:3px"><path d="M8 5.5v13l11-6.5z"/></svg>';
+    playBtn.setAttribute('aria-label', playing ? '暂停' : '播放');
+  }
+
+  function tick() {
+    if (!T) {
+      elWho.textContent = '链接里没有遥控码';
+      elSub.textContent = '请让对方重新生成二维码';
+      return;
+    }
+    fetch('/api/rs/ctl?t=' + encodeURIComponent(T) + '&who=' + encodeURIComponent(ctlId),
+      { cache: 'no-store' })
+      .then(function (r) {
+        if (r.status === 404) {
+          elWho.textContent = '会话已关闭';
+          elSub.textContent = '让对方重新点一次遥控按钮';
+          elDot.className = 'dot off';
+          return null;
+        }
+        return r.ok ? r.json() : null;
+      })
+      .then(function (d) { if (d) render(d); })
+      .catch(function () {})
+      .then(function () { setTimeout(tick, 1200); });
+  }
+  tick();
+})();
+</script>
+</body>
+</html>

@@ -36,6 +36,7 @@ import {
 } from '@/lib/db';
 import { cn } from '@/lib/utils';
 import { ParentalGate } from '@/components/parental-gate';
+import { RemoteHost } from '@/components/remote-host';
 
 /**
  * 播放页（唯一入口，替代旧版 watch.html → player.html 跳转链）。
@@ -319,6 +320,7 @@ function WatchContent() {
             </p>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-2">
+            <RemoteHost />
             <button
               className="btn-ghost btn-sm whitespace-nowrap"
               onClick={() => {

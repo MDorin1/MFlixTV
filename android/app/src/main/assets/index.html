@@ -601,6 +601,7 @@
 <div id="top">
   <div class="logo">M<span>FlixTV</span></div>
   <div class="grow"></div>
+  <button class="icon-btn" id="rcBtn" aria-label="遥控器" title="用另一台手机扫码当遥控器，控制当前这个页面">&#128241;</button>
   <button class="icon-btn" id="searchBtn" aria-label="搜索">&#128269;</button>
   <button class="icon-btn" id="setBtn" aria-label="设置">&#9881;</button>
 </div>
@@ -882,6 +883,8 @@
 <div id="toast"></div>
 
 <script src="/hls.min.js"></script>
+<script src="/qr.js"></script>
+<script src="/rc-host.js"></script>
 <script>
 (function () {
   'use strict';
@@ -3168,6 +3171,74 @@
     }
     return false;
   }
+
+  /* ================= 1.3 扫一扫当遥控器 =================
+     右上角遥控按钮 → 领一个 6 位 token 出二维码 → 另一台手机扫码打开 /rc 页
+     就成了遥控器，只控制「点按钮的这个页面」。执行指令时优先走页面自己的
+     函数（选集、返回、全屏），跟手指点按钮的效果一模一样；
+     播放 / 进度 / 音量这些直接落到 <video> 上。 */
+  try {
+    MFlixRC.mount({
+      btn: $('rcBtn'),
+      title: function () {
+        var inPlayer = $('player') && $('player').classList.contains('on');
+        if (inPlayer) {
+          var cur = (state.eps || [])[state.ep] || {};
+          return (state.title || '正在播放') + (cur.label ? ' · ' + cur.label : '');
+        }
+        var ht = $('heroTitle');
+        return (state.title || (ht && ht.textContent) || 'MFlixTV');
+      },
+      sub: function () {
+        return $('player') && $('player').classList.contains('on') ? '正在播放' : '浏览中';
+      },
+      page: function () {
+        if ($('player') && $('player').classList.contains('on')) return 'player';
+        if ($('detail') && $('detail').classList.contains('on')) return 'detail';
+        if ($('settings') && $('settings').classList.contains('on')) return 'settings';
+        if ($('calendar') && $('calendar').classList.contains('on')) return 'calendar';
+        return 'home';
+      },
+      onCmd: function (cmd, arg) {
+        var inPlayer = $('player') && $('player').classList.contains('on');
+        var inSet = $('settings') && $('settings').classList.contains('on');
+        var inCal = $('calendar') && $('calendar').classList.contains('on');
+
+        if (cmd === 'next') {
+          if (inPlayer) { $('pNext').click(); return true; }
+          return false;
+        }
+        if (cmd === 'prev') {
+          if (inPlayer && (state.ep | 0) > 0) { playEp((state.ep | 0) - 1); return true; }
+          return false;
+        }
+        if (cmd === 'fullscreen') {
+          if (inPlayer) { $('pmFull').click(); return true; }
+          return false;
+        }
+        if (cmd === 'ok') {
+          // 播放页里「确定」就是播放/暂停，首页/详情页交给页面自己的 Enter
+          if (inPlayer) { $('pPlay').click(); return true; }
+          return false;
+        }
+        if (cmd === 'back') {
+          if (inPlayer) { closePlayer(); return true; }
+          if (inSet) { closeSettings(); return true; }
+          if (inCal) { closeCalendar(); return true; }
+          return false;
+        }
+        if (cmd === 'home') {
+          if (inPlayer) closePlayer();
+          if (inSet) closeSettings();
+          if (inCal) closeCalendar();
+          window.scrollTo(0, 0);
+          return true;
+        }
+        // toggle / seek / 音量 / 方向：交给 rc-host.js 默认的 <video> 那条路
+        return false;
+      }
+    });
+  } catch (e) {}
 
   try { bindRemote(); } catch (e) {}
   try { bindSourceIO(); } catch (e) {}
