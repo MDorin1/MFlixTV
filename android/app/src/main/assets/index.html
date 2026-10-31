@@ -688,6 +688,7 @@
     <div id="ptop">
       <button class="icon-btn" id="pClose">&#10005;</button>
       <div id="ptitle"></div>
+      <button class="icon-btn" id="pRc" aria-label="遥控器" title="用另一台手机扫码当遥控器，控制当前这个页面">&#128241;</button>
       <button class="icon-btn" id="pRotate">&#8635;</button>
     </div>
     <div id="pbot">
@@ -3238,6 +3239,8 @@
         return false;
       }
     });
+    // 播放器里也放一个入口：正在看片时不用退出来才能出码
+    MFlixRC.attach($('pRc'));
   } catch (e) {}
 
   try { bindRemote(); } catch (e) {}

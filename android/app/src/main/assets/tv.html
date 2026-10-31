@@ -880,6 +880,10 @@
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13.6 4.6h5.8v5.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.4 4.6l-7.6 7.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M11.2 5.6H7a2.4 2.4 0 00-2.4 2.4v9a2.4 2.4 0 002.4 2.4h9a2.4 2.4 0 002.4-2.4v-4.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
         外部播放器
       </button>
+      <button class="pb fx" id="pbRc" aria-label="扫码遥控">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.4" y="3.4" width="6.2" height="6.2" rx="1.4" stroke="currentColor" stroke-width="1.8"/><rect x="14.4" y="3.4" width="6.2" height="6.2" rx="1.4" stroke="currentColor" stroke-width="1.8"/><rect x="3.4" y="14.4" width="6.2" height="6.2" rx="1.4" stroke="currentColor" stroke-width="1.8"/><path d="M14.6 14.6h2.6v2.6h-2.6zM18.6 18.6h1.8v1.8h-1.8zM14.6 19.2h1.4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        遥控
+      </button>
       <button class="pb ic fx" id="pbBack" aria-label="退出播放">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
@@ -3324,6 +3328,8 @@
         return false;
       }
     });
+    // 播放器底部那条也放一个入口：正在看片时不用退出播放才能出码
+    MFlixRC.attach($('pbRc'));
   } catch (e) {}
 
   /* 二维码面板是浮层，不在 .fx 焦点体系里：开着时把按键在捕获阶段截下来 */

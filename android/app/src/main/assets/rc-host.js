@@ -395,19 +395,23 @@
     document.body.style.overflow = S._ovf || '';
   }
 
+  /** 把任意一个按钮变成「出二维码」的入口（一个页面可以有多个：顶栏一个、播放器里一个） */
+  function attach(btn) {
+    if (!btn) return;
+    btn.onclick = function (e) {
+      if (e && e.preventDefault) e.preventDefault();
+      open();
+    };
+    if (!btn.getAttribute('title')) {
+      btn.setAttribute('title', '用另一台手机扫码当遥控器，控制当前这个页面');
+    }
+  }
+
   function mount(opts) {
     opts = opts || {};
     S.hooks = opts;
     S.btn = opts.btn || (opts.btnId ? byId(opts.btnId) : null);
-    if (S.btn) {
-      S.btn.onclick = function (e) {
-        if (e && e.preventDefault) e.preventDefault();
-        open();
-      };
-      if (!S.btn.getAttribute('title')) {
-        S.btn.setAttribute('title', '用另一台手机扫码当遥控器，控制当前这个页面');
-      }
-    }
+    attach(S.btn);
     document.addEventListener('keydown', function (e) {
       if (!S.open) return;
       if (e.key === 'Escape' || e.keyCode === 27 || e.keyCode === 4) {
@@ -423,11 +427,12 @@
     root.addEventListener('pageshow', function () {
       if (S.token && !S.timer) tick();
     });
-    return { open: open, close: close, token: function () { return S.token; } };
+    return { open: open, close: close, attach: attach, token: function () { return S.token; } };
   }
 
   root.MFlixRC = {
     mount: mount,
+    attach: attach,
     open: open,
     close: close,
     exec: exec,
