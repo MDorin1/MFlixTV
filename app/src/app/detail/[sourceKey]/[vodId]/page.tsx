@@ -11,6 +11,7 @@ import type { VideoDetail } from '@/lib/types';
 import { Icon } from '@/components/icon';
 import { SourcePlayPanel, type PlaySource } from '@/components/source-play-panel';
 import { FavoriteButton } from '@/components/favorite-button';
+import { RemoteHost } from '@/components/remote-host';
 
 /**
  * 采集源资料页：/detail/<源 key>/<vodId>
@@ -112,6 +113,8 @@ function DetailContent() {
         >
           首页
         </Link>
+        {/* 躺沙发挑季、挑集时最常待的就是这一页：这里也要能出遥控码 */}
+        <RemoteHost className="ml-auto text-white/90 bg-black/40 backdrop-blur hover:bg-black/65 hover:text-white" />
       </div>
 
       {/* 背景：封面放大模糊 + 上下压黑，Netflix 资料页那种氛围 */}

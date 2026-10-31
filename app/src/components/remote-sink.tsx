@@ -116,7 +116,9 @@ export function RemoteSink() {
           router.push('/');
           return;
         case 'settings':
+        case 'menu':
           // 顶栏的设置抽屉监听这个事件；电脑端没有 /settings 这个路由
+          // （旧面板 remote-pad 上的「菜单」发的是 menu，以前落到 default 被丢掉）
           window.dispatchEvent(new CustomEvent('mfl:rc-settings'));
           return;
         default:
@@ -131,6 +133,8 @@ export function RemoteSink() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let since = 0;
     let who = '';
+    /** 连续失败次数：断网时退避，恢复后立刻回到 800ms */
+    let fails = 0;
     try {
       who = localStorage.getItem('mfl:rcid') || '';
       if (!who) {
@@ -146,6 +150,7 @@ export function RemoteSink() {
       try {
         const r = await fetch(`/api/remote/poll?role=pc&since=${since}&who=${encodeURIComponent(who)}`);
         if (r.ok) {
+          fails = 0;
           const d = (await r.json()) as { now: number; cmds: { id: number; cmd: string; arg: string }[] };
           for (const c of d.cmds || []) {
             try {
@@ -156,11 +161,17 @@ export function RemoteSink() {
             since = Math.max(since, c.id);
           }
           since = Math.max(since, d.now || 0);
+        } else {
+          fails += 1;
         }
       } catch {
-        /* 服务重启 / 断网就下一轮再试 */
+        // 服务重启 / 断网：退避重试，不拿 800ms 一次的节奏去打失败请求
+        fails += 1;
       }
-      if (alive) timer = setTimeout(tick, 800);
+      if (alive) {
+        const delay = fails > 0 ? Math.min(1800, 800 * Math.pow(2, Math.min(3, fails))) : 800;
+        timer = setTimeout(tick, delay);
+      }
     };
     tick();
     return () => {

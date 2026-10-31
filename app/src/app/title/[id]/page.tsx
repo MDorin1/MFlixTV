@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Icon } from '@/components/icon';
 import { SourcePlayPanel } from '@/components/source-play-panel';
 import { FavoriteButton } from '@/components/favorite-button';
+import { RemoteHost } from '@/components/remote-host';
 
 interface Subject {
   id: string;
@@ -106,6 +107,8 @@ export default function TitlePage() {
         >
           首页
         </Link>
+        {/* 这一页没有顶栏，遥控按钮得自带，否则刷新后手机就控不动了 */}
+        <RemoteHost className="ml-auto text-white/90 bg-black/40 backdrop-blur hover:bg-black/60 hover:text-white" />
       </div>
 
       {/* 背景大图：手机竖版取海报，宽屏可看 */ }

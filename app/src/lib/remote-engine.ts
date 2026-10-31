@@ -48,6 +48,33 @@ const WAIT_MS = 700;
 const POLL_MS = 60;
 /* 状态上报的间隔：遥控器那边的进度条 / 音量 / 倍速靠它刷新 */
 const STATE_MS = 700;
+/* 连续失败时的退避上限：断网时不打满速空转，恢复后一成功就回到 POLL_MS */
+const FAIL_MAX_MS = 1500;
+/* 会话码存在 sessionStorage：刷新页面还认得手机上那台遥控器，关掉标签页就结束 */
+const TOKEN_KEY = 'mfl:rc-token';
+const URL_KEY = 'mfl:rc-url';
+
+function rememberSession(token: string, url = '') {
+  try {
+    if (token) {
+      sessionStorage.setItem(TOKEN_KEY, token);
+      sessionStorage.setItem(URL_KEY, url);
+    } else {
+      sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(URL_KEY);
+    }
+  } catch {
+    /* 无痕模式之类，记不住就算了，不影响本次会话 */
+  }
+}
+
+function recallSession(): { token: string; url: string } {
+  try {
+    return { token: sessionStorage.getItem(TOKEN_KEY) || '', url: sessionStorage.getItem(URL_KEY) || '' };
+  } catch {
+    return { token: '', url: '' };
+  }
+}
 
 const S = {
   token: '',
@@ -58,6 +85,12 @@ const S = {
   since: 0,
   stateAt: 0,
   forceAt: 0,
+  /** 状态上报是否还在飞：飞着就不再叠一条，避免断网时请求越堆越多 */
+  stateBusy: false,
+  /** 连续失败次数：断网时用来退避，别拿满速空转打失败请求 */
+  fails: 0,
+  /** 刚从 sessionStorage 接手会话：第一条 host 回执只对齐序号，不回放旧指令 */
+  resume: false,
   started: false,
   timer: 0,
 };
@@ -385,11 +418,18 @@ async function reportState(token: string, force = false) {
     }
     S.forceAt = now;
   }
+  // 上一发还在飞：这一轮直接放弃。上报只是锦上添花，
+  // 断网时若排队等它，整条指令长轮询会被一起拖死。
+  if (S.stateBusy) return;
   S.stateAt = now;
+  S.stateBusy = true;
   const v = mainVideo();
   const docTitle = (document.title || '').replace(/\s*[-–|]\s*MFlixTV.*$/i, '').trim();
   const h = document.querySelector('h1');
   const bridge = window.__mflWatch;
+  const ac = new AbortController();
+  // 4 秒还没回来就当这发丢了：不能让一个挂住的 fetch 永远占着通道
+  const killer = window.setTimeout(() => ac.abort(), 4000);
   try {
     const qs = new URLSearchParams({
       t: token,
@@ -412,9 +452,12 @@ async function reportState(token: string, force = false) {
       qs.set('eps', '');
       qs.set('lines', '');
     }
-    await fetch(`/api/rs/state?${qs.toString()}`, { cache: 'no-store' });
+    await fetch(`/api/rs/state?${qs.toString()}`, { cache: 'no-store', signal: ac.signal });
   } catch {
     /* 上报失败无所谓 */
+  } finally {
+    window.clearTimeout(killer);
+    S.stateBusy = false;
   }
 }
 
@@ -436,14 +479,20 @@ async function tick() {
         S.url = '';
         S.since = 0;
         S.peers = 0;
+        S.fails = 0;
+        rememberSession('');
         emit();
       } else if (r.ok) {
+        S.fails = 0;
         const d = (await r.json()) as {
           now: number;
           cmds: { id: number; cmd: string; arg: string }[];
           ctls: number;
         };
-        for (const c of d.cmds || []) {
+        // 刚接过会话的头一条回执：队列里的旧指令不再重放，只把序号对齐到当前
+        const cmds = S.resume ? [] : d.cmds || [];
+        S.resume = false;
+        for (const c of cmds) {
           try {
             exec(c.cmd, c.arg);
           } catch {
@@ -451,20 +500,27 @@ async function tick() {
           }
           S.since = Math.max(S.since, c.id);
         }
-        if (d.cmds && d.cmds.length > 0) flushState();
+        if (cmds.length > 0) flushState();
         S.since = Math.max(S.since, d.now || 0);
         if ((d.ctls || 0) !== S.peers) {
           S.peers = d.ctls || 0;
           S.hostAlive = true;
           emit();
         }
+      } else {
+        S.fails += 1;
       }
     } catch {
-      /* 断网就下一轮再试 */
+      // 断网 / 服务重启中：退避重试，不要 60ms 一次地空转打失败请求
+      S.fails += 1;
     }
-    await reportState(t);
+    // 上报只放出去，不等它：它挂住也不许拖慢指令链路
+    void reportState(t);
   }
-  S.timer = window.setTimeout(tick, S.token ? POLL_MS : 1000);
+  const delay = S.fails > 0
+    ? Math.min(FAIL_MAX_MS, POLL_MS * Math.pow(2, Math.min(5, S.fails)))
+    : (S.token ? POLL_MS : 1000);
+  S.timer = window.setTimeout(tick, delay);
 }
 
 /** 页面一挂载就调用；重复调用无副作用，会话一直跑着 */
@@ -485,6 +541,18 @@ export function start() {
       '.cast',
     ].join(','),
   });
+  // 刷新 / 直接打开深层页面：把上次那个会话码接回来。
+  // 不接的话，手机上已经连上的遥控器会在被控端一刷新之后彻底失灵（会话还在服务端活着，
+  // 只是这台页面没人来取指令了）。刷新后第一条回执只用来对齐序号，不重放旧指令。
+  const saved = recallSession();
+  if (saved.token && !S.token) {
+    S.token = saved.token;
+    S.url = saved.url;
+    S.since = 0;
+    S.peers = 0;
+    S.resume = true;
+    emit();
+  }
   void tick();
 }
 
@@ -502,6 +570,8 @@ export async function create(): Promise<boolean> {
     S.since = 0;
     S.peers = 0;
     S.hostAlive = true;
+    S.resume = false;
+    rememberSession(d.token, d.url);
     return true;
   } catch {
     return false;

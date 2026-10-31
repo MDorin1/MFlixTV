@@ -3003,6 +3003,35 @@
     }
     if (cmd === 'search') { rcSearch(arg); return true; }
     if (cmd === 'seek') { if (inPlayer()) { seekBy(Number(arg) || 15); return true; } return false; }
+    if (cmd === 'seekb') { if (inPlayer()) { seekBy(-(Math.abs(Number(arg)) || 10)); return true; } return false; }
+    if (cmd === 'seekf') { if (inPlayer()) { seekBy(Math.abs(Number(arg)) || 10); return true; } return false; }
+    if (cmd === 'seekto') { if (inPlayer() && Number(arg) >= 0) { seekTo(Number(arg)); return true; } return false; }
+    if (cmd === 'ep') {
+      var ek = parseInt(arg, 10);
+      if (inPlayer() && !isNaN(ek) && ek >= 0 && ek < (S.eps || []).length) playEp(ek);
+      return true;
+    }
+    if (cmd === 'line') { if (inPlayer()) rcTvSwitchLine(parseInt(arg, 10)); return true; }
+    /* 音量 / 倍速 / 静音：老的 /api/remote 通道以前落到 handle() 被直接吞掉，
+       手机上的音量键和倍速键因此没反应。倍速同样必须过 setRate()。 */
+    if (cmd === 'volup' || cmd === 'voldown' || cmd === 'volset') {
+      if (!v) return false;
+      var rcv = Math.round((v.volume || 0) * 10) / 10;
+      if (cmd === 'volset') v.volume = Math.min(1, Math.max(0, Math.round(Number(arg) || 0) / 100));
+      else v.volume = Math.min(1, Math.max(0, Math.round((rcv + (cmd === 'volup' ? 0.1 : -0.1)) * 10) / 10));
+      if (cmd !== 'voldown') v.muted = false;
+      return true;
+    }
+    if (cmd === 'mute') { if (v) { v.muted = !v.muted; return true; } return false; }
+    if (cmd === 'rateup' || cmd === 'ratedown' || cmd === 'rateset') {
+      if (!v) return false;
+      var rcr = v.playbackRate || 1;
+      if (cmd === 'rateset') rcr = Math.round(Number(arg) || 100) / 100;
+      else rcr = rcr + (cmd === 'rateup' ? 0.25 : -0.25);
+      rcr = Math.min(3, Math.max(0.5, Math.round(rcr * 4) / 4));
+      setRate(rcr);
+      return true;
+    }
     if (cmd === 'play') { if (inPlayer()) { try { if (v && v.paused) togglePlay(); } catch (e) {} return true; } return false; }
     if (cmd === 'pause') { if (inPlayer()) { try { if (v && !v.paused) togglePlay(); } catch (e) {} return true; } return false; }
     if (cmd === 'next') { if (inPlayer()) { stepEp(1); return true; } return false; }
@@ -3011,9 +3040,11 @@
     // 其余当作遥控器按键：up / down / left / right / ok / back / menu
     return handle(cmd) === true;
   }
+  var rcFails = 0;
   function rcPoll() {
     var url = '/api/remote/poll?role=tv&since=' + RC.since + '&who=' + encodeURIComponent(rcWho());
     getJSON(url).then(function (d) {
+      if (d) rcFails = 0;
       if (!d) return;
       var list = d.cmds || [];
       var n = Number(d.devices) || 0;
@@ -3026,8 +3057,13 @@
       }
       if (list.length) RC.since = Math.max(RC.since, Number(d.now) || 0);
       else RC.since = Math.max(RC.since, Number(d.now) || 0);
-    }).catch(function () { RC.on = false; }).then(function () {
-      setTimeout(rcPoll, 800);
+    }).catch(function () {
+      RC.on = false;
+      // 断网 / 服务重启中：退避重试，不拿 800ms 一次的节奏去打失败请求
+      rcFails += 1;
+    }).then(function () {
+      var delay = rcFails > 0 ? Math.min(1800, 800 * Math.pow(2, Math.min(3, rcFails))) : 800;
+      setTimeout(rcPoll, delay);
     });
   }
 
@@ -3314,7 +3350,12 @@
         var e = (g.episodes || [])[S.ep] || {};
         return (S.title || '正在播放') + (e.label ? ' · ' + e.label : '');
       },
-      sub: function () { return inPlayer() ? '正在播放' : '浏览中'; },
+      sub: function () {
+        // 遥控器上标题下面那行小字：在播放器里就写「第 N/M 集」，比「正在播放」有用
+        if (!inPlayer()) return '浏览中';
+        var n = (S.eps || []).length;
+        return n > 0 ? '第 ' + ((S.ep | 0) + 1) + '/' + n + ' 集' : '正在播放';
+      },
       page: function () {
         if (inPlayer()) return 'player';
         if ($('detail').classList.contains('on')) return 'detail';
@@ -3351,15 +3392,27 @@
         if (cmd === 'prev') { if (inPlayer()) stepEp(-1); return true; }
         if (cmd === 'home') { goHome(); return true; }
         if (cmd === 'fullscreen') return true;   /* 电视端本来就是全屏，按住不动 */
-        if (cmd === 'volup') {
-          if (v) { v.volume = Math.min(1, Math.round((v.volume + 0.1) * 10) / 10); v.muted = false; }
-          return true;
-        }
-        if (cmd === 'voldown') {
-          if (v) v.volume = Math.max(0, Math.round((v.volume - 0.1) * 10) / 10);
+        /* 音量 / 倍速：走页面自己那一份状态。
+           倍速必须经过 setRate()——它同时写 defaultPlaybackRate、更新播放条文字、
+           记住偏好；直接改 video.playbackRate 的话，换集 load() 之后会被打回原速。 */
+        if (cmd === 'volup' || cmd === 'voldown' || cmd === 'volset') {
+          if (!v) return true;
+          var cur = Math.round((v.volume || 0) * 10) / 10;
+          if (cmd === 'volset') v.volume = Math.min(1, Math.max(0, Math.round(n) / 100));
+          else v.volume = Math.min(1, Math.max(0, Math.round((cur + (cmd === 'volup' ? 0.1 : -0.1)) * 10) / 10));
+          if (cmd !== 'voldown') v.muted = false;
           return true;
         }
         if (cmd === 'mute') { if (v) v.muted = !v.muted; return true; }
+        if (cmd === 'rateup' || cmd === 'ratedown' || cmd === 'rateset') {
+          if (!v) return true;
+          var rr = v.playbackRate || 1;
+          if (cmd === 'rateset') rr = Math.round(n) / 100;
+          else rr = rr + (cmd === 'rateup' ? 0.25 : -0.25);
+          rr = Math.min(3, Math.max(0.5, Math.round(rr * 4) / 4));
+          setRate(rr);
+          return true;
+        }
         if (cmd === 'up' || cmd === 'down' || cmd === 'left' || cmd === 'right' ||
           cmd === 'ok' || cmd === 'back') { handle(cmd); return true; }
         return false;

@@ -149,6 +149,12 @@
     probe: 0,
     stateAt: 0,
     forceAt: 0,
+    /* 状态上报是否还在飞：飞着就不再叠一条，避免断网时请求越堆越多 */
+    stateBusy: false,
+    /* 连续失败次数：断网时用来退避 */
+    fails: 0,
+    /* 刚从 sessionStorage 接手会话：第一条回执只对齐序号，不回放旧指令 */
+    resume: false,
     url: '',
     listAt: 0,
     lastEps: '',
@@ -161,6 +167,8 @@
   var POLL_MS = 60;
   /* 状态上报的间隔：遥控器那边的进度条 / 音量 / 倍速靠它刷新 */
   var STATE_MS = 700;
+  /* 连续失败时的退避上限：断网时不打满速空转，恢复后一成功就回到 POLL_MS */
+  var FAIL_MAX_MS = 1500;
 
   function byId(id) { return document.getElementById(id); }
 
@@ -378,6 +386,33 @@
 
   /* ---------------- 被控端循环 ---------------- */
 
+  /* 会话码存在 sessionStorage：页面重载（旋转、切前台被回收再回来）仍认得手机上那台遥控器 */
+  var TK_KEY = 'mfl:rc-token';
+  var URL_KEY = 'mfl:rc-url';
+
+  function rememberSession(token, url) {
+    try {
+      if (token) {
+        sessionStorage.setItem(TK_KEY, token);
+        sessionStorage.setItem(URL_KEY, url || '');
+      } else {
+        sessionStorage.removeItem(TK_KEY);
+        sessionStorage.removeItem(URL_KEY);
+      }
+    } catch (e) { /* 存不了就算了，不影响本次会话 */ }
+  }
+
+  function recallSession() {
+    try {
+      return {
+        token: sessionStorage.getItem(TK_KEY) || '',
+        url: sessionStorage.getItem(URL_KEY) || ''
+      };
+    } catch (e) {
+      return { token: '', url: '' };
+    }
+  }
+
   function create() {
     if (S.busy) return;
     S.busy = true;
@@ -390,7 +425,9 @@
         S.token = d.token;
         S.since = 0;
         S.peers = 0;
+        S.resume = false;
         S.url = d.url || '';
+        rememberSession(S.token, S.url);
         paintCode(S.url || '正在生成…');
         paintFoot();
         tick();
@@ -406,18 +443,22 @@
     fetch('/api/rs/host?t=' + encodeURIComponent(t) + '&since=' + S.since + '&wait=' + WAIT_MS, { cache: 'no-store' })
       .then(function (r) {
         if (r.status === 404) return { gone: true };
-        return r.ok ? r.json() : null;
+        if (!r.ok) throw new Error('http ' + r.status);
+        return r.json();
       })
       .then(function (d) {
-        if (!d) return;
+        S.fails = 0;
         if (d.gone) {
           // 会话过期了：遥控器那边已经提示「已关闭」，这里安静地重新领一个
           S.token = '';
           S.since = 0;
+          rememberSession('');
           if (S.open) create();
           return;
         }
-        var list = d.cmds || [];
+        // 刚接过会话的头一条回执：队列里的旧指令不再重放，只把序号对齐到当前
+        var list = S.resume ? [] : (d.cmds || []);
+        S.resume = false;
         for (var i = 0; i < list.length; i++) {
           try { exec(list[i].cmd, list[i].arg); } catch (e) {}
           if (list[i].id > S.since) S.since = list[i].id;
@@ -428,9 +469,16 @@
         // 有指令就别等下一轮：遥控器上的暂停图标、音量、倍速要立刻对得上
         reportState(list.length > 0);
       })
-      .catch(function () {})
+      .catch(function () {
+        // 断网 / 服务重启中：退避重试，不要 60ms 一次地空转打失败请求
+        S.fails = (S.fails || 0) + 1;
+      })
       .then(function () {
-        if (S.token) S.timer = setTimeout(tick, POLL_MS);
+        if (!S.token) return;
+        var delay = S.fails > 0
+          ? Math.min(FAIL_MAX_MS, POLL_MS * Math.pow(2, Math.min(5, S.fails)))
+          : POLL_MS;
+        S.timer = setTimeout(tick, delay);
       });
   }
 
@@ -444,7 +492,11 @@
       if (now - S.forceAt < 200) { S.stateAt = 0; return; }
       S.forceAt = now;
     }
+    // 上一发还没回来：这一轮直接放弃。上报只是锦上添花，
+    // 断网时若排队等它，整条指令长轮询会被一起拖死。
+    if (S.stateBusy) return;
     S.stateAt = now;
+    S.stateBusy = true;
     var h = S.hooks || {};
     var v = pickVideo();
     var name = '';
@@ -477,7 +529,11 @@
     }
     // 空串也要发：离开播放器后遥控器上不能再留着上一部的集数
     qs += '&eps=' + encodeURIComponent(S.lastEps) + '&lines=' + encodeURIComponent(S.lastLines);
-    fetch('/api/rs/state?' + qs, { cache: 'no-store' }).catch(function () {});
+    fetch('/api/rs/state?' + qs, { cache: 'no-store' }).then(function () {
+      S.stateBusy = false;
+    }, function () {
+      S.stateBusy = false;
+    });
   }
 
   function probeStart() {
@@ -503,7 +559,12 @@
     if (!S._ovf) S._ovf = document.body.style.overflow || '';
     document.body.style.overflow = 'hidden';
     if (!S.token) create();
-    else { paintFoot(); probeStart(); }
+    else {
+      // 会话是从 sessionStorage 接回来的：面板上那张码要现画，否则一直停在「正在生成…」
+      paintCode(S.url || '正在生成…');
+      paintFoot();
+      probeStart();
+    }
   }
 
   function close() {
@@ -549,6 +610,17 @@
     root.addEventListener('pageshow', function () {
       if (S.token && !S.timer) tick();
     });
+    // 刷新 / 重新进入这个页面：把上次那个会话码接回来。
+    // 不接的话，手机上已经连着的遥控器会在页面一重载之后彻底失灵
+    // （会话还在服务端活着，只是这台页面没人来取指令了）。
+    var saved = recallSession();
+    if (saved.token && !S.token) {
+      S.token = saved.token;
+      S.url = saved.url;
+      S.since = 0;
+      S.resume = true;
+      tick();
+    }
     return {
       open: open, close: close, attach: attach,
       nav: function () { return S.nav; },

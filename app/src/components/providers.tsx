@@ -8,6 +8,7 @@ import { AuthProvider } from './auth';
 import { ThemeProvider } from './theme';
 import { GlobalDownloadManager } from './download-manager';
 import { RemoteSink } from './remote-sink';
+import { RemoteBoot } from './remote-boot';
 import { FirstRun } from './first-run';
 import { useAppStore, hydrateLiveProbeResults } from '@/lib/store';
 import { api, STATUS_QUERY_KEY } from '@/lib/client-api';
@@ -59,6 +60,8 @@ export function Providers({ children }: { children: ReactNode }) {
           {!bare && <GlobalDownloadManager />}
           {/* 手机遥控的接收端：全站常驻，手机上按的键在这里被执行 */}
           {!bare && <RemoteSink />}
+          {/* 扫码遥控的引擎常驻：详情页/演员页/片名页没有顶栏，也要能被手机控 */}
+          {!bare && <RemoteBoot />}
           {!bare && <FirstRun />}
           <AuthProvider>{children}</AuthProvider>
         </ToastProvider>

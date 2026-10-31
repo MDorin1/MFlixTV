@@ -3206,7 +3206,10 @@
         return (state.title || (ht && ht.textContent) || 'MFlixTV');
       },
       sub: function () {
-        return $('player') && $('player').classList.contains('on') ? '正在播放' : '浏览中';
+        // 遥控器上标题下面那行小字：在播放器里就写「第 N/M 集」，比「正在播放」有用
+        if (!($('player') && $('player').classList.contains('on'))) return '浏览中';
+        var n = (state.eps || []).length;
+        return n > 0 ? '第 ' + ((state.ep | 0) + 1) + '/' + n + ' 集' : '正在播放';
       },
       page: function () {
         if ($('player') && $('player').classList.contains('on')) return 'player';
@@ -3305,7 +3308,26 @@
           window.scrollTo(0, 0);
           return true;
         }
-        // toggle / seek / 音量 / 方向：交给 rc-host.js 默认那条路
+        /* 音量 / 倍速：走页面自己那一份状态。
+           倍速必须经过 setRate()——它同时写 defaultPlaybackRate 和控制条文字、
+           记住偏好；直接改 video.playbackRate 的话，换集 load() 之后会被打回原速。 */
+        if (cmd === 'volup' || cmd === 'voldown' || cmd === 'volset') {
+          var cur = Math.round((v.volume || 0) * 10) / 10;
+          if (cmd === 'volset') v.volume = Math.min(1, Math.max(0, Math.round(Number(arg) || 0) / 100));
+          else v.volume = Math.min(1, Math.max(0, Math.round((cur + (cmd === 'volup' ? 0.1 : -0.1)) * 10) / 10));
+          if (cmd !== 'voldown') v.muted = false;
+          return true;
+        }
+        if (cmd === 'mute') { v.muted = !v.muted; return true; }
+        if (cmd === 'rateup' || cmd === 'ratedown' || cmd === 'rateset') {
+          var rr = v.playbackRate || 1;
+          if (cmd === 'rateset') rr = Math.round(Number(arg) || 100) / 100;
+          else rr = rr + (cmd === 'rateup' ? 0.25 : -0.25);
+          rr = Math.min(3, Math.max(0.5, Math.round(rr * 4) / 4));
+          setRate(rr);
+          return true;
+        }
+        // toggle / seek / 方向：交给 rc-host.js 默认那条路
         return false;
       }
     });

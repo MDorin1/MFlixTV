@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Icon } from '@/components/icon';
+import { RemoteHost } from '@/components/remote-host';
 
 interface Person {
   id: string;
@@ -103,6 +104,8 @@ export default function PersonPage() {
           <Link href="/" className="rounded-lg bg-chip px-3 py-1.5 text-[13px] text-muted transition-colors hover:text-content">
             首页
           </Link>
+          {/* 这一页没有顶栏，遥控按钮得自带，否则刷新后手机就控不动了 */}
+          <RemoteHost className="ml-auto" />
         </div>
       </div>
 
