@@ -29,6 +29,12 @@ export interface RsState {
   eps: string;
   /** 线路：`当前线路下标|线路 1|线路 2…` */
   lines: string;
+  /** 音量 0–100：遥控器上要能看见自己按到了多少 */
+  vol: number;
+  /** 倍速 ×100（150 = 1.5×） */
+  rate: number;
+  /** 是否静音 */
+  muted: boolean;
 }
 
 export interface RsSession {
@@ -91,7 +97,7 @@ export function createSession(name: string): RsSession {
     hostBeat: Date.now(),
     seq: 0,
     cmds: [],
-    state: { title: '', sub: '', playing: false, pos: 0, dur: 0, page: '', eps: '', lines: '' },
+    state: { title: '', sub: '', playing: false, pos: 0, dur: 0, page: '', eps: '', lines: '', vol: 100, rate: 100, muted: false },
     ctls: new Map(),
   };
   s.sessions.set(token, sess);
@@ -151,8 +157,18 @@ export function setState(token: string, patch: Partial<RsState>): boolean {
     page: String(patch.page ?? v.state.page).slice(0, 200),
     eps: String(patch.eps ?? v.state.eps).slice(0, 2400),
     lines: String(patch.lines ?? v.state.lines).slice(0, 800),
+    vol: clampInt(patch.vol, v.state.vol, 0, 100),
+    rate: clampInt(patch.rate, v.state.rate, 25, 400),
+    muted: Boolean(patch.muted ?? v.state.muted),
   };
   return true;
+}
+
+/** 数字字段兜底：非有限值就沿用旧值，再夹到区间里 */
+function clampInt(raw: unknown, fallback: number, lo: number, hi: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(lo, Math.min(hi, Math.round(n)));
 }
 
 /** 遥控器每 1.2 秒来一次：拿被控端状态 + 报活 */

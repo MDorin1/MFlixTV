@@ -52,6 +52,8 @@ function lanBase(req: Request): string {
 
 type Ctx = { params: Promise<{ action: string }> };
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 export async function GET(req: Request, ctx: Ctx) {
   const { action } = await ctx.params;
   const p = new URL(req.url).searchParams;
@@ -61,6 +63,20 @@ export async function GET(req: Request, ctx: Ctx) {
     const since = Number(p.get('since') || 0) || 0;
     const out = hostPoll(t, since);
     if (!out) return NextResponse.json({ error: '会话已失效' }, { status: 404 });
+    // 长轮询（wait=1）：没指令就把请求挂一会儿，有指令立刻返回。
+    // 手机按一下到被控页真的动，从「最坏等一个轮询间隔」变成「几十毫秒」。
+    const waitMs = Math.min(700, Math.max(0, Number(p.get('wait') || 0)));
+    if (waitMs > 0 && out.cmds.length === 0) {
+      const deadline = Date.now() + waitMs;
+      while (Date.now() < deadline) {
+        await sleep(20);
+        const s = getSession(t);
+        if (!s || s.seq > since) break;
+      }
+      const out2 = hostPoll(t, since);
+      if (!out2) return NextResponse.json({ error: '会话已失效' }, { status: 404 });
+      return NextResponse.json(out2);
+    }
     return NextResponse.json(out);
   }
 
@@ -107,6 +123,10 @@ export async function GET(req: Request, ctx: Ctx) {
       page: g('page') ?? undefined,
       eps: g('eps') ?? undefined,
       lines: g('lines') ?? undefined,
+      // 音量 / 倍速 / 静音：遥控器上要能看见自己按到了多少
+      vol: g('vol') == null ? undefined : Number(g('vol')),
+      rate: g('rate') == null ? undefined : Number(g('rate')),
+      muted: g('muted') == null ? undefined : g('muted') === '1',
     })) return NextResponse.json({ error: '会话已失效' }, { status: 404 });
     return NextResponse.json({ ok: true });
   }

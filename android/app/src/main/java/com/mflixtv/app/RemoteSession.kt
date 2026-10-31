@@ -42,6 +42,11 @@ object RemoteSession {
         @Volatile var eps = ""
         /** 线路：`当前线路|线路 1|线路 2…` */
         @Volatile var lines = ""
+        /** 音量 0–100：遥控器上要能看见自己按到了多少 */
+        @Volatile var vol = 100
+        /** 倍速 ×100（150 = 1.5×） */
+        @Volatile var rate = 100
+        @Volatile var muted = false
     }
 
     private val sessions = ConcurrentHashMap<String, Session>()
@@ -83,6 +88,9 @@ object RemoteSession {
     fun drop(token: String) {
         sessions.remove(token)
     }
+
+    /** 长轮询用：当前指令序号；会话没了返回 -1 */
+    fun seqOf(token: String): Long = get(token)?.seq ?: -1L
 
     /** 被控端每秒来一次，顺带取走新指令 */
     fun hostPoll(token: String, since: Long): String? {
@@ -133,6 +141,9 @@ object RemoteSession {
         if (body.has("page")) s.page = body.optString("page").take(200)
         if (body.has("eps")) s.eps = body.optString("eps").take(2400)
         if (body.has("lines")) s.lines = body.optString("lines").take(800)
+        if (body.has("vol")) s.vol = body.optInt("vol", s.vol).coerceIn(0, 100)
+        if (body.has("rate")) s.rate = body.optInt("rate", s.rate).coerceIn(25, 400)
+        if (body.has("muted")) s.muted = body.optBoolean("muted", s.muted)
         return true
     }
 
@@ -172,6 +183,9 @@ object RemoteSession {
         .put("page", s.page)
         .put("eps", s.eps)
         .put("lines", s.lines)
+        .put("vol", s.vol)
+        .put("rate", s.rate)
+        .put("muted", s.muted)
 
     private fun liveCtls(s: Session): Int {
         val now = System.currentTimeMillis()

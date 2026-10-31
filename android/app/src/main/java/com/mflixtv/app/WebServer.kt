@@ -198,7 +198,22 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private fun remoteHost(p: Map<String, List<String>>): Response {
         val t = (p["t"]?.firstOrNull() ?: "").uppercase()
         val since = (p["since"]?.firstOrNull() ?: "0").toLongOrNull() ?: 0L
-        val body = RemoteSession.hostPoll(t, since) ?: return json("{\"error\":\"会话已失效\"}")
+        val waitMs = (p["wait"]?.firstOrNull() ?: "0").toLongOrNull()?.coerceIn(0L, 700L) ?: 0L
+        var body = RemoteSession.hostPoll(t, since) ?: return json("{\"error\":\"会话已失效\"}")
+        // 长轮询（wait=1）：没指令就把请求挂一会儿，有指令立刻返回，
+        // 手机按一下到被控页真的动，从「最坏等一个轮询间隔」变成「几十毫秒」。
+        if (waitMs > 0 && RemoteSession.seqOf(t) <= since) {
+            val deadline = System.currentTimeMillis() + waitMs
+            while (System.currentTimeMillis() < deadline) {
+                try {
+                    Thread.sleep(20)
+                } catch (_: Throwable) {
+                }
+                val s = RemoteSession.seqOf(t)
+                if (s < 0 || s > since) break
+            }
+            body = RemoteSession.hostPoll(t, since) ?: return json("{\"error\":\"会话已失效\"}")
+        }
         return json(body)
     }
 
@@ -229,6 +244,10 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         p["page"]?.firstOrNull()?.let { o.put("page", it) }
         p["eps"]?.firstOrNull()?.let { o.put("eps", it) }
         p["lines"]?.firstOrNull()?.let { o.put("lines", it) }
+        // 音量 / 倍速 / 静音：遥控器上要能看见自己按到了多少
+        p["vol"]?.firstOrNull()?.let { o.put("vol", it.toIntOrNull() ?: 100) }
+        p["rate"]?.firstOrNull()?.let { o.put("rate", it.toIntOrNull() ?: 100) }
+        p["muted"]?.firstOrNull()?.let { o.put("muted", it == "1") }
         if (!RemoteSession.setState(t, o)) return json("{\"error\":\"会话已失效\"}")
         return json("{\"ok\":true}")
     }

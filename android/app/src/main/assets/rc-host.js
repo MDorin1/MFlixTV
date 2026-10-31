@@ -87,6 +87,18 @@
     else v.pause();
   }
 
+  /**
+   * 音量步进：先把当前值规整成 0.1 的整数倍再加减。
+   * 直接 `volume + 0.1` 浮点会漂（0.65 → 0.7500000000000001），手机上连按会跑偏。
+   * 加音量必须解静音，否则用户按了半天没声音。
+   */
+  function bumpVol(v, delta) {
+    if (!v) return;
+    var cur = Math.round((v.volume || 0) * 10) / 10;
+    v.volume = Math.min(1, Math.max(0, Math.round((cur + delta) * 10) / 10));
+    if (delta > 0) v.muted = false;
+  }
+
   function fireKey(key, code, keyCode, extra) {
     var ev;
     try {
@@ -136,11 +148,19 @@
     timer: 0,
     probe: 0,
     stateAt: 0,
+    forceAt: 0,
     url: '',
     listAt: 0,
     lastEps: '',
     lastLines: ''
   };
+
+  /* 服务端长轮询挂多久：有指令会立刻返回，没指令才等这么久 */
+  var WAIT_MS = 700;
+  /* 两轮之间的间隔：长轮询自己承担了节奏 */
+  var POLL_MS = 60;
+  /* 状态上报的间隔：遥控器那边的进度条 / 音量 / 倍速靠它刷新 */
+  var STATE_MS = 700;
 
   function byId(id) { return document.getElementById(id); }
 
@@ -260,10 +280,22 @@
         }
         return;
       case 'volup':
-        if (v) { v.volume = Math.min(1, Math.round((v.volume + 0.1) * 10) / 10); v.muted = false; }
+        bumpVol(v, 0.1);
         return;
       case 'voldown':
-        if (v) v.volume = Math.max(0, Math.round((v.volume - 0.1) * 10) / 10);
+        bumpVol(v, -0.1);
+        return;
+      case 'volset':
+        if (v && isFinite(n)) {
+          v.volume = Math.min(1, Math.max(0, Math.round(n) / 100));
+          v.muted = false;
+        }
+        return;
+      case 'rateset':
+        if (v && isFinite(n) && n > 0) {
+          // 遥控器发的是百分数（150 = 1.5×），落回 0.25 一档
+          v.playbackRate = Math.min(3, Math.max(0.5, Math.round(n / 25) / 4));
+        }
         return;
       case 'mute':
         if (v) v.muted = !v.muted;
@@ -371,7 +403,7 @@
     if (!S.token) return;
     if (S.timer) { clearTimeout(S.timer); S.timer = 0; }
     var t = S.token;
-    fetch('/api/rs/host?t=' + encodeURIComponent(t) + '&since=' + S.since, { cache: 'no-store' })
+    fetch('/api/rs/host?t=' + encodeURIComponent(t) + '&since=' + S.since + '&wait=' + WAIT_MS, { cache: 'no-store' })
       .then(function (r) {
         if (r.status === 404) return { gone: true };
         return r.ok ? r.json() : null;
@@ -393,19 +425,25 @@
         if (d.now > S.since) S.since = d.now;
         var n = d.ctls == null ? 0 : d.ctls | 0;
         if (n !== S.peers) { S.peers = n; if (S.open) paintFoot(); }
-        reportState();
+        // 有指令就别等下一轮：遥控器上的暂停图标、音量、倍速要立刻对得上
+        reportState(list.length > 0);
       })
       .catch(function () {})
       .then(function () {
-        if (S.token) S.timer = setTimeout(tick, 1000);
+        if (S.token) S.timer = setTimeout(tick, POLL_MS);
       });
   }
 
-  function reportState() {
+  function reportState(force) {
     var t = S.token;
     if (!t) return;
     var now = Date.now();
-    if (now - S.stateAt < 1200) return;
+    if (!force && now - S.stateAt < STATE_MS) return;
+    if (force) {
+      // 连发（长按音量 / 连点方向键）时别把请求打成洪水
+      if (now - S.forceAt < 200) { S.stateAt = 0; return; }
+      S.forceAt = now;
+    }
     S.stateAt = now;
     var h = S.hooks || {};
     var v = pickVideo();
@@ -423,7 +461,11 @@
       '&playing=' + (v && !v.paused && !v.ended ? '1' : '0') +
       '&pos=' + (v && isFinite(v.currentTime) ? Math.round(v.currentTime) : 0) +
       '&dur=' + (v && isFinite(v.duration) ? Math.round(v.duration) : 0) +
-      '&page=' + encodeURIComponent(pg.slice(0, 200));
+      '&page=' + encodeURIComponent(pg.slice(0, 200)) +
+      // 音量 / 倍速 / 静音：遥控器上要能看见自己按到了多少
+      '&vol=' + (v ? Math.round((v.volume || 0) * 100) : 100) +
+      '&rate=' + (v ? Math.round((v.playbackRate || 1) * 100) : 100) +
+      '&muted=' + (v && v.muted ? '1' : '0');
 
     // 选集 / 线路每 5 秒重算一次就够（列表基本不变，省点带宽）
     if (now - S.listAt > 5000) {

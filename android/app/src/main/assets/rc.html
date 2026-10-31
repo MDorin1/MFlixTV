@@ -14,7 +14,7 @@
   body{min-height:100dvh;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;
     padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);overflow-x:hidden}
   button{font-family:inherit;border:0;background:none;color:#fff;cursor:pointer;user-select:none;
-    -webkit-transition:background .12s,transform .08s;transition:background .12s,transform .08s}
+    -webkit-user-select:none;-webkit-transition:background .12s,transform .08s;transition:background .12s,transform .08s}
   .b{background:rgba(255,255,255,.06);border-radius:12px;display:-webkit-flex;display:flex;
     -webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center}
   .b:active{background:rgba(255,255,255,.22)}
@@ -25,16 +25,30 @@
   .dot.off{background:#ef4444}
   .who{-webkit-flex:1;flex:1;min-width:0}
   .who b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .who span{display:block;font-size:11px;color:rgba(255,255,255,.45);margin-top:2px}
+  .who span{display:block;font-size:11px;color:rgba(255,255,255,.45);margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .who span.bad{color:rgba(248,113,113,.9)}
   .vib{-webkit-flex:none;flex:none;border:0;background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);
     border-radius:8px;padding:6px 10px;font-size:11px}
   .vib:active{background:rgba(255,255,255,.2)}
 
   .card{margin:0 16px 10px;background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px}
+  .trow{display:-webkit-flex;display:flex;-webkit-align-items:flex-start;align-items:flex-start}
+  .tmain{-webkit-flex:1;flex:1;min-width:0}
   .title{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .subline{font-size:10.5px;color:rgba(255,255,255,.4);margin-top:3px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini{-webkit-flex:none;flex:none;height:28px;padding:0 8px;margin-left:6px;border-radius:8px;
+    background:rgba(255,255,255,.06);font-size:11px;white-space:nowrap}
+  .mini:active{background:rgba(255,255,255,.22)}
+  .mini.dim{opacity:.35}
   .bar{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;font-size:11px;
     color:rgba(255,255,255,.5);font-variant-numeric:tabular-nums}
   .bar input[type=range]{-webkit-flex:1;flex:1;margin:0 8px;accent-color:#fff;height:24px}
+  .stat{font-size:10.5px;color:rgba(255,255,255,.42);margin-top:5px;font-variant-numeric:tabular-nums}
+  .stat i{font-style:normal;color:rgba(52,211,153,.85)}
+  .stat b{font-weight:600;color:rgba(248,113,113,.9)}
+  .stat u{text-decoration:none;color:rgba(255,255,255,.2);margin:0 4px}
 
   .row{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;
     -webkit-justify-content:center;justify-content:center;gap:12px;padding:0 16px}
@@ -46,17 +60,30 @@
   .chips{display:-webkit-flex;display:flex;gap:10px;-webkit-justify-content:center;justify-content:center;
     margin-top:12px;padding:0 16px;font-size:12px}
   .chips .b{height:44px;padding:0 14px;-webkit-flex:1;flex:1}
+  .chips .b.dim{opacity:.4}
 
   .pad{display:-webkit-grid;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
     gap:8px;width:196px;margin:14px auto 0}
   .pad .b{height:54px;font-size:15px}
   .pad .ok{font-weight:600}
 
-  .bottom{display:-webkit-flex;display:flex;gap:8px;padding:14px 16px 0;font-size:12px}
+  /* 音量 / 倍速：都能长按连发 */
+  .kb{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;
+    -webkit-justify-content:center;justify-content:center;padding:12px 10px 0;font-size:12px}
+  .kb button{height:44px;padding:0 10px;margin:3px;border-radius:12px;background:rgba(255,255,255,.06)}
+  .kb button:active{background:rgba(255,255,255,.22)}
+  .kb button.on{background:#fff;color:#0a0a0d;font-weight:600}
+
+  .bottom{display:-webkit-flex;display:flex;gap:8px;padding:12px 16px 0;font-size:12px}
   .bottom .b{-webkit-flex:1;flex:1;height:44px}
 
   .hint{text-align:center;font-size:10.5px;line-height:1.7;color:rgba(255,255,255,.3);
     padding:16px 32px 26px;margin:auto 0 0}
+
+  #toast{position:fixed;left:16px;right:16px;bottom:24px;z-index:60;border-radius:12px;
+    background:rgba(255,255,255,.14);padding:10px 12px;text-align:center;font-size:12px;
+    color:rgba(255,255,255,.92);opacity:0;pointer-events:none;-webkit-transition:opacity .18s;transition:opacity .18s}
+  #toast.on{opacity:1}
 
   /* 搜索浮层：一直挂着（只是移出屏幕），点「搜索」时 focus 能直接顶起键盘 */
   #ssearch{position:fixed;top:0;right:0;bottom:0;left:0;z-index:52;background:rgba(0,0,0,.6);
@@ -108,12 +135,22 @@
   </div>
 
   <div class="card">
-    <div class="title" id="title">—</div>
+    <div class="trow">
+      <div class="tmain">
+        <div class="title" id="title">—</div>
+        <div class="subline" id="subline" style="display:none"></div>
+      </div>
+      <!-- 上集 / 下集：追剧时最常用的两个键 -->
+      <button class="mini dim" id="btnPrev" aria-label="上一集">‹ 上集</button>
+      <button class="mini dim" id="btnNext" aria-label="下一集">下集 ›</button>
+    </div>
     <div class="bar">
       <span id="pos">0:00</span>
       <input type="range" id="seek" min="0" max="1" value="0" step="1" aria-label="进度">
       <span id="dur">0:00</span>
     </div>
+    <!-- 音量 / 倍速 / 静音状态：以前按了完全没反馈 -->
+    <div class="stat" id="stat">音量 100%<u>·</u>1×</div>
   </div>
 
   <div class="row">
@@ -123,7 +160,7 @@
         <path d="M18 7l-5 5 5 5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
-    <button class="play" data-cmd="toggle" id="playBtn" aria-label="播放">
+    <button class="play" id="playBtn" aria-label="播放">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="margin-left:3px"><path d="M8 5.5v13l11-6.5z"/></svg>
     </button>
     <button class="b b14" data-cmd="seekf" data-arg="10" aria-label="快进 10 秒">
@@ -136,24 +173,24 @@
 
   <div class="chips">
     <button class="b" id="btnSearch">搜索</button>
-    <button class="b" id="btnEps">选集</button>
-    <button class="b" id="btnLines">线路</button>
+    <button class="b dim" id="btnEps">选集</button>
+    <button class="b dim" id="btnLines">线路</button>
   </div>
 
   <div class="pad">
-    <span></span><button class="b" data-cmd="up" aria-label="上">▲</button><span></span>
-    <button class="b" data-cmd="left" aria-label="左">◀</button>
+    <span></span><button class="b" data-cmd="up" data-hold="1" aria-label="上">▲</button><span></span>
+    <button class="b" data-cmd="left" data-hold="1" aria-label="左">◀</button>
     <button class="b ok" data-cmd="ok" aria-label="确定">确定</button>
-    <button class="b" data-cmd="right" aria-label="右">▶</button>
-    <span></span><button class="b" data-cmd="down" aria-label="下">▼</button><span></span>
+    <button class="b" data-cmd="right" data-hold="1" aria-label="右">▶</button>
+    <span></span><button class="b" data-cmd="down" data-hold="1" aria-label="下">▼</button><span></span>
   </div>
 
-  <div class="row" style="margin-top:14px;gap:6px;flex-wrap:wrap;-webkit-flex-wrap:wrap">
-    <button class="b" style="height:44px;padding:0 8px;font-size:12px" data-cmd="voldown">音量 −</button>
-    <button class="b" style="height:44px;padding:0 8px;font-size:12px" data-cmd="mute">静音</button>
-    <button class="b" style="height:44px;padding:0 8px;font-size:12px" data-cmd="volup">音量 +</button>
-    <button class="b" style="height:44px;padding:0 8px;font-size:12px" data-cmd="ratedown">倍速 −</button>
-    <button class="b" style="height:44px;padding:0 8px;font-size:12px" data-cmd="rateup">倍速 +</button>
+  <div class="kb">
+    <button id="volDown" aria-label="音量减">音量 −</button>
+    <button id="muteBtn">静音</button>
+    <button id="volUp" aria-label="音量加">音量 +</button>
+    <button id="rateDown" aria-label="减速">倍速 −</button>
+    <button id="rateUp" aria-label="加速">倍速 +</button>
   </div>
 
   <div class="bottom">
@@ -181,7 +218,9 @@
     </div>
   </div>
 
-  <p class="hint">十字键走格子、确定键点进去——首页、详情页、搜索结果都能用，不只是播放器。
+  <div id="toast"></div>
+
+  <p class="hint">十字键、音量、倍速都能长按连发；确定键点进去，首页、详情页、搜索结果都能用，不只是播放器。
     这个页面只控制发起方的那一个页面，关掉对方页面后这里会显示「已关闭」。</p>
 
 <script>
@@ -198,15 +237,28 @@
     } catch (e) { return 'c0'; }
   })();
 
+  /* 乐观值只在短窗口内有效：服务端追平后自然交还给它 */
+  var OPTIM_TTL = 1800;
+  var VOL_STEP = 10;
+  var RATE_STEP = 0.25;
+
   var elWho = document.getElementById('who');
   var elSub = document.getElementById('sub');
   var elDot = document.getElementById('dot');
   var elTitle = document.getElementById('title');
+  var elSubline = document.getElementById('subline');
   var elPos = document.getElementById('pos');
   var elDur = document.getElementById('dur');
   var elSeek = document.getElementById('seek');
+  var elStat = document.getElementById('stat');
   var playBtn = document.getElementById('playBtn');
   var vibBtn = document.getElementById('vib');
+  var prevBtn = document.getElementById('btnPrev');
+  var nextBtn = document.getElementById('btnNext');
+  var epsBtn = document.getElementById('btnEps');
+  var linesBtn = document.getElementById('btnLines');
+  var muteBtn = document.getElementById('muteBtn');
+  var toast = document.getElementById('toast');
   var sheet = document.getElementById('sheet');
   var shTitle = document.getElementById('shTitle');
   var shBody = document.getElementById('shBody');
@@ -217,6 +269,11 @@
   var eps = { cur: -1, list: [] };
   var lines = { cur: -1, list: [] };
   var sheetOpen = '';
+  var curState = null;
+  var stateAt = 0;
+  var lastWalk = 0;
+  var optim = { playing: null, vol: null, rate: null, muted: null, at: 0 };
+  var toastTimer = 0;
 
   function fmt(s) {
     s = Math.max(0, Math.floor(s || 0));
@@ -225,11 +282,76 @@
     return h > 0 ? h + ':' + p(m) + ':' + p(ss) : m + ':' + p(ss);
   }
 
-  function send(cmd, arg) {
+  function fmtRate(r) {
+    return (r % 1 === 0 ? r : r.toFixed(2).replace(/0$/, '')) + '×';
+  }
+
+  function say(msg) {
+    toast.textContent = msg;
+    toast.className = 'on';
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.className = ''; }, 1800);
+  }
+
+  function send(cmd, arg, buzz) {
     if (!T) return;
-    if (vibrate && navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
+    if (vibrate && navigator.vibrate) { try { navigator.vibrate(buzz || 8); } catch (e) {} }
     fetch('/api/rs/cmd?t=' + encodeURIComponent(T) + '&cmd=' + encodeURIComponent(cmd) +
       '&arg=' + encodeURIComponent(arg || ''), { cache: 'no-store' }).catch(function () {});
+  }
+
+  /* 本地先算出新值再发绝对值（volset / rateset），两端不会漂 */
+  function mark(patch) {
+    for (var k in patch) optim[k] = patch[k];
+    optim.at = Date.now();
+    paintSoon();
+  }
+  function fresh() { return optim.at > 0 && Date.now() - optim.at < OPTIM_TTL; }
+  function eff(key, fallback) {
+    return (fresh() && optim[key] !== null && optim[key] !== undefined) ? optim[key] : fallback;
+  }
+
+  function volStep(dir) {
+    var cur = curState && curState.vol != null ? curState.vol : 100;
+    cur = eff('vol', cur);
+    var next = Math.max(0, Math.min(100, Math.round(cur + dir * VOL_STEP)));
+    mark({ vol: next, muted: false });
+    send('volset', String(next), 6);
+  }
+  function rateStep(dir) {
+    var cur = curState && curState.rate ? curState.rate / 100 : 1;
+    cur = eff('rate', cur);
+    var next = Math.min(3, Math.max(0.5, Math.round((cur + dir * RATE_STEP) * 4) / 4));
+    mark({ rate: next });
+    send('rateset', String(Math.round(next * 100)), 6);
+  }
+
+  /* ---------- 长按连发 ---------- */
+  function bindRepeat(btn, fire) {
+    var t1 = 0, t2 = 0, lastDown = 0;
+    function stop() {
+      if (t1) { clearTimeout(t1); t1 = 0; }
+      if (t2) { clearInterval(t2); t2 = 0; }
+    }
+    function start(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      lastDown = Date.now();
+      stop();
+      fire();
+      t1 = setTimeout(function () { t2 = setInterval(fire, 140); }, 420);
+    }
+    btn.addEventListener('touchstart', start, { passive: false });
+    btn.addEventListener('touchend', stop);
+    btn.addEventListener('touchcancel', stop);
+    btn.addEventListener('mousedown', start);
+    btn.addEventListener('mouseup', stop);
+    btn.addEventListener('mouseleave', stop);
+    // 键盘 / 读屏走 click：刚才 pointerdown 已经发过就跳过，别双发
+    btn.addEventListener('click', function () {
+      if (Date.now() - lastDown < 600) return;
+      fire();
+    });
+    btn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
 
   /* "cur|名字|名字" → {cur, list} */
@@ -240,14 +362,43 @@
   }
 
   document.querySelectorAll('[data-cmd]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      send(b.getAttribute('data-cmd'), b.getAttribute('data-arg') || '');
-    });
+    var cmd = b.getAttribute('data-cmd'), arg = b.getAttribute('data-arg') || '';
+    if (b.hasAttribute('data-hold')) {
+      bindRepeat(b, function () { send(cmd, arg, 5); });
+    } else {
+      b.addEventListener('click', function () { send(cmd, arg); });
+    }
   });
+
+  bindRepeat(document.getElementById('volDown'), function () { volStep(-1); });
+  bindRepeat(document.getElementById('volUp'), function () { volStep(1); });
+  bindRepeat(document.getElementById('rateDown'), function () { rateStep(-1); });
+  bindRepeat(document.getElementById('rateUp'), function () { rateStep(1); });
 
   vibBtn.addEventListener('click', function () {
     vibrate = !vibrate;
     vibBtn.textContent = vibrate ? '震动 开' : '震动 关';
+  });
+
+  /* 暂停 / 播放：本地先翻，等服务端对齐 */
+  playBtn.addEventListener('click', function () {
+    var playing = eff('playing', curState ? !!curState.playing : false);
+    mark({ playing: !playing });
+    send('toggle');
+  });
+  muteBtn.addEventListener('click', function () {
+    var muted = eff('muted', curState ? !!curState.muted : false);
+    mark({ muted: !muted });
+    send('mute');
+  });
+
+  prevBtn.addEventListener('click', function () {
+    if (eps.list.length && eps.cur > 0) send('prev');
+    else say(eps.list.length ? '这已经是第一集' : '对方页面没有分集');
+  });
+  nextBtn.addEventListener('click', function () {
+    if (eps.list.length && eps.cur >= 0 && eps.cur < eps.list.length - 1) send('next');
+    else say(eps.list.length ? '这已经是最后一集' : '对方页面没有分集');
   });
 
   elSeek.addEventListener('input', function () {
@@ -258,6 +409,10 @@
   function endDrag() {
     if (!dragging) return;
     dragging = false;
+    // 从拖动目标继续走：服务端还没执行到新位置的那一秒里进度条别往回跳
+    lastWalk = dragVal;
+    if (curState) curState.pos = Math.round(dragVal);
+    stateAt = Date.now();
     send('seekto', String(Math.round(dragVal)));
     setTimeout(function () { elPos.textContent = fmt(dragVal); }, 300);
   }
@@ -316,14 +471,21 @@
     }
     var ln = e.target.closest ? e.target.closest('[data-ln]') : null;
     if (ln) {
-      send('line', ln.getAttribute('data-ln'));
+      var idx = parseInt(ln.getAttribute('data-ln'), 10) || 0;
+      send('line', String(idx));
       ln.className = 'ln cur';
       setTimeout(closeSheet, 180);
     }
   });
 
-  document.getElementById('btnEps').addEventListener('click', function () { fillSheet('eps'); });
-  document.getElementById('btnLines').addEventListener('click', function () { fillSheet('lines'); });
+  epsBtn.addEventListener('click', function () {
+    if (!eps.list.length) { say('对方页面现在没有分集'); return; }
+    fillSheet('eps');
+  });
+  linesBtn.addEventListener('click', function () {
+    if (!lines.list.length) { say('对方页面现在没有可选线路'); return; }
+    fillSheet('lines');
+  });
 
   /* ---------- 搜索：手机上打字，对方页面直接搜 ---------- */
   var ss = document.getElementById('ssearch');
@@ -340,10 +502,10 @@
     try { ssInput.blur(); } catch (e) {}
   }
   function submitSearch() {
-    var q = (ssInput.value || '').trim();
-    if (!q) { try { ssInput.focus(); } catch (e) {} return; }
-    send('search', q);
-    ssNote.textContent = '已让「' + (elWho.textContent || '对方页面') + '」搜索「' + q + '」';
+    var q2 = (ssInput.value || '').trim();
+    if (!q2) { try { ssInput.focus(); } catch (e) {} return; }
+    send('search', q2);
+    ssNote.textContent = '已让「' + (elWho.textContent || '对方页面') + '」搜索「' + q2 + '」';
     ssInput.value = '';
     closeSearch();
     setTimeout(function () { ssNote.textContent = '对方页面会自己回到首页并搜这个词。'; }, 2400);
@@ -357,34 +519,107 @@
   ss.addEventListener('click', function (e) { if (e.target === ss) closeSearch(); });
 
   /* ---------- 状态渲染 ---------- */
-  function render(d) {
-    var st = d.state || {};
-    elWho.textContent = d.name ? '正在遥控 ' + d.name : '正在连接…';
-    var alive = d.hostAlive !== false;
-    elDot.className = 'dot' + (alive ? '' : ' off');
-    elSub.textContent = alive ? '遥控已连接' : '对方页面可能已关闭';
-    elTitle.textContent = st.title || '—';
-
-    var dur = st.dur || 0;
-    elDur.textContent = fmt(dur);
-    if (!dragging) {
-      elPos.textContent = fmt(st.pos || 0);
-      elSeek.max = String(Math.max(1, Math.floor(dur)));
-      elSeek.value = String(Math.min(st.pos || 0, Math.max(1, Math.floor(dur))));
+  function paintStat() {
+    var st = curState || {};
+    var vol = eff('vol', st.vol == null ? 100 : st.vol);
+    var rate = eff('rate', st.rate ? st.rate / 100 : 1);
+    var muted = eff('muted', !!st.muted);
+    if (!st.dur && !st.playing) {
+      elStat.textContent = '对方页面没在放片';
+      return;
     }
-    var playing = !!st.playing;
+    var html = muted
+      ? '<b>已静音</b>'
+      : '音量 ' + Math.round(vol) + '%';
+    html += '<u>·</u>' + fmtRate(rate);
+    if (st.playing) html += '<u>·</u><i>播放中</i>';
+    elStat.innerHTML = html;
+  }
+
+  function paintPlay() {
+    var playing = eff('playing', curState ? !!curState.playing : false);
     playBtn.innerHTML = playing
       ? '<svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>'
       : '<svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="margin-left:3px"><path d="M8 5.5v13l11-6.5z"/></svg>';
     playBtn.setAttribute('aria-label', playing ? '暂停' : '播放');
+  }
+
+  function paintSoon() {
+    // 乐观值一变立刻重画，不等下一轮 900ms
+    paintPlay();
+    paintStat();
+    paintMute();
+    paintEpsButtons();
+  }
+
+  function paintMute() {
+    var muted = eff('muted', curState ? !!curState.muted : false);
+    muteBtn.className = muted ? 'on' : '';
+  }
+
+  function paintEpsButtons() {
+    epsBtn.textContent = eps.list.length > 1 && eps.cur >= 0
+      ? ('选集 ' + (eps.cur + 1) + '/' + eps.list.length) : '选集';
+    linesBtn.textContent = lines.list.length > 1 && lines.cur >= 0
+      ? ('线路 ' + (lines.cur + 1) + '/' + lines.list.length) : '线路';
+    epsBtn.className = 'b' + (eps.list.length ? '' : ' dim');
+    linesBtn.className = 'b' + (lines.list.length ? '' : ' dim');
+    var canPrev = eps.list.length > 0 && eps.cur > 0;
+    var canNext = eps.list.length > 0 && eps.cur >= 0 && eps.cur < eps.list.length - 1;
+    prevBtn.className = 'mini' + (canPrev ? '' : ' dim');
+    nextBtn.className = 'mini' + (canNext ? '' : ' dim');
+  }
+
+  function render(d) {
+    var st = d.state || {};
+    curState = st;
+    stateAt = Date.now();
+
+    elWho.textContent = d.name ? '正在遥控 ' + d.name : '正在连接…';
+    var alive = d.hostAlive !== false;
+    elDot.className = 'dot' + (alive ? '' : ' off');
+    elSub.textContent = alive ? '遥控已连接' : '对方页面可能已关闭';
+    elSub.className = alive ? '' : 'bad';
+    elTitle.textContent = st.title || '—';
+
+    if (st.sub) { elSubline.style.display = ''; elSubline.textContent = st.sub; }
+    else { elSubline.style.display = 'none'; elSubline.textContent = ''; }
+
+    var dur = st.dur || 0;
+    elDur.textContent = fmt(dur);
+    if (!dragging) {
+      elSeek.max = String(Math.max(1, Math.floor(dur)));
+      // 播放中交给下面的插值器（它会保证只往前走）；暂停 / 跳转后立刻对齐
+      if (!st.playing) {
+        lastWalk = st.pos || 0;
+        elPos.textContent = fmt(st.pos || 0);
+        elSeek.value = String(Math.min(st.pos || 0, Math.max(1, Math.floor(dur))));
+      }
+    }
 
     if (st.eps !== undefined) eps = unpack(st.eps);
     if (st.lines !== undefined) lines = unpack(st.lines);
-    document.getElementById('btnEps').textContent =
-      eps.list.length > 1 && eps.cur >= 0 ? ('选集 ' + (eps.cur + 1) + '/' + eps.list.length) : '选集';
-    document.getElementById('btnLines').textContent =
-      lines.list.length > 1 && lines.cur >= 0 ? ('线路 ' + (lines.cur + 1) + '/' + lines.list.length) : '线路';
+
+    paintPlay();
+    paintStat();
+    paintMute();
+    paintEpsButtons();
   }
+
+  /* 播放中就地插值：进度条不再每 0.9 秒跳一下；
+     服务端状态是上一轮的快照，直接当基准会让进度往回跳，所以只允许往前走 */
+  setInterval(function () {
+    if (dragging || !curState) return;
+    if (!curState.playing) { lastWalk = curState.pos || 0; return; }
+    var dur = curState.dur || 0;
+    if (dur <= 0) return;
+    var p = (curState.pos || 0) + (Date.now() - stateAt) / 1000;
+    if (p < lastWalk && lastWalk - p < 4) p = lastWalk;
+    if (p > dur) p = dur;
+    lastWalk = p;
+    elPos.textContent = fmt(p);
+    elSeek.value = String(Math.floor(p));
+  }, 250);
 
   function tick() {
     if (!T) {
@@ -398,6 +633,7 @@
         if (r.status === 404) {
           elWho.textContent = '会话已关闭';
           elSub.textContent = '让对方重新点一次遥控按钮';
+          elSub.className = 'bad';
           elDot.className = 'dot off';
           return null;
         }
@@ -405,7 +641,7 @@
       })
       .then(function (d) { if (d) render(d); })
       .catch(function () {})
-      .then(function () { setTimeout(tick, 1200); });
+      .then(function () { setTimeout(tick, 900); });
   }
   tick();
 })();

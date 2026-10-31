@@ -42,6 +42,13 @@ type Handlers = {
   search: (q: string) => void;
 };
 
+/* 服务端长轮询挂多久：有指令会立刻返回，没指令才等这么久 */
+const WAIT_MS = 700;
+/* 两轮之间的间隔：长轮询自己承担了节奏，这里只留一点点空档 */
+const POLL_MS = 60;
+/* 状态上报的间隔：遥控器那边的进度条 / 音量 / 倍速靠它刷新 */
+const STATE_MS = 700;
+
 const S = {
   token: '',
   url: '',
@@ -50,6 +57,7 @@ const S = {
   busy: false,
   since: 0,
   stateAt: 0,
+  forceAt: 0,
   started: false,
   timer: 0,
 };
@@ -155,6 +163,34 @@ function deviceName(): string {
 
 /* ------------------------------------------------------------------ 指令执行 */
 
+/**
+ * 音量步进：先把当前值规整成 0.1 的整数倍再加减。
+ *
+ * 以前写成 `video.volume + 0.1`，浮点会把 0.65 变成 0.7500000000000001，
+ * 手机上连按「音量 + −」会慢慢漂（实测 0.65 → 0.8 → 0.7，净 +0.05）。
+ */
+function bumpVolume(delta: number) {
+  for (const el of allVideos()) {
+    const cur = Math.round((el.volume || 0) * 10) / 10;
+    el.volume = Math.min(1, Math.max(0, Math.round((cur + delta) * 10) / 10));
+    // 加音量必须解静音，否则用户按了半天没声音（以前只有安卓那份会解）
+    if (delta > 0) el.muted = false;
+  }
+}
+
+function setVolume(pct: number) {
+  const v = Math.min(1, Math.max(0, pct / 100));
+  for (const el of allVideos()) {
+    el.volume = Math.round(v * 10) / 10;
+    el.muted = false;
+  }
+}
+
+function setRate(rate: number) {
+  const r = Math.min(3, Math.max(0.5, Math.round(rate * 4) / 4));
+  for (const el of allVideos()) el.playbackRate = r;
+}
+
 function layeredBack() {
   if (document.fullscreenElement) {
     void document.exitFullscreen().catch(() => {});
@@ -208,10 +244,13 @@ export function exec(cmd: string, arg: string) {
       }
       return;
     case 'volup':
-      for (const el of allVideos()) el.volume = Math.min(1, Math.round((el.volume + 0.1) * 10) / 10);
+      bumpVolume(0.1);
       return;
     case 'voldown':
-      for (const el of allVideos()) el.volume = Math.max(0, Math.round((el.volume - 0.1) * 10) / 10);
+      bumpVolume(-0.1);
+      return;
+    case 'volset':
+      if (Number.isFinite(num)) setVolume(num);
       return;
     case 'mute':
       for (const el of allVideos()) el.muted = !el.muted;
@@ -231,6 +270,9 @@ export function exec(cmd: string, arg: string) {
       }
       return;
     }
+    case 'rateset':
+      if (Number.isFinite(num) && num > 0) setRate(num / 100);
+      return;
     case 'fullscreen': {
       if (document.fullscreenElement) {
         void document.exitFullscreen().catch(() => {});
@@ -332,9 +374,17 @@ export function exec(cmd: string, arg: string) {
 
 /* ------------------------------------------------------------------ 会话循环 */
 
-async function reportState(token: string) {
+async function reportState(token: string, force = false) {
   const now = Date.now();
-  if (now - S.stateAt < 1200) return;
+  if (!force && now - S.stateAt < STATE_MS) return;
+  if (force) {
+    // 连发（长按音量 / 连点方向键）时别把请求打成洪水
+    if (now - S.forceAt < 200) {
+      S.stateAt = 0;
+      return;
+    }
+    S.forceAt = now;
+  }
   S.stateAt = now;
   const v = mainVideo();
   const docTitle = (document.title || '').replace(/\s*[-–|]\s*MFlixTV.*$/i, '').trim();
@@ -349,6 +399,10 @@ async function reportState(token: string) {
       pos: String(v && Number.isFinite(v.currentTime) ? Math.round(v.currentTime) : 0),
       dur: String(v && Number.isFinite(v.duration) ? Math.round(v.duration) : 0),
       page: (window.location.pathname || '').slice(0, 200),
+      // 音量 / 倍速 / 静音：遥控器上要能看见自己按到了多少
+      vol: String(v ? Math.round((v.volume || 0) * 100) : 100),
+      rate: String(v ? Math.round((v.playbackRate || 1) * 100) : 100),
+      muted: v && v.muted ? '1' : '0',
     });
     // 空串也要发：离开播放页后遥控器上不能再留着上一部的集数
     if (bridge && bridge.episodes.length > 0) {
@@ -364,11 +418,18 @@ async function reportState(token: string) {
   }
 }
 
+/** 执行完一条指令立刻把新状态推上去：遥控器上的暂停图标、音量、倍速不用等下一轮 */
+function flushState() {
+  const t = S.token;
+  if (!t) return;
+  void reportState(t, true);
+}
+
 async function tick() {
   const t = S.token;
   if (t) {
     try {
-      const r = await fetch(`/api/rs/host?t=${t}&since=${S.since}`, { cache: 'no-store' });
+      const r = await fetch(`/api/rs/host?t=${t}&since=${S.since}&wait=${WAIT_MS}`, { cache: 'no-store' });
       if (r.status === 404) {
         // 会话过期（30 分钟或服务重启）：清掉，遥控器那边会提示已关闭
         S.token = '';
@@ -390,6 +451,7 @@ async function tick() {
           }
           S.since = Math.max(S.since, c.id);
         }
+        if (d.cmds && d.cmds.length > 0) flushState();
         S.since = Math.max(S.since, d.now || 0);
         if ((d.ctls || 0) !== S.peers) {
           S.peers = d.ctls || 0;
@@ -402,7 +464,7 @@ async function tick() {
     }
     await reportState(t);
   }
-  S.timer = window.setTimeout(tick, 1000);
+  S.timer = window.setTimeout(tick, S.token ? POLL_MS : 1000);
 }
 
 /** 页面一挂载就调用；重复调用无副作用，会话一直跑着 */
