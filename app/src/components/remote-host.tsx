@@ -393,7 +393,7 @@ export function RemoteHost({ className }: { className?: string }) {
                     <div className="flex items-center justify-between text-[11px] text-muted">
                       <span className="inline-flex items-center gap-1.5">
                         <span
-                          className={cn('inline-block w-1.5 h-1.5 rounded-full', hostAlive ? 'bg-accent' : 'bg-red-500')}
+                          className={cn('inline-block w-1.5 h-1.5 rounded-full', hostAlive ? 'bg-success' : 'bg-danger')}
                           aria-hidden
                         />
                         {peers > 0 ? `已连 ${peers} 台遥控器` : '等待扫码'}
