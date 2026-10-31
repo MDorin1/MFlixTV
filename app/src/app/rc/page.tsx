@@ -301,15 +301,21 @@ export default function RemoteControlPage() {
         </div>
       </div>
 
-      <div className="px-4 mt-4 flex items-center justify-center gap-2 text-[12px]">
-        <button className={`${btn} h-11 px-3`} onClick={() => void send('voldown')}>
+      <div className="px-4 mt-4 flex items-center justify-center gap-1.5 text-[12px]">
+        <button className={`${btn} h-11 px-2`} onClick={() => void send('voldown')} aria-label="音量减">
           音量 −
         </button>
-        <button className={`${btn} h-11 px-3`} onClick={() => void send('mute')}>
+        <button className={`${btn} h-11 px-2`} onClick={() => void send('mute')}>
           静音
         </button>
-        <button className={`${btn} h-11 px-3`} onClick={() => void send('volup')}>
+        <button className={`${btn} h-11 px-2`} onClick={() => void send('volup')} aria-label="音量加">
           音量 +
+        </button>
+        <button className={`${btn} h-11 px-2`} onClick={() => void send('ratedown')} aria-label="减速">
+          倍速 −
+        </button>
+        <button className={`${btn} h-11 px-2`} onClick={() => void send('rateup')} aria-label="加速">
+          倍速 +
         </button>
       </div>
 

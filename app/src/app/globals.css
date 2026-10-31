@@ -254,12 +254,11 @@ h3 {
  * 切集在任何情况下都还能用播放器下方的按钮。
  */
 @media (max-width: 640px) {
-  /* 竖屏空间只够放「播放 + 时间 + 设置 + 网页全屏 + 全屏」：
-     音量交给系统按键，截图与画中画在手机上很少用，一并收起，
-     保证最右侧的全屏按钮完整可见 */
+  /* 竖屏空间只够放「播放 + 时间 + 选集 + 换源 + 设置 + 网页全屏 + 全屏」：
+     音量交给画面竖向滑动（右半屏）和系统按键，截图与画中画在手机上很少用，
+     一并收起，保证最右侧的全屏按钮完整可见 */
   .art-control-prev-episode,
   .art-control-next-episode,
-  .art-control-source-picker,
   .art-control-volume,
   .art-control-screenshot,
   .art-control-pip {
@@ -280,6 +279,38 @@ h3 {
     width: 40px !important;
     min-width: 40px !important;
   }
+
+  /* 选集 / 换源：手机全屏时这两个是仅有入口（页面上的按钮在网页全屏里看不到），
+     必须留住，只把图标收到 38px 让出横向空间 */
+  .art-control-episode-picker,
+  .art-control-source-picker {
+    width: 38px !important;
+    min-width: 38px !important;
+  }
+}
+
+/* —— 多端适配：刘海屏 / 手势条安全区 ——
+ * iPhone 横屏时左边有 44px 的刘海，底部有 34px 手势条；
+ * 控制条贴着屏幕边缘会被挡掉一半，这里统一让出安全区。
+ * Artplayer 自己的样式是运行时注入的（顺序在我们的 CSS 之后），
+ * 三条都要 !important 才压得住，否则只有 bottom 生效。 */
+.art-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px)) !important;
+  padding-left: max(10px, env(safe-area-inset-left, 0px)) !important;
+  padding-right: max(10px, env(safe-area-inset-right, 0px)) !important;
+}
+
+/* 网页全屏走 dvh：iOS Safari 里 100vh 会把地址栏高度也算进去，
+ * 底部控制条被顶到屏幕外，看起来「全屏后没控制条了」 */
+.art-video-player.art-fullscreen-web {
+  height: 100vh;
+  height: 100dvh !important;
+}
+
+/* 画面区域：禁掉双击缩放和文本选中，手势才不会被系统抢走
+ * （manipulation 只关掉双击缩放，单击、拖动照常派发给我们的处理器） */
+.art-video-player video {
+  touch-action: manipulation;
 }
 
 /* —— 通用观感：滚动、选中、播放器控件圆角 —— */

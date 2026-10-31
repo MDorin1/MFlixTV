@@ -16,6 +16,16 @@ import { loadCacheSettings } from '@/lib/video-cache';
 import { formatTime, cn } from '@/lib/utils';
 import { prefersTouchPointer } from '@/lib/touch-pointer';
 import {
+  BRIGHT_MAX,
+  BRIGHT_MIN,
+  RATE_STEP,
+  clampNum,
+  normalizeRate,
+  readPlayerPrefs,
+  savePlayerPrefs,
+  type PlayerPrefs,
+} from '@/lib/player-prefs';
+import {
   findActiveSegment,
   findCrossedEnding,
   resolveSegments,
@@ -33,6 +43,13 @@ import {
 
 /** 片段时间统一保留 1 位小数：与面板展示保持一致，避免浮点尾巴 */
 const round1 = (v: number) => Math.round(v * 10) / 10;
+
+/** 手势反馈条上的标题（横滑进度 / 竖滑音量 / 竖滑亮度） */
+const GESTURE_HUD_TITLES: Record<'seek' | 'volume' | 'brightness', string> = {
+  seek: '进度',
+  volume: '音量',
+  brightness: '亮度',
+};
 
 /**
  * 播放器外壳：ArtPlayer + hls.js（旧版 player.js 的 React 化）。
@@ -166,6 +183,19 @@ export function PlayerShell({
   const [switchLabel, setSwitchLabel] = useState('');
   /** 长按临时 2 倍速：画面角上给个明确提示，否则用户不知道速度被改了 */
   const [rateBoost, setRateBoost] = useState(false);
+  /**
+   * 手势 HUD：横滑拖进度 / 竖滑调音量 / 竖滑调亮度时，屏幕正中那条反馈条。
+   * 手机上没有实体键，光靠画面明暗变化看不出「现在到底多少」，必须给数字和进度。
+   */
+  const [gestureHud, setGestureHud] = useState<{
+    kind: 'seek' | 'volume' | 'brightness';
+    label: string;
+    ratio: number;
+  } | null>(null);
+  /** 缓冲提示：卡住超过 1.2 秒才出，避免每次换分片都闪一下 */
+  const [buffering, setBuffering] = useState(false);
+  /** 卡超过 8 秒 → 提示换源（多半是源站自己慢，继续等没意义） */
+  const [bufferingSlow, setBufferingSlow] = useState(false);
   /** 选集面板里的滚动容器：打开时回到顶部，别停在上次看到的位置 */
   const episodeListRef = useRef<HTMLDivElement>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -615,11 +645,15 @@ export function PlayerShell({
 
     let lastSave = 0;
 
+    // 上次看到哪儿的音量/静音/倍速/亮度：进播放器先恢复，再谈别的
+    const initialPrefs = readPlayerPrefs();
+
     const art = new Artplayer({
       container: containerRef.current,
       url: initialUrl,
       type: 'm3u8',
-      volume: 0.8,
+      volume: initialPrefs.muted ? 0 : initialPrefs.volume,
+      muted: initialPrefs.muted,
       autoplay: true,
       pip: true,
       autoMini: true,
@@ -716,26 +750,68 @@ export function PlayerShell({
     setLayerEl(lcsLayer);
 
     /**
-     * 手势：双击左/右两侧 ±10 秒，长按 2 倍速。
+     * —— 手势引擎（触摸端一套、鼠标端一套） ——
      *
-     * 都挂在 video 元素上（不是播放器根节点）——控制条在兄弟层里，
-     * 点播放条不会被当成「点视频」。双击还要拦掉冒泡，否则 ArtPlayer
-     * 自己的 dblclick 会顺带把页面切全屏，用户只想快进却进了全屏。
+     * 触摸（手机 / 平板 / 安卓 WebView）：
+     *   双击左 35% → 退 10 秒；双击右 35% → 进 10 秒；双击中间 → 播放/暂停
+     *   画面内横向拖动 → 拖进度（跟手给目标时间，松手才真正 seek）
+     *   右半屏纵向拖动 → 音量；左半屏纵向拖动 → 亮度
+     *   长按 450ms → 2 倍速，松开恢复
+     * 鼠标：只留双击左右 ±10 秒（拖进度有进度条，画面手势只会添乱）。
+     *
+     * 触摸事件挂在容器上、用非 passive 的 touchmove：只有它能 preventDefault，
+     * 否则横滑会连带把整页一起滚走（手机上最典型的「拖进度结果页面乱跑」）。
+     * 控制条 / 设置面板在兄弟层里，拖动它们不会被当成画面手势。
+     *
      * 双击会被浏览器算作两次点击，ArtPlayer 因此触发两次「暂停/播放」，
-     * 所以这里记住按下前的播放状态，再用一次 play() 兜回来。
+     * 所以记住第一拍之前的播放状态，第二拍快进完再用一次 play() 兜回来。
      */
     const gestureVideo = art.video as HTMLVideoElement | undefined;
-    let lastTapAt = 0;
+    const gestureEl = containerRef.current;
+
+    // 长按倍速
     let holdTimer: ReturnType<typeof setTimeout> | null = null;
     let holding = false;
     let rateBeforeHold = 1;
+
+    // 单指拖动状态机
+    type GestureMode = 'none' | 'seek' | 'volume' | 'brightness';
+    let mode: GestureMode = 'none';
+    let startX = 0;
+    let startY = 0;
+    let startAt = 0;
+    let volStart = 0.8;
+    let brightStart = 1;
+    let seekPreview = 0;
+    let dragVolume = 0.8;
+    let dragBright = 1;
+    let lastHudAt = 0;
+    let lastTouchGestureAt = 0;
+
+    // 双击识别
+    let lastTapAt = 0;
+    let lastTapX = 0;
     let playingBeforeTap = false;
-    /**
-     * 双击的第一拍会先被 ArtPlayer 当成「点视频切换播放」处理（暂停）。
-     * 所以要记住第一拍之前的播放状态，第二拍快进完再用它兜回来，
-     * 否则双击快进后画面会停在那里，得再点一次才继续。
-     */
-    let playingAtPairStart = false;
+    /** 第一拍之前的播放状态：第二拍结束用它决定要不要把画面兜回播放 */
+    let pairStartPlaying = false;
+
+    // 缓冲/卡顿提示的定时器（慢提示要等 8 秒才升级文案）
+    let bufferTimer: ReturnType<typeof setTimeout> | null = null;
+    let slowBufferTimer: ReturnType<typeof setTimeout> | null = null;
+    let prefsTimer: ReturnType<typeof setTimeout> | null = null;
+
+    /** 亮度当前值：video 元素上的 filter 只是表象，真值记在这里 */
+    let brightness = initialPrefs.brightness;
+    const applyBrightnessToVideo = (value: number) => {
+      const next = clampNum(value, BRIGHT_MIN, BRIGHT_MAX);
+      brightness = next;
+      // 手势松手时要落盘这个值（dragBright 只在拖动中有意义，两者保持同步）
+      dragBright = next;
+      if (!gestureVideo) return next;
+      // 只在压暗时叠 filter：1.0 时清空字符串，别给解码链留无谓的合成层
+      gestureVideo.style.filter = next < 0.995 ? `brightness(${next.toFixed(2)})` : '';
+      return next;
+    };
 
     const clearHold = () => {
       if (holdTimer) {
@@ -753,16 +829,58 @@ export function PlayerShell({
       }
     };
 
-    const onGestureDown = () => {
-      if (!gestureVideo) return;
-      // 距离上一拍太远 = 这是一对新点击的第一拍，记下它之前的播放状态
-      if (Date.now() - lastTapAt >= 280) playingAtPairStart = !gestureVideo.paused;
-      playingBeforeTap = !gestureVideo.paused;
+    /** 拖动过程中的 HUD：限流 60ms，不然每个 move 都 setState 会把主线程拖住 */
+    const pushHud = (
+      kind: 'seek' | 'volume' | 'brightness',
+      label: string,
+      ratio: number,
+      force = false
+    ) => {
+      const now = Date.now();
+      if (!force && now - lastHudAt < 60) return;
+      lastHudAt = now;
+      setGestureHud({ kind, label, ratio: clampNum(ratio, 0, 1) });
+    };
+
+    const setVolumeTo = (value: number) => {
+      const next = clampNum(value, 0, 1);
+      dragVolume = next;
+      const player = artRef.current;
+      if (player) {
+        try {
+          player.volume = next;
+          if (next > 0 && player.muted) player.muted = false;
+        } catch {
+          /* 忽略 */
+        }
+      }
+      return next;
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) {
+        mode = 'none';
+        clearHold();
+        return;
+      }
+      const target = e.target as HTMLElement | null;
+      // 控制条 / 设置面板 / 我们自己的浮层上的拖动不算画面手势
+      if (target?.closest?.('.art-controls, .art-settings, [data-lcs-overlay]')) return;
+      const touch = e.touches[0];
+      mode = 'none';
+      startX = touch.clientX;
+      startY = touch.clientY;
+      startAt = Number(artRef.current?.currentTime) || 0;
+      volStart = Number(artRef.current?.volume) || 0.8;
+      brightStart = brightness;
+      dragVolume = volStart;
+      dragBright = brightness;
+      playingBeforeTap = !(gestureVideo?.paused ?? true);
       clearHold();
-      rateBeforeHold = gestureVideo.playbackRate || 1;
+      rateBeforeHold = Number(gestureVideo?.playbackRate) || 1;
       holdTimer = setTimeout(() => {
         // 暂停时「长按倍速」没有意义，只在播放中生效
-        if (gestureVideo.paused || holding) return;
+        if (!gestureVideo || gestureVideo.paused || mode !== 'none') return;
         holding = true;
         try {
           gestureVideo.playbackRate = 2;
@@ -773,35 +891,186 @@ export function PlayerShell({
       }, 450);
     };
 
-    const onGestureUp = (e: PointerEvent) => {
-      if (!gestureVideo) return;
-      const wasHold = holding;
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      // 长按倍速期间锁住页面滚动，否则手指微动会把页面拖走、倍速提示也跟着断
+      if (holding) {
+        e.preventDefault();
+        return;
+      }
+      if (mode === 'none') {
+        // 14px 以内是点按的抖动，不算拖动
+        if (Math.abs(dx) < 14 && Math.abs(dy) < 14) return;
+        if (holdTimer) {
+          clearTimeout(holdTimer);
+          holdTimer = null;
+        }
+        const rect = gestureVideo?.getBoundingClientRect();
+        if (Math.abs(dx) >= Math.abs(dy) * 1.15) {
+          mode = 'seek';
+        } else if (Math.abs(dy) >= Math.abs(dx) * 1.15) {
+          const halfWidth = (rect?.width ?? window.innerWidth) / 2;
+          mode = touch.clientX - (rect?.left ?? 0) > halfWidth ? 'volume' : 'brightness';
+        } else {
+          // 斜着晃：先不表态，等手指选出主方向
+          return;
+        }
+      }
+      // 手势成立后才吃事件：不成立时页面照常能滚
+      e.preventDefault();
+      lastTouchGestureAt = Date.now();
+      const rect = gestureVideo?.getBoundingClientRect();
+      const width = rect?.width || window.innerWidth;
+      const height = rect?.height || window.innerHeight;
+
+      if (mode === 'seek') {
+        const duration = Number(artRef.current?.duration) || 0;
+        if (duration <= 0) return;
+        // 一屏宽 ≈ 90 秒：横滑半屏是常见的「跳几分钟」
+        const delta = (dx / width) * 90;
+        seekPreview = clampNum(startAt + delta, 0, Math.max(0, duration - 0.3));
+        const sign = delta >= 0 ? '+' : '-';
+        pushHud(
+          'seek',
+          `${formatTime(seekPreview)} / ${formatTime(duration)}   ${sign}${Math.abs(Math.round(delta))}s`,
+          duration > 0 ? seekPreview / duration : 0
+        );
+        return;
+      }
+      if (mode === 'volume') {
+        const next = setVolumeTo(volStart - dy / height);
+        pushHud('volume', `音量 ${Math.round(next * 100)}%`, next);
+        return;
+      }
+      const next = applyBrightnessToVideo(brightStart - dy / height);
+      pushHud(
+        'brightness',
+        `亮度 ${Math.round(next * 100)}%`,
+        (next - BRIGHT_MIN) / (BRIGHT_MAX - BRIGHT_MIN)
+      );
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const wasHolding = holding;
+      const finishedMode = mode;
       clearHold();
-      if (wasHold) return; // 长按结束，不当作点击
-      const now = Date.now();
-      if (now - lastTapAt < 280) {
+      mode = 'none';
+      setGestureHud(null);
+      lastTouchGestureAt = Date.now();
+
+      if (finishedMode === 'seek') {
+        const delta = seekPreview - startAt;
+        if (Math.abs(delta) >= 1) seekBySeconds(delta);
+        return;
+      }
+      if (finishedMode === 'volume') {
+        savePlayerPrefs({ volume: dragVolume, muted: dragVolume === 0 });
+        return;
+      }
+      if (finishedMode === 'brightness') {
+        savePlayerPrefs({ brightness: dragBright });
+        return;
+      }
+      if (wasHolding) return; // 长按结束，不当作点击
+
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      // 手指在原地抖了两下：不当点按处理，免得误触发双击快进
+      if (Math.abs(touch.clientX - startX) > 12 || Math.abs(touch.clientY - startY) > 12) {
         lastTapAt = 0;
-        const rect = gestureVideo.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        if (x <= rect.width * 0.35) seekBySeconds(-10);
-        else if (x >= rect.width * 0.65) seekBySeconds(10);
+        return;
+      }
+      const now = Date.now();
+      if (now - lastTapAt < 300 && Math.abs(touch.clientX - lastTapX) < 90) {
+        lastTapAt = 0;
+        const rect = gestureVideo?.getBoundingClientRect();
+        if (rect) {
+          const x = touch.clientX - rect.left;
+          if (x <= rect.width * 0.35) seekBySeconds(-10);
+          else if (x >= rect.width * 0.65) seekBySeconds(10);
+        }
+        // 两拍把播放器切了两次（暂停→播放），本来就暂停着的要兜回来
         setTimeout(() => {
-          const v = artRef.current?.video as HTMLVideoElement | undefined;
-          if (v && (playingAtPairStart || playingBeforeTap) && v.paused) void v.play().catch(() => {});
+          const video = artRef.current?.video as HTMLVideoElement | undefined;
+          if (video && (pairStartPlaying || playingBeforeTap) && video.paused) {
+            void video.play().catch(() => {});
+          }
         }, 150);
         return;
       }
       lastTapAt = now;
+      lastTapX = touch.clientX;
+      pairStartPlaying = playingBeforeTap;
     };
 
-    // 双击别顺带切全屏
-    const stopDblclick = (e: Event) => e.stopPropagation();
+    /** 鼠标双击左右两侧：±10 秒（触摸的双击已经在 onTouchEnd 算过，这里要跳过） */
+    const onVideoDblClick = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (Date.now() - lastTouchGestureAt < 800) return;
+      const rect = gestureVideo?.getBoundingClientRect();
+      if (!rect) return;
+      const x = e.clientX - rect.left;
+      if (x <= rect.width * 0.35) seekBySeconds(-10);
+      else if (x >= rect.width * 0.65) seekBySeconds(10);
+    };
 
-    gestureVideo?.addEventListener('pointerdown', onGestureDown);
-    gestureVideo?.addEventListener('pointerup', onGestureUp);
-    gestureVideo?.addEventListener('pointercancel', clearHold);
-    gestureVideo?.addEventListener('pointerleave', clearHold);
-    gestureVideo?.addEventListener('dblclick', stopDblclick, true);
+    // ArtPlayer 默认双击是切全屏，会和我们的快进一起触发，统一在构造前关掉
+    const onContextMenu = (e: Event) => e.preventDefault();
+
+    gestureEl?.addEventListener('touchstart', onTouchStart, { passive: false });
+    gestureEl?.addEventListener('touchmove', onTouchMove, { passive: false });
+    gestureEl?.addEventListener('touchend', onTouchEnd);
+    gestureEl?.addEventListener('touchcancel', onTouchEnd);
+    gestureEl?.addEventListener('contextmenu', onContextMenu);
+    gestureVideo?.addEventListener('dblclick', onVideoDblClick);
+
+    // —— 偏好记忆：音量 / 静音 / 倍速 / 亮度 ——
+    // 合并攒批：音量、倍速往往前后脚各自触发一次，如果后一次直接把前一次顶掉，
+    // 「调了倍速再按音量键」就会把倍速丢掉（实测过：1.25 倍存成 1）
+    let pendingPrefs: Partial<PlayerPrefs> = {};
+    const persistPrefs = (patch: Partial<PlayerPrefs>) => {
+      pendingPrefs = { ...pendingPrefs, ...patch };
+      if (prefsTimer) clearTimeout(prefsTimer);
+      prefsTimer = setTimeout(() => {
+        prefsTimer = null;
+        const toSave = pendingPrefs;
+        pendingPrefs = {};
+        savePlayerPrefs(toSave);
+      }, 400);
+    };
+    const onVolumeChange = () => {
+      const video = art.video as HTMLVideoElement | undefined;
+      if (!video) return;
+      persistPrefs({ volume: video.volume, muted: video.muted });
+    };
+    const onRateChange = () => {
+      // 长按倍速是临时状态，存下来会让下次一进播放器就是 2 倍
+      if (holding) return;
+      const rate = Number(gestureVideo?.playbackRate);
+      if (!rate || rate <= 0) return;
+      persistPrefs({ rate: normalizeRate(rate) });
+    };
+    const applyPreferredRate = () => {
+      if (holding) return;
+      const { rate } = readPlayerPrefs();
+      try {
+        if (gestureVideo && Math.abs((gestureVideo.playbackRate || 1) - rate) > 0.01) {
+          art.playbackRate = rate;
+        }
+      } catch {
+        /* 忽略 */
+      }
+    };
+    gestureVideo?.addEventListener('volumechange', onVolumeChange);
+    gestureVideo?.addEventListener('ratechange', onRateChange);
+    art.on('video:loadedmetadata', applyPreferredRate);
+    art.on('ready', applyPreferredRate);
+    // 上次压暗过就接着压暗：换集/全屏都不会重置 video 元素的 style
+    applyBrightnessToVideo(brightness);
 
     // 进度条区间可视化：初始渲染一次，换集 duration 变化时重绘
     renderSkipMarks();
@@ -975,9 +1244,24 @@ export function PlayerShell({
     art.on('video:waiting', () => {
       // 卡顿：预取临时让出带宽给播放
       getVideoPrefetcher().setThrottled(true);
+      // 缓冲提示延后 1.2 秒：正常换分片的几十毫秒抖动不该闪一个「缓冲中」
+      if (bufferTimer) return;
+      bufferTimer = setTimeout(() => {
+        bufferTimer = null;
+        setBuffering(true);
+        if (slowBufferTimer) clearTimeout(slowBufferTimer);
+        slowBufferTimer = setTimeout(() => {
+          slowBufferTimer = null;
+          setBufferingSlow(true);
+        }, 8000);
+      }, 1200);
     });
     art.on('video:playing', () => {
       getVideoPrefetcher().setThrottled(false);
+      if (bufferTimer) { clearTimeout(bufferTimer); bufferTimer = null; }
+      if (slowBufferTimer) { clearTimeout(slowBufferTimer); slowBufferTimer = null; }
+      setBuffering(false);
+      setBufferingSlow(false);
     });
     art.on('video:ended', () => {
       // finishBySkip 已经手动走过结束链路：这里不能重复触发 onEnded
@@ -989,13 +1273,32 @@ export function PlayerShell({
 
     // —— 键盘快捷键（旧版 hotkey:false + 自定义逻辑的移植） ——
     const shortcuts = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      // 输入框或按钮获得焦点时不劫持按键：否则空格会吞掉按钮的默认激活
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.closest('button')) return;
+      const target = e.target as HTMLElement | null;
+      // 输入框或按钮获得焦点时不劫持按键：否则空格会吞掉按钮的默认激活。
+      // 遥控端会往 document 上派发合成按键，那时 e.target 是 document（没有 closest），
+      // 必须用可选链兜住，否则处理器直接抛错、遥控指令全部失效
+      const tag = target?.tagName ?? '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.closest?.('button')) return;
       const current = artRef.current;
       if (!current) return;
       if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); return; } // 由父层处理集数切换
       if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); return; }
+      // 数字键 0–9：跳到整集的百分比位置（0 = 片头，5 = 一半，9 = 九成）
+      if (/^[0-9]$/.test(e.key) && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        const duration = Number(current.duration) || 0;
+        if (duration > 0) {
+          const ratio = Number(e.key) / 10;
+          const target = Math.max(0, Math.min(duration - 0.5, duration * ratio));
+          try {
+            current.currentTime = target;
+          } catch {
+            /* 忽略 */
+          }
+          showHint(`跳到 ${Math.round(ratio * 100)}% · ${formatTime(target)}`);
+          e.preventDefault();
+        }
+        return;
+      }
       switch (e.key) {
         case 'ArrowLeft':
           if (current.currentTime > 5) { current.currentTime -= 5; showHint('快退 5s'); e.preventDefault(); }
@@ -1004,9 +1307,12 @@ export function PlayerShell({
           if (current.duration - current.currentTime > 5) { current.currentTime += 5; showHint('快进 5s'); e.preventDefault(); }
           break;
         case 'ArrowUp':
+          // 静音状态下按音量键要先解除静音，否则调了没声音还以为音量键坏了
+          if (current.muted) current.muted = false;
           if (current.volume < 1) { current.volume = Math.min(1, current.volume + 0.1); showHint(`音量 ${Math.round(current.volume * 100)}%`); e.preventDefault(); }
           break;
         case 'ArrowDown':
+          if (current.muted) current.muted = false;
           if (current.volume > 0) { current.volume = Math.max(0, current.volume - 0.1); showHint(`音量 ${Math.round(current.volume * 100)}%`); e.preventDefault(); }
           break;
         case ' ':
@@ -1014,6 +1320,44 @@ export function PlayerShell({
           break;
         case 'f': case 'F':
           current.fullscreen = !current.fullscreen; e.preventDefault();
+          break;
+        // —— 下面这些和各类 PC 播放器（PotPlayer / IINA / B 站）的习惯对齐 ——
+        case 'k': case 'K':
+          current.toggle(); showHint('播放/暂停'); e.preventDefault();
+          break;
+        case 'm': case 'M':
+          current.muted = !current.muted;
+          showHint(current.muted ? '已静音' : '已取消静音');
+          e.preventDefault();
+          break;
+        case 'j': case 'J':
+          seekBySeconds(-10); e.preventDefault();
+          break;
+        case 'l': case 'L':
+          seekBySeconds(10); e.preventDefault();
+          break;
+        case 'p': case 'P':
+          // 画中画：手机上和系统手势配合「边看边聊」，桌面端可以挂小窗
+          // 老浏览器没有 PiP 接口，setter 会抛错，这里兜住别让快捷键炸掉播放器
+          try {
+            current.pip = !current.pip;
+          } catch {
+            showHint('这个浏览器不支持画中画');
+          }
+          e.preventDefault();
+          break;
+        case ',': case '<':
+          current.playbackRate = normalizeRate((current.playbackRate || 1) - RATE_STEP);
+          showHint(`倍速 ${current.playbackRate}×`); e.preventDefault();
+          break;
+        case '.': case '>':
+          current.playbackRate = normalizeRate((current.playbackRate || 1) + RATE_STEP);
+          showHint(`倍速 ${current.playbackRate}×`); e.preventDefault();
+          break;
+        case 'Escape':
+          // 全屏里按 Esc 先退全屏，不要直接跳出播放页
+          if (current.fullscreen) { current.fullscreen = false; e.preventDefault(); }
+          else if (current.fullscreenWeb) { current.fullscreenWeb = false; e.preventDefault(); }
           break;
         // 标记类快捷键一律要求 Shift：这几键会直接写盘并影响整部剧，
         // 单键太容易误触（误记片头 = 之后每集都被跳过一大段）
@@ -1058,10 +1402,30 @@ export function PlayerShell({
     };
     document.addEventListener('keydown', shortcuts);
 
-    // —— 移动端长按 3 倍速 ——
-    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-    let isLongPress = false;
-    let originalRate = 1.0;
+    /**
+     * 遥控端拖进度条 → 绝对位置跳转。
+     * 键盘快捷键只能「相对跳」，手机遥控器上拖到某个位置必须按绝对时间 seek，
+     * 所以走一条自定义事件，由播放器自己执行（换集/全屏都不受影响）。
+     */
+    const onRemoteSeekTo = (e: Event) => {
+      const to = Number((e as CustomEvent).detail);
+      if (!Number.isFinite(to) || to < 0) return;
+      const player = artRef.current;
+      if (!player) return;
+      const duration = Number(player.duration) || 0;
+      const upper = duration > 0 ? Math.max(0, duration - 0.3) : to;
+      const target = Math.min(upper, to);
+      try {
+        player.currentTime = target;
+      } catch {
+        return;
+      }
+      showHint(`遥控：跳到 ${formatTime(target)}`);
+    };
+    window.addEventListener('mfl:rc-seekto', onRemoteSeekTo);
+
+    // 长按倍速、双击、横竖滑统一在「手势引擎」里处理（见上方），
+    // 这里只留一对鼠标控制条显隐的监听。
     const el = containerRef.current;
 
     // 全屏时播放器覆盖整个视口，无法依赖 mouseleave 判断“移出播放器”。
@@ -1088,41 +1452,6 @@ export function PlayerShell({
       showControlsOnPointerMove();
     }
 
-    const onTouchStart = (e: TouchEvent) => {
-      if (art.video?.paused) return;
-      // 已有触控在处理时忽略新手指：否则第二指会把 originalRate 捕获成 3.0，
-      // 松手后倍速永久卡在 3x；旧定时器句柄也会被覆盖成无法清除的幽灵触发
-      if (isLongPress || longPressTimer) return;
-      // 控制栏 / 设置面板上的长按不触发倍速（按住进度条拖动、长按倍速菜单项会误触）
-      if ((e.target as HTMLElement).closest?.('.art-controls, .art-settings')) return;
-      originalRate = art.video.playbackRate;
-      longPressTimer = setTimeout(() => {
-        if (art.video?.paused) return;
-        art.video.playbackRate = 3.0;
-        isLongPress = true;
-        showHint('3 倍速');
-      }, 500);
-    };
-    const onTouchEnd = () => {
-      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-      if (isLongPress) {
-        art.video.playbackRate = originalRate;
-        isLongPress = false;
-        showHint(`${originalRate} 倍速`);
-      }
-    };
-    const onTouchMove = (e: TouchEvent) => {
-      if (isLongPress) e.preventDefault();
-    };
-    // ArtPlayer 的 contextmenu 组件只在桌面端初始化（移动端构造函数里跳过 init），
-    // 长按倍速因而会连带呼出系统原生菜单/气泡。播放器表面没有可用的原生菜单，统一抑制
-    const onContextMenu = (e: Event) => e.preventDefault();
-    el?.addEventListener('touchstart', onTouchStart, { passive: false });
-    el?.addEventListener('touchend', onTouchEnd);
-    el?.addEventListener('touchcancel', onTouchEnd);
-    el?.addEventListener('touchmove', onTouchMove, { passive: false });
-    el?.addEventListener('contextmenu', onContextMenu);
-
     // 卸载与页面隐藏时保存进度
     const saveOnHide = () => {
       if (document.visibilityState === 'hidden' && !endedRef.current) {
@@ -1140,6 +1469,7 @@ export function PlayerShell({
         } catch { /* 忽略 */ }
       }
       document.removeEventListener('keydown', shortcuts);
+      window.removeEventListener('mfl:rc-seekto', onRemoteSeekTo);
       document.removeEventListener('visibilitychange', saveOnHide);
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
@@ -1149,12 +1479,13 @@ export function PlayerShell({
       el?.removeEventListener('touchmove', onTouchMove);
       el?.removeEventListener('contextmenu', onContextMenu);
       art.video?.removeEventListener('resize', reportVideoHeight);
-      gestureVideo?.removeEventListener('pointerdown', onGestureDown);
-      gestureVideo?.removeEventListener('pointerup', onGestureUp);
-      gestureVideo?.removeEventListener('pointercancel', clearHold);
-      gestureVideo?.removeEventListener('pointerleave', clearHold);
-      gestureVideo?.removeEventListener('dblclick', stopDblclick, true);
+      gestureVideo?.removeEventListener('dblclick', onVideoDblClick);
+      gestureVideo?.removeEventListener('volumechange', onVolumeChange);
+      gestureVideo?.removeEventListener('ratechange', onRateChange);
       if (holdTimer) clearTimeout(holdTimer);
+      if (prefsTimer) clearTimeout(prefsTimer);
+      if (bufferTimer) clearTimeout(bufferTimer);
+      if (slowBufferTimer) clearTimeout(slowBufferTimer);
       el?.removeEventListener('mousemove', showControlsOnPointerMove);
       el?.removeEventListener('mouseleave', hideControlsOnMouseLeave);
       if (controlHideTimer) clearTimeout(controlHideTimer);
@@ -1328,6 +1659,30 @@ export function PlayerShell({
         <div className="pointer-events-none absolute left-4 top-4 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-sm font-semibold text-white animate-fade-in">
           <span className="tabular-nums">2×</span>
           <span className="text-xs font-normal text-white/70">松开恢复</span>
+        </div>
+      )}
+      {buffering && !error && !rateBoost && (
+        // 卡顿提示：手机上没有转圈就只剩黑屏，用户会以为播放器死了
+        <div className="pointer-events-none absolute left-4 top-4 z-10 flex max-w-[calc(100%-2rem)] items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white/90 animate-fade-in">
+          <span className="inline-block size-3 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+          <span className="truncate">
+            {bufferingSlow ? '网络较慢，可在「切换资源」里换源' : '缓冲中…'}
+          </span>
+        </div>
+      )}
+      {gestureHud && (
+        // 手势反馈条：手机上没有实体键，调了多少必须给数字
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 w-[min(70%,260px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-black/70 px-4 py-3 backdrop-blur animate-fade-in">
+          <div className="mb-2 flex items-center justify-between gap-3 text-white/90">
+            <span className="text-xs text-white/70">{GESTURE_HUD_TITLES[gestureHud.kind]}</span>
+            <span className="text-xs tabular-nums">{gestureHud.label}</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-white/20">
+            <div
+              className="h-full rounded-full bg-accent"
+              style={{ width: `${Math.round(gestureHud.ratio * 100)}%` }}
+            />
+          </div>
         </div>
       )}
       {(hint || undoSkip) && (

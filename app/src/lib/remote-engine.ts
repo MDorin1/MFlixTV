@@ -216,6 +216,21 @@ export function exec(cmd: string, arg: string) {
     case 'mute':
       for (const el of allVideos()) el.muted = !el.muted;
       return;
+    case 'rateup':
+    case 'ratedown': {
+      // 倍速 ±0.25：手机上「看慢一点」是高频操作，跟 PC 端的 , . 快捷键对齐
+      const step = cmd === 'rateup' ? 0.25 : -0.25;
+      const videos = allVideos();
+      if (!videos.length) {
+        fireKey(cmd === 'rateup' ? '.' : ',', cmd === 'rateup' ? 'Period' : 'Comma', cmd === 'rateup' ? 190 : 188);
+        return;
+      }
+      for (const el of videos) {
+        const next = Math.round(((el.playbackRate || 1) + step) * 4) / 4;
+        el.playbackRate = Math.min(3, Math.max(0.5, next));
+      }
+      return;
+    }
     case 'fullscreen': {
       if (document.fullscreenElement) {
         void document.exitFullscreen().catch(() => {});

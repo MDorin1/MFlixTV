@@ -268,6 +268,15 @@
       case 'mute':
         if (v) v.muted = !v.muted;
         return;
+      case 'rateup':
+      case 'ratedown':
+        // 倍速 ±0.25：手机上看慢/看快都是高频操作，和 PC 端 , . 快捷键同一套档位
+        if (v) {
+          var step = cmd === 'rateup' ? 0.25 : -0.25;
+          var nextRate = Math.round(((v.playbackRate || 1) + step) * 4) / 4;
+          v.playbackRate = Math.min(3, Math.max(0.5, nextRate));
+        }
+        return;
       case 'fullscreen':
         if (typeof h.fullscreen === 'function') { h.fullscreen(); return; }
         toggleFullscreen(v);

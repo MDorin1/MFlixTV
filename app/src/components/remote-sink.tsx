@@ -37,6 +37,7 @@ export function RemoteSink() {
       switch (cmd) {
         case 'play':
         case 'pause':
+        case 'toggle':
           fireKey(' ', 'Space', 32);
           return;
         case 'seek': {
@@ -44,6 +45,44 @@ export function RemoteSink() {
           fireKey(n > 0 ? 'ArrowRight' : 'ArrowLeft', n > 0 ? 'ArrowRight' : 'ArrowLeft', n > 0 ? 39 : 37);
           return;
         }
+        // 遥控端还有「快退 10s / 快进 10s / 拖进度条」三种粒度（和安卓端 rc-host 同一套命令名）
+        case 'seekb': {
+          const n = Math.abs(Number(arg) || 10);
+          for (let i = 0; i < Math.max(1, Math.round(n / 10)); i += 1) {
+            fireKey('ArrowLeft', 'ArrowLeft', 37);
+          }
+          return;
+        }
+        case 'seekf': {
+          const n = Math.abs(Number(arg) || 10);
+          for (let i = 0; i < Math.max(1, Math.round(n / 10)); i += 1) {
+            fireKey('ArrowRight', 'ArrowRight', 39);
+          }
+          return;
+        }
+        case 'seekto': {
+          // 键盘快捷键只能相对跳，绝对位置要靠播放器自己接：派事件给播放页
+          const to = Number(arg);
+          if (Number.isFinite(to) && to >= 0) {
+            window.dispatchEvent(new CustomEvent('mfl:rc-seekto', { detail: to }));
+          }
+          return;
+        }
+        case 'volup':
+          fireKey('ArrowUp', 'ArrowUp', 38);
+          return;
+        case 'voldown':
+          fireKey('ArrowDown', 'ArrowDown', 40);
+          return;
+        case 'mute':
+          fireKey('m', 'KeyM', 77);
+          return;
+        case 'rateup':
+          fireKey('.', 'Period', 190);
+          return;
+        case 'ratedown':
+          fireKey(',', 'Comma', 188);
+          return;
         case 'next':
           fireKey('ArrowRight', 'ArrowRight', 39, { altKey: true });
           return;
@@ -67,6 +106,9 @@ export function RemoteSink() {
           fireKey(k, k, c);
           return;
         }
+        case 'fullscreen':
+          fireKey('f', 'KeyF', 70);
+          return;
         case 'back':
           router.back();
           return;

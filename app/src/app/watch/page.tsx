@@ -578,7 +578,11 @@ function WatchContent() {
               </div>
             )}
             <p className="hidden md:block text-[10px] text-faint mt-3 leading-relaxed">
-              快捷键：空格 播放/暂停 · ←/→ 快退/快进 5s · ↑/↓ 音量 · F 全屏 · Alt+←/→ 切换集数
+              快捷键：空格/K 播放暂停 · ←/→ 快退快进 5s · J/L 退进 10s · ↑/↓ 音量 · M 静音 ·
+              F 全屏 · P 画中画 · 0–9 跳到百分比 · ，。 调速 · Alt+←/→ 切换集数
+            </p>
+            <p className="hidden md:block text-[10px] text-faint mt-1 leading-relaxed">
+              手机端：画面上滑/下滑调音量（右）与亮度（左），横滑拖进度，双击左右 ±10s，长按 2 倍速
             </p>
           </aside>
         </div>
