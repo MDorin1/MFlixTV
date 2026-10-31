@@ -1,6 +1,7 @@
 'use client';
 
 import { installNav, topLayer, type NavDir, type NavHandle } from '@/lib/remote-nav';
+import { canNativeFullscreen, setNativeFullscreen } from '@/lib/native-fullscreen';
 
 /**
  * 「扫一扫当遥控器」的被控端引擎 —— 活在模块里，不跟着组件挂载 / 卸载。
@@ -361,11 +362,19 @@ export function exec(cmd: string, arg: string) {
     case 'fullscreen': {
       // 浏览器只允许「用户手势」触发原生全屏，遥控指令不算手势：
       // requestFullscreen 会被拒，连脚本点页面上的全屏按钮也一样（合成 click 不算激活）。
-      // 所以顺序是：播放页自己切网页全屏 → 没人接就把画面元素用 CSS 铺满 →
+      // 所以顺序是：播放页自己切（它能顺手调原生桥做真全屏）→ 没人接就看这端有没有原生桥，
+      // 有就切窗口全屏（真全屏）→ 再不行把画面元素用 CSS 铺满 →
       // 都不适用（不在播放页）就什么都不做，遥控页那边会提示「这页没有可全屏的画面」。
       const ev = new CustomEvent('mfl:rc-fullscreen', { detail: { handled: false } });
       window.dispatchEvent(ev);
       if ((ev.detail as { handled?: boolean } | null)?.handled) return;
+      if (canNativeFullscreen()) {
+        // Android WebView：改窗口状态（沉浸式 + 隐藏系统栏 + 横屏），这才是真全屏
+        const on = document.documentElement.dataset.mflFs !== '1';
+        setNativeFullscreen(on);
+        document.documentElement.dataset.mflFs = on ? '1' : '0';
+        return;
+      }
       if (toggleCssFullscreen()) return;
       if (document.fullscreenElement) {
         // 本机用户自己按 F 进了原生全屏：遥控按一下就退出去

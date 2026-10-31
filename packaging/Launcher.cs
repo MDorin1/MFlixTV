@@ -76,8 +76,9 @@ namespace MFlixTVLauncher
             menu.MenuItems.Add(statusItem);
             menu.MenuItems.Add("-");
 
-            menu.MenuItems.Add("打开 MFlixTV", delegate { OpenOrStart(""); });
-            menu.MenuItems.Add("打开短剧专区", delegate { OpenOrStart("/hongguo"); });
+            menu.MenuItems.Add("打开 MFlixTV（全屏窗口）", delegate { OpenOrStart(""); });
+            menu.MenuItems.Add("打开短剧专区（全屏窗口）", delegate { OpenOrStart("/hongguo"); });
+            menu.MenuItems.Add("用普通浏览器打开", delegate { OpenOrStartPlain(""); });
             menu.MenuItems.Add("-");
 
             startItem = new MenuItem("启动服务", delegate { Queue(delegate { Boot(false); }); });
@@ -135,7 +136,7 @@ namespace MFlixTVLauncher
                 SetStatus("运行中");
                 if (openBrowser) OpenBrowser("http://localhost:8080");
                 tray.ShowBalloonTip(4000, "MFlixTV",
-                    openBrowser ? "已启动：浏览器正在打开 http://localhost:8080" : "服务已启动，可从托盘打开网页",
+                    openBrowser ? "已启动：正在打开全屏窗口 http://localhost:8080" : "服务已启动，可从托盘打开网页",
                     ToolTipIcon.Info);
             }
             catch (Exception ex)
@@ -154,12 +155,22 @@ namespace MFlixTVLauncher
             ThreadPool.QueueUserWorkItem(delegate { work(); });
         }
 
-        /// <summary>打开网页：没起就先拉起再开</summary>
+        /// <summary>打开网页：没起就先拉起再开（默认走全屏应用窗口）</summary>
         static void OpenOrStart(string subPath)
         {
-            string url = "http://localhost:8080" + subPath;
-            if (PortOpen(8080)) { OpenBrowser(url); return; }
-            OpenBrowser(url);
+            OpenUrl("http://localhost:8080" + subPath, true);
+        }
+
+        /// <summary>托盘里的「用普通浏览器打开」：带地址栏的正常窗口</summary>
+        static void OpenOrStartPlain(string subPath)
+        {
+            OpenUrl("http://localhost:8080" + subPath, false);
+        }
+
+        static void OpenUrl(string url, bool fullscreenWindow)
+        {
+            if (PortOpen(8080)) { OpenBrowser(url, fullscreenWindow); return; }
+            OpenBrowser(url, fullscreenWindow);
             Queue(delegate { Boot(false); });
         }
 
@@ -449,8 +460,57 @@ namespace MFlixTVLauncher
 
         static void OpenBrowser(string url)
         {
+            OpenBrowser(url, true);
+        }
+
+        /// <summary>
+        /// 打开页面。默认用 Edge / Chrome 的「应用窗口 + 全屏」打开，而不是直接
+        /// <c>Process.Start(url)</c>。
+        ///
+        /// 为什么：遥控指令来自轮询，没有用户手势，浏览器的 <c>requestFullscreen()</c> 一定被拒，
+        /// 页面只能退到网页全屏（CSS 铺满视口）。普通窗口里那意味着「视频铺满了窗口，窗口外面
+        /// 还压着地址栏、标签栏和任务栏」——用户看到的就是「只是网页全屏」。
+        /// 应用窗口一打开就是无边框全屏，网页全屏铺满的正是整块屏幕，遥控按一下就真的满屏了。
+        /// 找不到 Edge / Chrome 才退回默认浏览器（那时页面会提示按 F 键进系统全屏）。
+        /// </summary>
+        static void OpenBrowser(string url, bool fullscreenWindow)
+        {
+            if (fullscreenWindow && TryOpenAppWindow(url)) return;
             try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
             catch { }
+        }
+
+        /// <summary>用 Edge / Chrome 的 app 模式开一个全屏无边框窗口</summary>
+        static bool TryOpenAppWindow(string url)
+        {
+            foreach (string exe in AppBrowserCandidates())
+            {
+                try
+                {
+                    if (!File.Exists(exe)) continue;
+                    ProcessStartInfo psi = new ProcessStartInfo(exe,
+                        "--app=" + url + " --start-fullscreen --window-position=0,0" +
+                        " --no-first-run --no-default-browser-check --disable-features=Translate");
+                    psi.UseShellExecute = false;
+                    Process.Start(psi);
+                    return true;
+                }
+                catch { }
+            }
+            return false;
+        }
+
+        /// <summary>能当「应用窗口」用的浏览器，按装的概率排序</summary>
+        static System.Collections.Generic.IEnumerable<string> AppBrowserCandidates()
+        {
+            string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            yield return Path.Combine(pf86, @"Microsoft\Edge\Application\msedge.exe");
+            yield return Path.Combine(pf, @"Microsoft\Edge\Application\msedge.exe");
+            yield return Path.Combine(pf, @"Google\Chrome\Application\chrome.exe");
+            yield return Path.Combine(pf86, @"Google\Chrome\Application\chrome.exe");
+            yield return Path.Combine(local, @"Google\Chrome\Application\chrome.exe");
         }
 
         static void OpenFolder(string path)

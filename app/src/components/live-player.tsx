@@ -6,6 +6,7 @@ import Hls, { type HlsConfig } from 'hls.js';
 import { Spinner } from './states';
 import { prefersTouchPointer } from '@/lib/touch-pointer';
 import { ART_DEFAULT_CONTROL_HIDE_MS, TOUCH_CONTROL_HIDE_MS } from '@/lib/control-hide';
+import { toggleNativeFullscreen } from '@/lib/native-fullscreen';
 
 /**
  * 直播播放器：与点播 player-shell 完全独立。
@@ -359,15 +360,25 @@ export function LivePlayer({ url, title, onPrevChannel, onNextChannel }: LivePla
       } catch { /* 忽略 */ }
     });
 
-    /* 遥控「全屏」→ 网页全屏（纯 CSS，不需要用户手势；原生全屏在无手势时必被拒） */
+    /* 遥控「全屏」→ 真全屏：原生桥改窗口状态（Android），再叠加网页全屏让画面铺满 */
     const syncFsFlag = () => {
       const on = !!art.fullscreen || !!art.fullscreenWeb || !!document.fullscreenElement;
       document.documentElement.dataset.mflFs = on ? '1' : '0';
     };
     const onRemoteFullscreen = (e: Event) => {
       const detail = (e as CustomEvent<{ handled?: boolean }>).detail;
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-      else art.fullscreenWeb = !art.fullscreenWeb;
+      const wasOn =
+        !!art.fullscreen || !!art.fullscreenWeb || document.documentElement.dataset.mflFs === '1';
+      const on = !wasOn;
+      if (!on && art.fullscreen) {
+        try {
+          art.fullscreen = false;
+        } catch {
+          /* 忽略 */
+        }
+      }
+      toggleNativeFullscreen(on);
+      art.fullscreenWeb = on;
       if (detail) detail.handled = true;
       window.setTimeout(syncFsFlag, 80);
     };

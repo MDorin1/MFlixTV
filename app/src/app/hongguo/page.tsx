@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from '@/components/header';
 import { cn } from '@/lib/utils';
+import { toggleNativeFullscreen } from '@/lib/native-fullscreen';
 import { ShortFeed } from './short-feed';
 
 /**
@@ -885,8 +886,12 @@ export default function HongguoPage() {
         v.currentTime = Math.min(v.duration || 0, v.currentTime + 5);
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
-        if (document.fullscreenElement) void document.exitFullscreen();
-        else void document.documentElement.requestFullscreen?.();
+        // App 里走原生桥（真全屏，遥控也能触发），浏览器里才用 HTML5 全屏
+        const want = !document.fullscreenElement;
+        if (!toggleNativeFullscreen(want)) {
+          if (document.fullscreenElement) void document.exitFullscreen();
+          else void document.documentElement.requestFullscreen?.();
+        }
       } else if (e.key === 'Escape') {
         if (document.fullscreenElement) void document.exitFullscreen();
       }

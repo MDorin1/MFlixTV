@@ -40,6 +40,7 @@ import {
   DESKTOP_CONTROL_HIDE_MS,
   TOUCH_CONTROL_HIDE_MS,
 } from '@/lib/control-hide';
+import { toggleNativeFullscreen } from '@/lib/native-fullscreen';
 
 /** 片段时间统一保留 1 位小数：与面板展示保持一致，避免浮点尾巴 */
 const round1 = (v: number) => Math.round(v * 10) / 10;
@@ -1465,10 +1466,30 @@ export function PlayerShell({
     };
     const onRemoteFullscreen = (e: Event) => {
       const detail = (e as CustomEvent<{ handled?: boolean }>).detail;
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-      else art.fullscreenWeb = !art.fullscreenWeb;
+      const wasOn =
+        !!art.fullscreen || !!art.fullscreenWeb || document.documentElement.dataset.mflFs === '1';
+      const on = !wasOn;
+      // 1) 真全屏：遥控指令来自 fetch 轮询，没有用户手势，requestFullscreen 必被拒。
+      //    原生桥（Android）直接改窗口状态——沉浸式、隐藏系统栏、转横屏，这才是真全屏；
+      //    桌面浏览器没有桥，退到已生效的 HTML5 全屏退出，再靠下面的网页全屏。
+      if (!on && art.fullscreen) {
+        try {
+          art.fullscreen = false;
+        } catch {
+          /* 忽略 */
+        }
+      }
+      const native = toggleNativeFullscreen(on);
+      // 2) 画面同时铺满视口：原生全屏把窗口变大，网页全屏把视频填满窗口，两层叠加才彻底。
+      art.fullscreenWeb = on;
       if (detail) detail.handled = true;
       window.setTimeout(syncFsFlag, 80);
+      if (on && !native) {
+        // 浏览器里这是安全策略的死角：遥控按不出来系统全屏，得用户自己给一次手势。
+        window.setTimeout(() => {
+          if (!document.fullscreenElement) showHint('已铺满画面 · 按 F 键可进系统全屏');
+        }, 280);
+      }
     };
     window.addEventListener('mfl:rc-fullscreen', onRemoteFullscreen);
     art.on('fullscreen', syncFsFlag);

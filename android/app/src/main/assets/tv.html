@@ -674,6 +674,9 @@
   #extcard .ec-h{font-weight:600}
   /* 电视上焦点只走 .fx.on 那一套，不要浏览器默认的虚线框 */
   #player button:focus,.pb:focus,#pbtns button:focus,.btn:focus{outline:none}
+  /* 遥控按「全屏」：顶栏浮层一起收掉，只留画面（#player 本来就是 fixed 铺满） */
+  html.tvfs #nav{display:none}
+  html.tvfs #toast{bottom:2.4rem}
 </style>
 </head>
 <body>
@@ -3399,6 +3402,20 @@
     attach(eps[ei].url);
     toast('已切到「' + grpLabel(gs[gi], gi) + '」');
   }
+  /* 遥控 / 页面按「全屏」→ 真全屏。
+     以前 onCmd 里这一条直接 return true（注释写「电视端本来就是全屏」），
+     可实际上它什么都没做：用户按了全屏，看到的还是带顶栏的网页。现在分两层——
+     原生桥改窗口状态（沉浸式、隐藏系统栏），同时把顶栏这套浮层收掉，画面才独占整屏。 */
+  var tvFullOn = false;
+  function toggleTvFull() {
+    tvFullOn = !tvFullOn;
+    try {
+      if (window.MFlixNative && window.MFlixNative.fullscreen) window.MFlixNative.fullscreen(tvFullOn);
+    } catch (e) {}
+    var de = document.documentElement;
+    if (tvFullOn) de.classList.add('tvfs'); else de.classList.remove('tvfs');
+    toast(tvFullOn ? '全屏 · 再按一次退出' : '退出全屏');
+  }
   try {
     MFlixRC.mount({
       btn: $('rcBtn'),
@@ -3449,7 +3466,7 @@
         if (cmd === 'next') { if (inPlayer()) stepEp(1); return true; }
         if (cmd === 'prev') { if (inPlayer()) stepEp(-1); return true; }
         if (cmd === 'home') { goHome(); return true; }
-        if (cmd === 'fullscreen') return true;   /* 电视端本来就是全屏，按住不动 */
+        if (cmd === 'fullscreen') { toggleTvFull(); return true; }
         /* 音量 / 倍速：走页面自己那一份状态。
            倍速必须经过 setRate()——它同时写 defaultPlaybackRate、更新播放条文字、
            记住偏好；直接改 video.playbackRate 的话，换集 load() 之后会被打回原速。 */
