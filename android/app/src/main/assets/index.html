@@ -2178,6 +2178,75 @@
     else $('pctl').classList.add('hide');
   });
 
+  /* ============ 电脑上的键盘与双击（网页版被别人从电脑打开时） ============
+     这套页面本来是给手机用的，键盘一直没人管：电脑浏览器访问「手机 / 电视」上的服务时，
+     空格不暂停、左右键不快进、双击画面也不全屏，用起来完全不像个播放器。
+     只监听播放页（#player.on），输入框里打字不受影响；带 Ctrl / Alt / Cmd 的组合留给浏览器自己。 */
+  function playingNow() { return !!($('player') && $('player').classList.contains('on')); }
+  function seekStep(sec) {
+    if (!v || !playingNow()) return;
+    var d = Number(v.duration) || 0;
+    if (!(d > 0)) { toast('还在缓冲，稍等一下'); return; }
+    var to = Math.min(Math.max(0, v.currentTime + sec), Math.max(0, d - 0.3));
+    v.currentTime = to;
+    toast((sec > 0 ? '快进 ' : '后退 ') + Math.abs(sec) + ' 秒 · ' + fmt(to));
+    showCtl();
+  }
+  function volStep(delta) {
+    if (!v || !playingNow()) return;
+    var cur = Math.round((v.volume || 0) * 100) / 100;
+    var next = Math.min(1, Math.max(0, Math.round((cur + delta) * 100) / 100));
+    v.volume = next;
+    if (next > 0) v.muted = false;
+    toast('音量 ' + Math.round(next * 100) + '%');
+    showCtl();
+  }
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    var tag = t && t.tagName ? t.tagName.toUpperCase() : '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+    if (!playingNow() || !v) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var k = e.key;
+    if (k === ' ' || k === 'Spacebar' || k === 'k' || k === 'K') {
+      e.preventDefault();
+      if (v.paused) { try { v.play(); } catch (err) {} } else { v.pause(); }
+      showCtl();
+      return;
+    }
+    if (k === 'ArrowLeft') { e.preventDefault(); seekStep(-5); return; }
+    if (k === 'ArrowRight') { e.preventDefault(); seekStep(5); return; }
+    if (k === 'j' || k === 'J') { e.preventDefault(); seekStep(-10); return; }
+    if (k === 'l' || k === 'L') { e.preventDefault(); seekStep(10); return; }
+    if (k === 'ArrowUp') { e.preventDefault(); volStep(0.05); return; }
+    if (k === 'ArrowDown') { e.preventDefault(); volStep(-0.05); return; }
+    if (k === 'm' || k === 'M') {
+      e.preventDefault();
+      v.muted = !v.muted;
+      toast(v.muted ? '已静音' : '已取消静音');
+      showCtl();
+      return;
+    }
+    if (k === 'f' || k === 'F') {
+      e.preventDefault();
+      if ($('pmFull')) $('pmFull').click();
+      return;
+    }
+    if (k === 'Escape') {
+      if (fsElement() || $('player').classList.contains('pfull') || natFull || natWide) {
+        e.preventDefault();
+        exitAnyFull();
+        toast('已退出全屏');
+      }
+    }
+  });
+  /* 双击画面 = 全屏 / 退出全屏（控制条和抽屉上的双击不算） */
+  $('player').addEventListener('dblclick', function (e) {
+    if (e.target.closest('#pctl') || e.target.closest('#psheet')) return;
+    if (!playingNow() || !$('pmFull')) return;
+    $('pmFull').click();
+  });
+
   $('pPlay').onclick = function () { if (v.paused) v.play(); else v.pause(); };
   v.addEventListener('play', function () {
     $('pPlay').innerHTML = '&#10074;&#10074;'; $('centerPlay').classList.remove('on'); showCtl();

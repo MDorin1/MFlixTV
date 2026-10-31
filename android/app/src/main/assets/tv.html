@@ -3371,6 +3371,11 @@
     if (e.target.closest && e.target.closest('#pbotbar, #ptopbar, #eps-sheet, #nx')) return;
     bars($('pbotbar').classList.contains('hide'));
   });
+  /* 电脑上打开电视版：双击画面 = 全屏 / 退出全屏（和手机网页版同一个手感） */
+  $('player').addEventListener('dblclick', function (e) {
+    if (e.target.closest && e.target.closest('#pbotbar, #ptopbar, #eps-sheet, #nx')) return;
+    toggleTvFull();
+  });
 
   /* ================= 扫一扫当遥控器（会话级） =================
      和设置页里那个「遥控这台设备」不是一回事：那个是整台设备一条队列，
@@ -3409,9 +3414,24 @@
   var tvFullOn = false;
   function toggleTvFull() {
     tvFullOn = !tvFullOn;
+    var nat = false;
     try {
-      if (window.MFlixNative && window.MFlixNative.fullscreen) window.MFlixNative.fullscreen(tvFullOn);
+      if (window.MFlixNative && window.MFlixNative.fullscreen) {
+        window.MFlixNative.fullscreen(tvFullOn);
+        nat = true;
+      }
     } catch (e) {}
+    /* 电脑 / 浏览器里没有原生桥：有人工手势（双击、按键）时直接进系统全屏，
+       遥控过来的没有手势，这一下会被拒，忽略即可——顶栏照样收起来。 */
+    if (!nat) {
+      try {
+        if (tvFullOn) {
+          if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+        } else if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      } catch (e) {}
+    }
     var de = document.documentElement;
     if (tvFullOn) de.classList.add('tvfs'); else de.classList.remove('tvfs');
     toast(tvFullOn ? '全屏 · 再按一次退出' : '退出全屏');
