@@ -11,39 +11,72 @@
   html,body{margin:0;padding:0;background:#0a0a0d;color:#fff;
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;
     -webkit-font-smoothing:antialiased}
-  body{min-height:100dvh;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-  .top{display:flex;align-items:center;gap:8px;padding:16px 16px 8px}
-  .dot{width:8px;height:8px;border-radius:50%;background:#34d399;flex:none}
+  body{min-height:100dvh;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;
+    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);overflow-x:hidden}
+  button{font-family:inherit;border:0;background:none;color:#fff;cursor:pointer;user-select:none;
+    -webkit-transition:background .12s,transform .08s;transition:background .12s,transform .08s}
+  .b{background:rgba(255,255,255,.06);border-radius:12px;display:-webkit-flex;display:flex;
+    -webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center}
+  .b:active{background:rgba(255,255,255,.22)}
+  .b.on{background:#fff;color:#0a0a0d}
+
+  .top{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;gap:8px;padding:14px 16px 8px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#34d399;-webkit-flex:none;flex:none}
   .dot.off{background:#ef4444}
-  .who{min-width:0;flex:1}
+  .who{-webkit-flex:1;flex:1;min-width:0}
   .who b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .who span{display:block;font-size:11px;color:rgba(255,255,255,.45);margin-top:2px}
-  .vib{flex:none;border:0;background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);
-    border-radius:8px;padding:6px 10px;font-size:11px;font-family:inherit}
+  .vib{-webkit-flex:none;flex:none;border:0;background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);
+    border-radius:8px;padding:6px 10px;font-size:11px}
   .vib:active{background:rgba(255,255,255,.2)}
-  .card{margin:0 16px 12px;background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px}
+
+  .card{margin:0 16px 10px;background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px}
   .title{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .bar{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11px;color:rgba(255,255,255,.5);
-    font-variant-numeric:tabular-nums}
-  .bar input[type=range]{flex:1;accent-color:#fff;height:22px}
-  .row{display:flex;align-items:center;justify-content:center;gap:12px;padding:0 16px}
-  button{font-family:inherit;border:0;background:none;color:#fff;cursor:pointer;user-select:none;
-    transition:background .12s,transform .08s}
-  .b{background:rgba(255,255,255,.06);border-radius:12px;display:grid;place-items:center}
-  .b:active{background:rgba(255,255,255,.2)}
+  .bar{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;font-size:11px;
+    color:rgba(255,255,255,.5);font-variant-numeric:tabular-nums}
+  .bar input[type=range]{-webkit-flex:1;flex:1;margin:0 8px;accent-color:#fff;height:24px}
+
+  .row{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;
+    -webkit-justify-content:center;justify-content:center;gap:12px;padding:0 16px}
   .b14{width:56px;height:56px}
-  .play{width:80px;height:80px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center}
+  .play{width:80px;height:80px;border-radius:50%;background:#fff;color:#000;
+    display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center}
   .play:active{transform:scale(.95)}
-  .chips{display:flex;gap:12px;justify-content:center;margin-top:12px;padding:0 16px;font-size:12px}
-  .chips .b{height:44px;padding:0 16px}
-  .pad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:8px;
-    width:196px;margin:16px auto 0}
-  .pad .b{height:56px;font-size:15px}
+
+  .chips{display:-webkit-flex;display:flex;gap:10px;-webkit-justify-content:center;justify-content:center;
+    margin-top:12px;padding:0 16px;font-size:12px}
+  .chips .b{height:44px;padding:0 14px;-webkit-flex:1;flex:1}
+
+  .pad{display:-webkit-grid;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+    gap:8px;width:196px;margin:14px auto 0}
+  .pad .b{height:54px;font-size:15px}
   .pad .ok{font-weight:600}
-  .bottom{display:flex;gap:8px;padding:12px 16px 0;font-size:12px}
-  .bottom .b{flex:1;height:44px}
-  .hint{text-align:center;font-size:10.5px;line-height:1.6;color:rgba(255,255,255,.3);
-    padding:18px 32px 28px;margin:auto 0 0}
+
+  .bottom{display:-webkit-flex;display:flex;gap:8px;padding:14px 16px 0;font-size:12px}
+  .bottom .b{-webkit-flex:1;flex:1;height:44px}
+
+  .hint{text-align:center;font-size:10.5px;line-height:1.7;color:rgba(255,255,255,.3);
+    padding:16px 32px 26px;margin:auto 0 0}
+
+  /* 选集 / 线路浮层 */
+  #sheet{position:fixed;top:0;right:0;bottom:0;left:0;z-index:50;display:none;
+    -webkit-align-items:flex-end;align-items:flex-end;background:rgba(0,0,0,.6)}
+  #sheet.on{display:-webkit-flex;display:flex}
+  .sh{width:100%;max-height:64vh;background:#141416;border-radius:18px 18px 0 0;
+    padding:14px 16px calc(16px + env(safe-area-inset-bottom));overflow:auto;-webkit-overflow-scrolling:touch}
+  .sh h4{margin:0 0 12px;font-size:13px;font-weight:600;display:-webkit-flex;display:flex;
+    -webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between}
+  .sh h4 button{font-size:12px;color:rgba(255,255,255,.5);font-weight:400}
+  .grid{display:-webkit-grid;display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .grid .ep{height:42px;border-radius:10px;background:rgba(255,255,255,.06);font-size:12px;
+    display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;
+    -webkit-justify-content:center;justify-content:center;padding:0 4px;overflow:hidden}
+  .grid .ep.cur{background:#fff;color:#0a0a0d;font-weight:600}
+  .grid .ep:active{background:rgba(255,255,255,.24)}
+  .lnlist .ln{width:100%;height:46px;border-radius:10px;background:rgba(255,255,255,.06);
+    font-size:12.5px;margin-bottom:8px;padding:0 12px;text-align:left}
+  .lnlist .ln.cur{background:#fff;color:#0a0a0d;font-weight:600}
+  .empty{font-size:12px;color:rgba(255,255,255,.4);padding:8px 0 4px;text-align:center}
   svg{display:block}
 </style>
 </head>
@@ -85,8 +118,8 @@
   </div>
 
   <div class="chips">
-    <button class="b" data-cmd="prev">上一集</button>
-    <button class="b" data-cmd="next">下一集</button>
+    <button class="b" id="btnEps">选集</button>
+    <button class="b" id="btnLines">线路</button>
     <button class="b" data-cmd="fullscreen">全屏</button>
   </div>
 
@@ -98,7 +131,7 @@
     <span></span><button class="b" data-cmd="down" aria-label="下">▼</button><span></span>
   </div>
 
-  <div class="row" style="margin-top:16px">
+  <div class="row" style="margin-top:14px">
     <button class="b" style="height:44px;padding:0 14px;font-size:12px" data-cmd="voldown">音量 −</button>
     <button class="b" style="height:44px;padding:0 14px;font-size:12px" data-cmd="mute">静音</button>
     <button class="b" style="height:44px;padding:0 14px;font-size:12px" data-cmd="volup">音量 +</button>
@@ -109,7 +142,15 @@
     <button class="b" data-cmd="home">回首页</button>
   </div>
 
-  <p class="hint">这个页面只控制发起方的那一个页面，关掉对方页面后这里会显示「已关闭」。</p>
+  <div id="sheet">
+    <div class="sh">
+      <h4><span id="shTitle">选集</span><button id="shClose">关闭</button></h4>
+      <div id="shBody"></div>
+    </div>
+  </div>
+
+  <p class="hint">十字键走格子、确定键点进去——首页、详情页、搜索结果都能用，不只是播放器。
+    这个页面只控制发起方的那一个页面，关掉对方页面后这里会显示「已关闭」。</p>
 
 <script>
 (function () {
@@ -134,11 +175,16 @@
   var elSeek = document.getElementById('seek');
   var playBtn = document.getElementById('playBtn');
   var vibBtn = document.getElementById('vib');
+  var sheet = document.getElementById('sheet');
+  var shTitle = document.getElementById('shTitle');
+  var shBody = document.getElementById('shBody');
 
   var vibrate = true;
   var dragging = false;
   var dragVal = 0;
-  var lastState = { title: '', playing: false, pos: 0, dur: 0 };
+  var eps = { cur: -1, list: [] };
+  var lines = { cur: -1, list: [] };
+  var sheetOpen = '';
 
   function fmt(s) {
     s = Math.max(0, Math.floor(s || 0));
@@ -152,6 +198,13 @@
     if (vibrate && navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
     fetch('/api/rs/cmd?t=' + encodeURIComponent(T) + '&cmd=' + encodeURIComponent(cmd) +
       '&arg=' + encodeURIComponent(arg || ''), { cache: 'no-store' }).catch(function () {});
+  }
+
+  /* "cur|名字|名字" → {cur, list} */
+  function unpack(v) {
+    if (!v) return { cur: -1, list: [] };
+    var parts = String(v).split('|');
+    return { cur: parseInt(parts[0], 10), list: parts.slice(1) };
   }
 
   document.querySelectorAll('[data-cmd]').forEach(function (b) {
@@ -180,9 +233,69 @@
   elSeek.addEventListener('pointerup', endDrag);
   elSeek.addEventListener('touchend', endDrag);
 
+  /* ---------- 选集 / 线路 ---------- */
+  function closeSheet() {
+    sheetOpen = '';
+    sheet.className = '';
+  }
+  document.getElementById('shClose').addEventListener('click', closeSheet);
+  sheet.addEventListener('click', function (e) { if (e.target === sheet) closeSheet(); });
+
+  function fillSheet(kind) {
+    sheetOpen = kind;
+    if (kind === 'eps') {
+      shTitle.textContent = '选集 · 共 ' + eps.list.length + ' 集';
+      if (!eps.list.length) { shBody.innerHTML = '<div class="empty">这个页面现在没有分集（首页 / 搜索页正常）</div>'; }
+      else {
+        var h = '<div class="grid">';
+        for (var i = 0; i < eps.list.length; i++) {
+          h += '<button class="ep' + (i === eps.cur ? ' cur' : '') + '" data-ep="' + i + '">' +
+            esc(eps.list[i] || ('第' + (i + 1) + '集')) + '</button>';
+        }
+        shBody.innerHTML = h + '</div>';
+      }
+    } else {
+      shTitle.textContent = '线路 · 共 ' + lines.list.length + ' 条';
+      if (!lines.list.length) { shBody.innerHTML = '<div class="empty">这个页面现在没有可选线路</div>'; }
+      else {
+        var h2 = '<div class="lnlist">';
+        for (var j = 0; j < lines.list.length; j++) {
+          h2 += '<button class="ln' + (j === lines.cur ? ' cur' : '') + '" data-ln="' + j + '">' +
+            esc(lines.list[j] || ('线路 ' + (j + 1))) + '</button>';
+        }
+        shBody.innerHTML = h2 + '</div>';
+      }
+    }
+    sheet.className = 'on';
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  shBody.addEventListener('click', function (e) {
+    var ep = e.target.closest ? e.target.closest('[data-ep]') : null;
+    if (ep) {
+      send('ep', ep.getAttribute('data-ep'));
+      ep.className = 'ep cur';
+      setTimeout(closeSheet, 180);
+      return;
+    }
+    var ln = e.target.closest ? e.target.closest('[data-ln]') : null;
+    if (ln) {
+      send('line', ln.getAttribute('data-ln'));
+      ln.className = 'ln cur';
+      setTimeout(closeSheet, 180);
+    }
+  });
+
+  document.getElementById('btnEps').addEventListener('click', function () { fillSheet('eps'); });
+  document.getElementById('btnLines').addEventListener('click', function () { fillSheet('lines'); });
+
+  /* ---------- 状态渲染 ---------- */
   function render(d) {
     var st = d.state || {};
-    lastState = st;
     elWho.textContent = d.name ? '正在遥控 ' + d.name : '正在连接…';
     var alive = d.hostAlive !== false;
     elDot.className = 'dot' + (alive ? '' : ' off');
@@ -201,6 +314,13 @@
       ? '<svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>'
       : '<svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="margin-left:3px"><path d="M8 5.5v13l11-6.5z"/></svg>';
     playBtn.setAttribute('aria-label', playing ? '暂停' : '播放');
+
+    if (st.eps !== undefined) eps = unpack(st.eps);
+    if (st.lines !== undefined) lines = unpack(st.lines);
+    document.getElementById('btnEps').textContent =
+      eps.list.length > 1 && eps.cur >= 0 ? ('选集 ' + (eps.cur + 1) + '/' + eps.list.length) : '选集';
+    document.getElementById('btnLines').textContent =
+      lines.list.length > 1 && lines.cur >= 0 ? ('线路 ' + (lines.cur + 1) + '/' + lines.list.length) : '线路';
   }
 
   function tick() {

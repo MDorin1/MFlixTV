@@ -38,6 +38,10 @@ object RemoteSession {
         @Volatile var pos = 0
         @Volatile var dur = 0
         @Volatile var page = ""
+        /** 选集：`当前集|第1集|第2集…`，遥控器上直接点 */
+        @Volatile var eps = ""
+        /** 线路：`当前线路|线路 1|线路 2…` */
+        @Volatile var lines = ""
     }
 
     private val sessions = ConcurrentHashMap<String, Session>()
@@ -127,6 +131,8 @@ object RemoteSession {
         if (body.has("pos")) s.pos = body.optInt("pos")
         if (body.has("dur")) s.dur = body.optInt("dur")
         if (body.has("page")) s.page = body.optString("page").take(200)
+        if (body.has("eps")) s.eps = body.optString("eps").take(2400)
+        if (body.has("lines")) s.lines = body.optString("lines").take(800)
         return true
     }
 
@@ -164,6 +170,8 @@ object RemoteSession {
         .put("pos", s.pos)
         .put("dur", s.dur)
         .put("page", s.page)
+        .put("eps", s.eps)
+        .put("lines", s.lines)
 
     private fun liveCtls(s: Session): Int {
         val now = System.currentTimeMillis()

@@ -105,6 +105,8 @@ export async function GET(req: Request, ctx: Ctx) {
       pos: g('pos') == null ? undefined : Number(g('pos')),
       dur: g('dur') == null ? undefined : Number(g('dur')),
       page: g('page') ?? undefined,
+      eps: g('eps') ?? undefined,
+      lines: g('lines') ?? undefined,
     })) return NextResponse.json({ error: '会话已失效' }, { status: 404 });
     return NextResponse.json({ ok: true });
   }

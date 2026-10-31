@@ -227,6 +227,8 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         p["pos"]?.firstOrNull()?.let { o.put("pos", it.toIntOrNull() ?: 0) }
         p["dur"]?.firstOrNull()?.let { o.put("dur", it.toIntOrNull() ?: 0) }
         p["page"]?.firstOrNull()?.let { o.put("page", it) }
+        p["eps"]?.firstOrNull()?.let { o.put("eps", it) }
+        p["lines"]?.firstOrNull()?.let { o.put("lines", it) }
         if (!RemoteSession.setState(t, o)) return json("{\"error\":\"会话已失效\"}")
         return json("{\"ok\":true}")
     }

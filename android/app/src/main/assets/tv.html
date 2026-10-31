@@ -3279,7 +3279,32 @@
      和设置页里那个「遥控这台设备」不是一回事：那个是整台设备一条队列，
      手机打开电视的地址就能控；这里领的是「当前这个页面」的 token，
      二维码给谁扫，就只有那一台手机能控这个页面，互不串台。
-     电视没有键盘，面板开着时按键只作用在面板上：返回 / 确定都直接关掉。 */
+     方向键/确定/返回直接走电视本来就有的 handle()，遥控器和实体遥控器手感一致；
+     选集 / 换线路从手机上点，不用再用十字键在播放器里摸。 */
+  function rcTvLines() {
+    return (S.groups || []).map(function (g, i) { return grpLabel(g, i); });
+  }
+  function rcTvEpLabels() {
+    return (S.eps || []).map(function (e, i) { return e.label || ('第' + (i + 1) + '集'); });
+  }
+  /** 换线路：和「这条线路不通自动换」走同一套状态更新，换完接着看当前这集 */
+  function rcTvSwitchLine(gi) {
+    var gs = S.groups || [];
+    if (isNaN(gi) || gi < 0 || gi >= gs.length) return;
+    var want = ((S.eps || [])[S.ep] || {}).label || '';
+    var eps = gs[gi].episodes || [];
+    if (!eps.length) { toast('这条线路没有分集'); return; }
+    var ei = -1;
+    for (var i = 0; i < eps.length; i++) if ((eps[i].label || '') === want) { ei = i; break; }
+    if (ei < 0) ei = Math.min(S.ep | 0, eps.length - 1);
+    S.group = gi;
+    S.eps = eps;
+    S.ep = ei;
+    $('psub').textContent = (eps[ei].label || ('第' + (ei + 1) + '集')) + ' · ' + grpLabel(gs[gi], gi);
+    try { touchCont(); } catch (e) {}
+    attach(eps[ei].url);
+    toast('已切到「' + grpLabel(gs[gi], gi) + '」');
+  }
   try {
     MFlixRC.mount({
       btn: $('rcBtn'),
@@ -3296,6 +3321,10 @@
         if ($('settings').classList.contains('on')) return 'settings';
         return 'home';
       },
+      lists: function () {
+        if (!S.eps || !S.eps.length) return null;
+        return { eps: rcTvEpLabels(), ep: S.ep | 0, lines: rcTvLines(), ln: S.group | 0 };
+      },
       onCmd: function (cmd, arg) {
         var n = Number(arg) || 0;
         /* 面板开着：方向键不许去动背后那层页面，返回 / 确定直接关面板 */
@@ -3304,6 +3333,12 @@
           if (cmd === 'ok' || cmd === 'back') MFlixRC.close();
           return true;
         }
+        if (cmd === 'ep') {
+          var k = parseInt(arg, 10);
+          if (inPlayer() && !isNaN(k) && k >= 0 && k < (S.eps || []).length) playEp(k);
+          return true;
+        }
+        if (cmd === 'line') { if (inPlayer()) rcTvSwitchLine(parseInt(arg, 10)); return true; }
         if (cmd === 'toggle') { if (inPlayer()) togglePlay(); else handle('ok'); return true; }
         if (cmd === 'play') { if (inPlayer() && v && v.paused) togglePlay(); return true; }
         if (cmd === 'pause') { if (inPlayer() && v && !v.paused) togglePlay(); return true; }

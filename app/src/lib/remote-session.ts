@@ -25,6 +25,10 @@ export interface RsState {
   pos: number;
   dur: number;
   page: string;
+  /** 选集：`当前集下标|第1集|第2集…`（遥控器上直接点） */
+  eps: string;
+  /** 线路：`当前线路下标|线路 1|线路 2…` */
+  lines: string;
 }
 
 export interface RsSession {
@@ -87,7 +91,7 @@ export function createSession(name: string): RsSession {
     hostBeat: Date.now(),
     seq: 0,
     cmds: [],
-    state: { title: '', sub: '', playing: false, pos: 0, dur: 0, page: '' },
+    state: { title: '', sub: '', playing: false, pos: 0, dur: 0, page: '', eps: '', lines: '' },
     ctls: new Map(),
   };
   s.sessions.set(token, sess);
@@ -145,6 +149,8 @@ export function setState(token: string, patch: Partial<RsState>): boolean {
     pos: Number.isFinite(Number(patch.pos)) ? Number(patch.pos) : v.state.pos,
     dur: Number.isFinite(Number(patch.dur)) ? Number(patch.dur) : v.state.dur,
     page: String(patch.page ?? v.state.page).slice(0, 200),
+    eps: String(patch.eps ?? v.state.eps).slice(0, 2400),
+    lines: String(patch.lines ?? v.state.lines).slice(0, 800),
   };
   return true;
 }

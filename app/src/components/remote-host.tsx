@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import { copyToClipboard } from '@/lib/clipboard';
 import { useToast } from '@/components/toast';
+import { installNav, topLayer, type NavDir, type NavHandle } from '@/lib/remote-nav';
 import { cn } from '@/lib/utils';
 
 /**
@@ -15,9 +16,27 @@ import { cn } from '@/lib/utils';
  * 另一台手机扫码打开的就是遥控器页面，只会控制「这个标签页」，
  * 不影响同一服务上的其它设备（电视、别人的手机、另一台电脑的浏览器）。
  *
- * 指令执行优先直接控制 <video>，找不到视频（首页、详情页）时退回合成键盘事件，
- * 复用页面本来就有的快捷键，不另造一套。
+ * 指令分发顺序（和安卓网页版一致）：
+ *   1. 方向键 / 确定 → 几何方向键导航（rc-nav），首页海报墙也能用
+ *   2. 播放相关 → 直接控制 <video>
+ *   3. 找不到视频 → 退回合成键盘事件，复用页面本来就有的快捷键
  */
+
+/** 播放页注册过来的桥接口（选集、片源），没有就是首页/详情页 */
+export interface WatchBridge {
+  episodes: string[];
+  index: number;
+  goEpisode: (i: number) => void;
+  lines: string[];
+  lineIndex: number;
+  setLine: (i: number) => void;
+}
+
+declare global {
+  interface Window {
+    __mflWatch?: WatchBridge;
+  }
+}
 
 function fireKey(key: string, code: string, keyCode: number, extra: KeyboardEventInit = {}) {
   const ev = new KeyboardEvent('keydown', { key, code, bubbles: true, cancelable: true, ...extra });
@@ -31,12 +50,30 @@ function fireKey(key: string, code: string, keyCode: number, extra: KeyboardEven
   document.dispatchEvent(ev);
 }
 
+function allVideos(): HTMLVideoElement[] {
+  return Array.from(document.querySelectorAll('video')) as HTMLVideoElement[];
+}
+
 function mainVideo(): HTMLVideoElement | null {
-  const all = Array.from(document.querySelectorAll('video')) as HTMLVideoElement[];
+  const all = allVideos();
   if (all.length === 0) return null;
   const playing = all.find((v) => !v.paused && v.currentTime > 0);
   if (playing) return playing;
   return all.sort((a, b) => (b.duration || 0) - (a.duration || 0))[0];
+}
+
+/** 真的在播的那个（遥控的播放指令只对它生效，避免误触隐藏的广告位 video） */
+function liveVideo(): HTMLVideoElement | null {
+  const all = allVideos();
+  if (all.length === 0) return null;
+  const hit = all.find((v) => !v.paused || v.currentTime > 0 || v.readyState > 0);
+  return hit || all[0];
+}
+
+/** `当前下标|名|名…`；竖线是分隔符，名字里的竖线换掉 */
+function packList(arr: string[], cur: number, limit = 60): string {
+  const items = arr.slice(0, limit).map((s) => String(s || '').replace(/\|/g, '/').slice(0, 24));
+  return `${Math.max(0, cur)}|${items.join('|')}`;
 }
 
 function deviceName(): string {
@@ -81,15 +118,54 @@ export function RemoteHost({ className }: { className?: string }) {
 
   const tokenRef = useRef('');
   const sinceRef = useRef(0);
+  const navRef = useRef<NavHandle | null>(null);
+  /** 二维码面板开着时，十字键不许去动背后那层页面 */
+  const openRef = useRef(false);
+  openRef.current = open;
 
   useEffect(() => {
     setMounted(true);
+    // 几何方向键导航：首页海报墙、详情页按钮、播放器都走它
+    navRef.current = installNav({
+      selector: [
+        'a[href]',
+        'button',
+        '[role="button"]',
+        '[role="tab"]',
+        'input',
+        'select',
+        'summary',
+        '.ep',
+        '.grp',
+        '.cast',
+      ].join(','),
+    });
   }, []);
+
+  /** 逐层返回：退全屏 → 页面浮层 → 浏览器后退 */
+  const layeredBack = useCallback(() => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+      return;
+    }
+    // 让页面自己先处理（播放器内选集/换源面板、抽屉、弹窗……）
+    const ev = new CustomEvent('mfl:rc-back', { cancelable: true, detail: { handled: false } });
+    window.dispatchEvent(ev);
+    if (ev.defaultPrevented) return;
+
+    const top = topLayer();
+    if (top?.close) {
+      top.close.click();
+      return;
+    }
+    router.back();
+  }, [router]);
 
   const exec = useCallback(
     (cmd: string, arg: string) => {
-      const v = mainVideo();
+      const v = liveVideo();
       const num = Number(arg);
+      const bridge = typeof window !== 'undefined' ? window.__mflWatch : undefined;
       switch (cmd) {
         case 'toggle':
           if (v) {
@@ -98,52 +174,99 @@ export function RemoteHost({ className }: { className?: string }) {
           } else fireKey(' ', 'Space', 32);
           return;
         case 'play':
-          if (v) void v.play().catch(() => {});
-          else fireKey(' ', 'Space', 32);
+          if (v) {
+            void v.play().catch(() => {});
+          } else fireKey(' ', 'Space', 32);
           return;
         case 'pause':
           if (v) v.pause();
           else fireKey(' ', 'Space', 32);
           return;
         case 'seekb':
-          if (v && Number.isFinite(v.duration)) v.currentTime = Math.max(0, v.currentTime - (Number.isFinite(num) && num ? num : 10));
-          else fireKey('ArrowLeft', 'ArrowLeft', 37);
+          if (v && Number.isFinite(v.duration)) {
+            v.currentTime = Math.max(0, v.currentTime - (Number.isFinite(num) && num ? num : 10));
+          } else fireKey('ArrowLeft', 'ArrowLeft', 37);
           return;
         case 'seekf':
-          if (v && Number.isFinite(v.duration)) v.currentTime = Math.min(v.duration, v.currentTime + (Number.isFinite(num) && num ? num : 10));
-          else fireKey('ArrowRight', 'ArrowRight', 39);
+          if (v && Number.isFinite(v.duration)) {
+            v.currentTime = Math.min(v.duration, v.currentTime + (Number.isFinite(num) && num ? num : 10));
+          } else fireKey('ArrowRight', 'ArrowRight', 39);
           return;
         case 'seekto':
-          if (v && Number.isFinite(v.duration) && Number.isFinite(num)) v.currentTime = Math.max(0, Math.min(v.duration, num));
+          if (v && Number.isFinite(v.duration) && Number.isFinite(num)) {
+            v.currentTime = Math.max(0, Math.min(v.duration, num));
+          }
           return;
         case 'volup':
-          if (v) v.volume = Math.min(1, Math.round((v.volume + 0.1) * 10) / 10);
+          for (const el of allVideos()) el.volume = Math.min(1, Math.round((el.volume + 0.1) * 10) / 10);
           return;
         case 'voldown':
-          if (v) v.volume = Math.max(0, Math.round((v.volume - 0.1) * 10) / 10);
+          for (const el of allVideos()) el.volume = Math.max(0, Math.round((el.volume - 0.1) * 10) / 10);
           return;
         case 'mute':
-          if (v) v.muted = !v.muted;
+          for (const el of allVideos()) el.muted = !el.muted;
           return;
         case 'fullscreen': {
+          if (document.fullscreenElement) {
+            void document.exitFullscreen().catch(() => {});
+            return;
+          }
+          // 优先点页面自己的全屏按钮：脚本直接调 requestFullscreen 不是用户手势，会被浏览器拒
+          const btn = document.querySelector<HTMLElement>(
+            '[data-rc-fullscreen],button[aria-label="全屏"],button[title="全屏"]'
+          );
+          if (btn) {
+            btn.click();
+            return;
+          }
           const el = v || document.documentElement;
-          if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-          else void el.requestFullscreen?.().catch(() => {});
+          void el.requestFullscreen?.().catch(() => toast('浏览器不让脚本开全屏，点一下播放器里的全屏键', 'error'));
           return;
         }
-        case 'next':
+        case 'ep': {
+          if (bridge && Number.isFinite(num) && bridge.episodes.length > 0) {
+            bridge.goEpisode(Math.max(0, Math.min(bridge.episodes.length - 1, num)));
+          }
+          return;
+        }
+        case 'line': {
+          if (bridge) bridge.setLine(Math.max(0, num || 0));
+          return;
+        }
+        case 'next': {
+          if (bridge && bridge.episodes.length > 0) {
+            if (bridge.index < bridge.episodes.length - 1) bridge.goEpisode(bridge.index + 1);
+            else toast('已经是最后一集了', 'info');
+            return;
+          }
           fireKey('ArrowRight', 'ArrowRight', 39, { altKey: true });
           return;
-        case 'prev':
+        }
+        case 'prev': {
+          if (bridge && bridge.episodes.length > 0) {
+            if (bridge.index > 0) bridge.goEpisode(bridge.index - 1);
+            else toast('已经是第一集了', 'info');
+            return;
+          }
           fireKey('ArrowLeft', 'ArrowLeft', 37, { altKey: true });
           return;
-        case 'ok':
-          fireKey('Enter', 'Enter', 13);
+        }
+        case 'ok': {
+          if (openRef.current) {
+            setOpen(false);
+            return;
+          }
+          // 页面上已经有遥控焦点就走焦点，否则退回 Enter
+          if (navRef.current?.hasFocus()) navRef.current.ok();
+          else fireKey('Enter', 'Enter', 13);
           return;
+        }
         case 'up':
         case 'down':
         case 'left':
         case 'right': {
+          if (openRef.current) return;
+          if (navRef.current?.move(cmd as NavDir)) return;
           const map: Record<string, [string, number]> = {
             up: ['ArrowUp', 38],
             down: ['ArrowDown', 40],
@@ -155,9 +278,16 @@ export function RemoteHost({ className }: { className?: string }) {
           return;
         }
         case 'back':
-          router.back();
+          if (openRef.current) {
+            setOpen(false);
+            return;
+          }
+          navRef.current?.clear();
+          layeredBack();
           return;
         case 'home':
+          navRef.current?.clear();
+          window.dispatchEvent(new CustomEvent('mfl:rc-back-all'));
           router.push('/');
           return;
         case 'settings':
@@ -167,7 +297,7 @@ export function RemoteHost({ className }: { className?: string }) {
           return;
       }
     },
-    [router]
+    [router, toast, layeredBack]
   );
 
   // 领一个会话：每次点按钮都重新领，避免拿着一个早就过期的 token
@@ -230,23 +360,32 @@ export function RemoteHost({ className }: { className?: string }) {
           /* 断网就下一轮再试 */
         }
 
-        // 上报状态（遥控器那边要显示片名和进度）
+        // 上报状态（遥控器那边要显示片名、进度、选集、片源）
         const now = Date.now();
         if (now - stateAt > 1200) {
           stateAt = now;
           const v = mainVideo();
           const title = (document.title || '').replace(/\s*[-–|]\s*MFlixTV.*$/i, '').trim();
           const h = document.querySelector('h1');
+          const bridge = window.__mflWatch;
           try {
             const qs = new URLSearchParams({
               t,
               title: (h?.textContent || title || '').slice(0, 120),
-              sub: '',
+              sub: bridge && bridge.episodes.length > 0 ? `第 ${bridge.index + 1}/${bridge.episodes.length} 集` : '',
               playing: v && !v.paused && !v.ended ? '1' : '0',
               pos: String(v && Number.isFinite(v.currentTime) ? Math.round(v.currentTime) : 0),
               dur: String(v && Number.isFinite(v.duration) ? Math.round(v.duration) : 0),
               page: pathRef.current || '',
             });
+            // 空串也要发：离开播放页后遥控器上不能再留着上一部的集数
+            if (bridge && bridge.episodes.length > 0) {
+              qs.set('eps', packList(bridge.episodes, bridge.index));
+              qs.set('lines', packList(bridge.lines.length > 0 ? bridge.lines : ['换源'], bridge.lineIndex));
+            } else {
+              qs.set('eps', '');
+              qs.set('lines', '');
+            }
             await fetch(`/api/rs/state?${qs.toString()}`, { cache: 'no-store' });
           } catch {
             /* 上报失败无所谓 */
@@ -336,7 +475,8 @@ export function RemoteHost({ className }: { className?: string }) {
 
       {mounted && open
         ? createPortal(
-            <div className="fixed inset-0 z-[85] flex items-center justify-center p-4">
+            // z-[120]：必须压过首启向导（z-[95]），否则遮罩会吃掉所有点击，连 ✕ 都点不动
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/72 backdrop-blur-sm animate-fade-in" onClick={() => setOpen(false)} aria-hidden />
               <div
                 role="dialog"
@@ -354,6 +494,7 @@ export function RemoteHost({ className }: { className?: string }) {
                   </div>
                   <button
                     onClick={() => setOpen(false)}
+                    data-rc-close
                     className="shrink-0 w-7 h-7 rounded-md grid place-items-center text-muted hover:text-content hover:bg-hover transition-colors"
                     aria-label="关闭"
                   >
@@ -408,8 +549,8 @@ export function RemoteHost({ className }: { className?: string }) {
                   </div>
 
                   <p className="mt-4 text-[11px] leading-relaxed text-muted/80">
-                    扫码后能做：播放/暂停、快退快进、拖进度、音量、上一集下一集、返回、回首页。
-                    关掉这个面板不影响遥控，关掉页面就不行了。
+                    扫码后：十字键走格子（首页海报也能走）、确定进入、返回逐层退、选集、线路、播放暂停、
+                    快退快进、拖进度、音量、全屏。
                   </p>
                 </div>
               </div>

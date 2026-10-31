@@ -4,58 +4,63 @@
  * 做的是：
  *   右上角的遥控按钮 → 向服务端领一个 6 位 token → 把 http://本机IP:端口/rc?t=TOKEN
  *   画成二维码 → 另一台手机扫码打开 /rc 页就成了遥控器，只控制「点按钮的那一个页面」。
- *   被控端每秒来取一次指令并当场执行，同时把片名 / 进度 / 播放状态报上去，
- *   遥控器那边就能显示「在放什么、放到哪」。
+ *   被控端每秒来取一次指令并当场执行，同时把片名 / 进度 / 选集 / 线路报上去。
  *
- * 为什么单独成文件：手机版（index.html）和电视版（tv.html）要的是同一套逻辑，
- * 复制两份以后必然改一处漏一处；页面只留一句 MFlixRC.mount({...})。
+ * 遥控器控制的不只是播放器：方向键走 MFlixRCNav（几何导航），所以首页海报墙、
+ * 详情页、搜索结果、设置页都能用十字键一格一格走、确定键点进去——
+ * 和电视遥控器的手感一样。
  *
  * 用法：
  *   MFlixRC.mount({
  *     btn: document.getElementById('rcBtn'),
- *     title: function () { ... },   // 遥控器上显示的片名
- *     sub:   function () { ... },   // 小字，例如「第 3 集」
+ *     nav: { selector: '.card,.ep,.nv,button', scope: function () { return null; } },
+ *     title: function () { ... },      // 遥控器上显示的片名
+ *     sub:   function () { ... },      // 小字，例如「第 3 集」
  *     page:  function () { return 'home'; },
- *     onCmd: function (cmd, arg) {  // 返回 true = 这个页面自己处理了
- *       if (cmd === 'next') { nextEp(); return true; }
+ *     lists: function () {             // 选集 / 线路（没有就返回 null）
+ *       return { eps: ['第1集','第2集'], ep: 0, lines: ['线路 1'], ln: 0 };
+ *     },
+ *     onCmd: function (cmd, arg) {     // 返回 true = 这个页面自己处理了
+ *       if (cmd === 'ep') { playEp(+arg); return true; }
  *       return false;
  *     }
  *   });
  *
  * 指令（和 /rc 页面、电脑端 RemoteHost 完全一致）：
  *   toggle play pause seekb seekf seekto volup voldown mute fullscreen
- *   prev next up down left right ok back home
+ *   prev next up down left right ok back home ep line
  */
 (function (root) {
   'use strict';
 
+  /* 面板样式：不用 inset / flex-gap / grid，安卓 7 那种老 WebView 也认得 */
   var CSS = [
-    '#rcq{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;',
-    'padding:18px;background:rgba(0,0,0,.76);-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px)}',
-    '#rcq.on{display:flex}',
-    '.rcq-box{width:100%;max-width:334px;max-height:92vh;overflow:auto;background:#141416;',
-    'border:1px solid rgba(255,255,255,.09);border-radius:18px;padding:18px 18px 14px;text-align:center;',
-    'box-shadow:0 26px 64px rgba(0,0,0,.65);font-family:inherit;color:#fff}',
+    '#rcq{position:fixed;top:0;right:0;bottom:0;left:0;z-index:2147483000;display:none;',
+    'align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.76);',
+    '-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px)}',
+    '#rcq.on{display:-webkit-flex;display:flex}',
+    '.rcq-box{width:100%;max-width:334px;max-height:90vh;overflow:auto;-webkit-overflow-scrolling:touch;',
+    'background:#141416;border:1px solid rgba(255,255,255,.09);border-radius:18px;padding:18px 18px 14px;',
+    'text-align:center;box-shadow:0 26px 64px rgba(0,0,0,.65);color:#fff}',
     '.rcq-box h3{margin:0 0 6px;font-size:15px;font-weight:600;line-height:1.4}',
     '.rcq-box p{margin:0 0 14px;font-size:11.5px;line-height:1.65;color:rgba(255,255,255,.5)}',
     '.rcq-box p b{color:rgba(255,255,255,.86);font-weight:600}',
-    '.rcq-code{width:212px;height:212px;margin:0 auto;background:#fff;border-radius:12px;padding:9px}',
-    '.rcq-code svg,.rcq-code img{display:block;width:212px;height:212px}',
-    '.rcq-code .wait{display:flex;align-items:center;justify-content:center;height:100%;',
-    'font-size:12px;color:#666}',
+    '.rcq-code{width:200px;height:200px;margin:0 auto;background:#fff;border-radius:12px;padding:9px}',
+    '.rcq-code svg,.rcq-code img{display:block;width:200px;height:200px}',
+    '.rcq-code .wait{display:-webkit-flex;display:flex;align-items:center;justify-content:center;',
+    'height:100%;font-size:12px;color:#666}',
     '.rcq-url{margin:12px 0 0;font-size:10.5px;line-height:1.5;color:rgba(255,255,255,.42);',
     'word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace}',
-    '.rcq-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;',
-    'font-size:11px;color:rgba(255,255,255,.5)}',
-    '.rcq-foot span.on{color:#34d399}',
-    '.rcq-foot span.off{color:#f87171}',
-    '.rcq-foot button{border:0;background:none;color:rgba(255,255,255,.6);font:inherit;font-size:11px;',
-    'padding:4px 2px;cursor:pointer}',
-    '.rcq-ops{display:flex;gap:8px;margin-top:12px}',
-    '.rcq-ops button{flex:1;height:40px;border:0;border-radius:10px;background:rgba(255,255,255,.09);',
-    'color:#fff;font:inherit;font-size:13px;cursor:pointer}',
-    '.rcq-ops button.primary{background:#fff;color:#0a0a0d;font-weight:600}',
-    '#rcq.on button:focus-visible{outline:2px solid #fff;outline-offset:2px}'
+    '.rcq-foot{margin-top:12px;font-size:11px;color:rgba(255,255,255,.5);text-align:left}',
+    '.rcq-foot .st{float:left}',
+    '.rcq-foot .st.on{color:#34d399}',
+    '.rcq-foot .st.off{color:#f87171}',
+    '.rcq-foot button{float:right;border:0;background:none;color:rgba(255,255,255,.6);font:inherit;',
+    'font-size:11px;padding:4px 2px;cursor:pointer}',
+    '.rcq-ops{margin-top:14px;clear:both}',
+    '.rcq-ops button{width:100%;height:42px;border:0;border-radius:11px;background:#fff;color:#0a0a0d;',
+    'font:inherit;font-size:14px;font-weight:600;cursor:pointer}',
+    '.rcq-tip{margin:10px 0 0;font-size:10.5px;line-height:1.6;color:rgba(255,255,255,.3);text-align:left}'
   ].join('');
 
   /** 没有 hooks 时也认得的「主视频」：优先在放的那个，其次时长最长的那个 */
@@ -70,6 +75,16 @@
       if (!best || (e.duration || 0) > (best.duration || 0)) best = e;
     }
     return playing || best || null;
+  }
+
+  /** 这个 <video> 真的在放东西吗（空标签页里的空 video 不能当播放器用） */
+  function liveVideo(v) {
+    return !!(v && (v.currentSrc || v.src || (v.readyState && v.readyState > 0) || v.currentTime > 0));
+  }
+
+  function togglePlay(v) {
+    if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+    else v.pause();
   }
 
   function fireKey(key, code, keyCode, extra) {
@@ -100,20 +115,31 @@
     return br + ' · ' + os;
   }
 
+  /** 选集 / 线路压成一行：cur|名字|名字|…（名字里的竖线换成斜杠，省得解析歧义） */
+  function packList(arr, cur, limit) {
+    if (!arr || !arr.length) return '';
+    var out = String(cur == null ? -1 : cur), i;
+    for (i = 0; i < arr.length; i++) out += '|' + String(arr[i] == null ? '' : arr[i]).replace(/\|/g, '/');
+    return out.length > limit ? out.slice(0, limit) : out;
+  }
+
   var S = {
     hooks: {},
     el: null,
     btn: null,
+    nav: null,
     token: '',
     since: 0,
     peers: 0,
     open: false,
     busy: false,
-    alive: true,
     timer: 0,
     probe: 0,
     stateAt: 0,
-    url: ''
+    url: '',
+    listAt: 0,
+    lastEps: '',
+    lastLines: ''
   };
 
   function byId(id) { return document.getElementById(id); }
@@ -130,13 +156,15 @@
     box.innerHTML =
       '<div class="rcq-box" role="dialog" aria-modal="true" aria-label="扫码当遥控器">' +
       '<h3>拿另一台手机扫这个码</h3>' +
-      '<p>扫完它就是个遥控器，只控制<b>你现在打开的这个页面</b>，' +
-      '不影响同一网络下的电视和别人的手机。</p>' +
+      '<p>扫完它就是个遥控器，能像电视遥控器一样操作<b>你现在打开的这个页面</b>：' +
+      '方向键走格子、确定进片、播放控制、选集换线路都在手机上。</p>' +
       '<div class="rcq-code" id="rcqCode"><div class="wait">正在生成…</div></div>' +
       '<div class="rcq-url" id="rcqUrl"></div>' +
-      '<div class="rcq-foot"><span id="rcqStat">等待扫码</span>' +
+      '<div class="rcq-foot"><span class="st" id="rcqStat">等待扫码</span>' +
       '<button type="button" id="rcqNew">换一个码</button></div>' +
-      '<div class="rcq-ops"><button type="button" class="primary" id="rcqOk">知道了</button></div>' +
+      '<div class="rcq-ops"><button type="button" id="rcqOk">知道了</button></div>' +
+      '<p class="rcq-tip">关掉这个面板不影响遥控，遥控器还连着；关掉页面才算结束。' +
+      '手机锁屏太久再回来，指令可能要等十几秒才生效。</p>' +
       '</div>';
     document.body.appendChild(box);
 
@@ -167,10 +195,10 @@
     var s = byId('rcqStat');
     if (!s) return;
     if (S.peers > 0) {
-      s.className = 'on';
+      s.className = 'st on';
       s.textContent = '已连 ' + S.peers + ' 台遥控器';
     } else {
-      s.className = '';
+      s.className = 'st';
       s.textContent = '等待扫码';
     }
   }
@@ -182,7 +210,7 @@
     var v = pickVideo();
     var n = Number(arg);
 
-    // 页面自己有更准的做法（选集、返回、回首页…）就让它先接
+    // 页面自己有更准的做法（选集、换线路、返回、回首页…）就让它先接
     if (typeof h.onCmd === 'function') {
       var done = false;
       try { done = h.onCmd(cmd, arg) === true; } catch (e) { done = false; }
@@ -190,39 +218,49 @@
     }
 
     switch (cmd) {
+      case 'up':
+      case 'down':
+      case 'left':
+      case 'right':
+        if (S.nav) S.nav.move(cmd);
+        else fireKey(cmd, cmd, 0);
+        return;
+      case 'ok':
+        if (S.nav && S.nav.hasFocus() && S.nav.ok()) return;
+        if (liveVideo(v)) { togglePlay(v); return; }
+        fireKey('Enter', 'Enter', 13);
+        return;
       case 'toggle':
-        if (v) {
-          if (v.paused) { var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); }
-          else v.pause();
-        } else fireKey(' ', 'Space', 32);
+        if (liveVideo(v)) togglePlay(v);
+        else if (S.nav && S.nav.hasFocus()) S.nav.ok();
+        else fireKey(' ', 'Space', 32);
         return;
       case 'play':
-        if (v) { var pr2 = v.play(); if (pr2 && pr2.catch) pr2.catch(function () {}); }
+        if (liveVideo(v)) { var pr2 = v.play(); if (pr2 && pr2.catch) pr2.catch(function () {}); }
         else fireKey(' ', 'Space', 32);
         return;
       case 'pause':
-        if (v) v.pause();
+        if (liveVideo(v)) v.pause();
         else fireKey(' ', 'Space', 32);
         return;
       case 'seekb':
-        if (v) v.currentTime = Math.max(0, v.currentTime - (isFinite(n) && n > 0 ? n : 10));
+        if (liveVideo(v)) v.currentTime = Math.max(0, v.currentTime - (isFinite(n) && n > 0 ? n : 10));
         else fireKey('ArrowLeft', 'ArrowLeft', 37);
         return;
       case 'seekf':
-        if (v) {
+        if (liveVideo(v)) {
           var top = isFinite(v.duration) ? v.duration : v.currentTime + 1e9;
           v.currentTime = Math.min(top, v.currentTime + (isFinite(n) && n > 0 ? n : 10));
         } else fireKey('ArrowRight', 'ArrowRight', 39);
         return;
       case 'seekto':
-        if (v && isFinite(n)) {
+        if (liveVideo(v) && isFinite(n)) {
           var d = isFinite(v.duration) ? v.duration : n;
           v.currentTime = Math.max(0, Math.min(d, n));
         }
         return;
       case 'volup':
-        if (v) v.volume = Math.min(1, Math.round((v.volume + 0.1) * 10) / 10);
-        if (v && v.muted) v.muted = false;
+        if (v) { v.volume = Math.min(1, Math.round((v.volume + 0.1) * 10) / 10); v.muted = false; }
         return;
       case 'voldown':
         if (v) v.volume = Math.max(0, Math.round((v.volume - 0.1) * 10) / 10);
@@ -232,15 +270,7 @@
         return;
       case 'fullscreen':
         if (typeof h.fullscreen === 'function') { h.fullscreen(); return; }
-        if (document.fullscreenElement || document.webkitFullscreenElement) {
-          try {
-            (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document);
-          } catch (e) {}
-        } else {
-          var target = v || document.documentElement;
-          var fn = target.requestFullscreen || target.webkitRequestFullscreen || target.webkitRequestFullScreen;
-          if (fn) { try { fn.call(target); } catch (e2) {} }
-        }
+        toggleFullscreen(v);
         return;
       case 'next':
         if (typeof h.next === 'function') { h.next(); return; }
@@ -251,28 +281,58 @@
         fireKey('ArrowLeft', 'ArrowLeft', 37, { altKey: true });
         return;
       case 'back':
+        if (S.nav) S.nav.clear();
         if (typeof h.back === 'function') { h.back(); return; }
-        if (root.history) root.history.back();
+        if (!layeredBack()) { if (root.history) root.history.back(); }
         return;
       case 'home':
         if (typeof h.home === 'function') { h.home(); return; }
         root.location.href = '/';
         return;
-      case 'ok':
-        if (typeof h.ok === 'function') { h.ok(); return; }
-        fireKey('Enter', 'Enter', 13);
-        return;
-      case 'up':
-      case 'down':
-      case 'left':
-      case 'right':
-        if (typeof h.dpad === 'function') { h.dpad(cmd); return; }
-        var map = { up: ['ArrowUp', 38], down: ['ArrowDown', 40], left: ['ArrowLeft', 37], right: ['ArrowRight', 39] };
-        fireKey(map[cmd][0], map[cmd][0], map[cmd][1]);
-        return;
       default:
         return;
     }
+  }
+
+  function toggleFullscreen(v) {
+    // 安卓 App 里优先用原生全屏（不受浏览器「必须有用户手势」的限制）
+    var nat = root.MFlixNative;
+    if (nat && nat.fullscreen) {
+      // 原生接口是 fullscreen(Boolean)，不是切换：先问现在是不是横着，再取反
+      var wide = false;
+      try { wide = !!(nat.wide && nat.wide()); } catch (e) {}
+      try { nat.fullscreen(!wide); return; } catch (e2) {}
+    }
+    var fs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fs) {
+      try { (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document); } catch (e2) {}
+      return;
+    }
+    var target = v || document.documentElement;
+    var fn = target.requestFullscreen || target.webkitRequestFullscreen || target.webkitRequestFullScreen;
+    if (fn) { try { fn.call(target); } catch (e3) {} }
+  }
+
+  /**
+   * 页面自己没接管时的「逐层返回」：先退出全屏，再找最上层浮层的关闭按钮点一下，
+   * 都没有才真的后退一页。这样按返回不会直接跳出整个站点。
+   */
+  function layeredBack() {
+    var fs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fs) {
+      try { (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document); } catch (e) {}
+      return true;
+    }
+    var scopes = document.querySelectorAll('[role="dialog"],[aria-modal="true"],#rcq.on');
+    for (var i = scopes.length - 1; i >= 0; i--) {
+      var el = scopes[i];
+      if (!el || el.offsetParent === null && getComputedStyle(el).position !== 'fixed') continue;
+      var r = el.getBoundingClientRect();
+      if (r.width < 40 || r.height < 40) continue;
+      var btn = el.querySelector('[aria-label*="关闭"],button[data-close],.close');
+      if (btn) { try { btn.click(); return true; } catch (e2) {} }
+    }
+    return false;
   }
 
   /* ---------------- 被控端循环 ---------------- */
@@ -302,22 +362,20 @@
     if (!S.token) return;
     if (S.timer) { clearTimeout(S.timer); S.timer = 0; }
     var t = S.token;
-    var body = null;
     fetch('/api/rs/host?t=' + encodeURIComponent(t) + '&since=' + S.since, { cache: 'no-store' })
       .then(function (r) {
         if (r.status === 404) return { gone: true };
         return r.ok ? r.json() : null;
       })
       .then(function (d) {
-        if (!d) { return; }
+        if (!d) return;
         if (d.gone) {
-          // 会话过期了：遥控器那边已经提示「已关闭」，这里安静地重新领一个，用户不用管
+          // 会话过期了：遥控器那边已经提示「已关闭」，这里安静地重新领一个
           S.token = '';
           S.since = 0;
           if (S.open) create();
           return;
         }
-        body = d;
         var list = d.cmds || [];
         for (var i = 0; i < list.length; i++) {
           try { exec(list[i].cmd, list[i].arg); } catch (e) {}
@@ -349,6 +407,7 @@
     try { sb = typeof h.sub === 'function' ? String(h.sub() || '') : ''; } catch (e2) { sb = ''; }
     var pg = '';
     try { pg = typeof h.page === 'function' ? String(h.page() || '') : ''; } catch (e3) { pg = ''; }
+
     var qs = 't=' + encodeURIComponent(t) +
       '&title=' + encodeURIComponent(name.slice(0, 120)) +
       '&sub=' + encodeURIComponent(sb.slice(0, 60)) +
@@ -356,6 +415,17 @@
       '&pos=' + (v && isFinite(v.currentTime) ? Math.round(v.currentTime) : 0) +
       '&dur=' + (v && isFinite(v.duration) ? Math.round(v.duration) : 0) +
       '&page=' + encodeURIComponent(pg.slice(0, 200));
+
+    // 选集 / 线路每 5 秒重算一次就够（列表基本不变，省点带宽）
+    if (now - S.listAt > 5000) {
+      S.listAt = now;
+      var L = null;
+      try { L = typeof h.lists === 'function' ? h.lists() : null; } catch (e4) { L = null; }
+      S.lastEps = L ? packList(L.eps, L.ep, 2400) : '';
+      S.lastLines = L ? packList(L.lines, L.ln, 800) : '';
+    }
+    // 空串也要发：离开播放器后遥控器上不能再留着上一部的集数
+    qs += '&eps=' + encodeURIComponent(S.lastEps) + '&lines=' + encodeURIComponent(S.lastLines);
     fetch('/api/rs/state?' + qs, { cache: 'no-store' }).catch(function () {});
   }
 
@@ -378,9 +448,8 @@
   function open() {
     build();
     S.open = true;
-    S.el.classList.add('on');
-    var orig = document.body.style.overflow;
-    S._ovf = orig;
+    S.el.className = 'on';
+    if (!S._ovf) S._ovf = document.body.style.overflow || '';
     document.body.style.overflow = 'hidden';
     if (!S.token) create();
     else { paintFoot(); probeStart(); }
@@ -389,7 +458,7 @@
   function close() {
     if (!S.el) return;
     S.open = false;
-    S.el.classList.remove('on');
+    S.el.className = '';
     probeStop();
     // 关面板不销毁会话：遥控器那边还能继续用
     document.body.style.overflow = S._ovf || '';
@@ -412,6 +481,9 @@
     S.hooks = opts;
     S.btn = opts.btn || (opts.btnId ? byId(opts.btnId) : null);
     attach(S.btn);
+    if (root.MFlixRCNav && !S.nav) {
+      try { S.nav = root.MFlixRCNav.install(opts.nav || {}); } catch (e) {}
+    }
     document.addEventListener('keydown', function (e) {
       if (!S.open) return;
       if (e.key === 'Escape' || e.keyCode === 27 || e.keyCode === 4) {
@@ -419,7 +491,6 @@
         close();
       }
     }, true);
-    // 页面关掉就停掉轮询，别让后台一直转
     root.addEventListener('pagehide', function () {
       if (S.timer) { clearTimeout(S.timer); S.timer = 0; }
       probeStop();
@@ -427,7 +498,11 @@
     root.addEventListener('pageshow', function () {
       if (S.token && !S.timer) tick();
     });
-    return { open: open, close: close, attach: attach, token: function () { return S.token; } };
+    return {
+      open: open, close: close, attach: attach,
+      nav: function () { return S.nav; },
+      token: function () { return S.token; }
+    };
   }
 
   root.MFlixRC = {
@@ -436,6 +511,7 @@
     open: open,
     close: close,
     exec: exec,
-    isOpen: function () { return !!S.open; }
+    isOpen: function () { return !!S.open; },
+    nav: function () { return S.nav; }
   };
 })(typeof window !== 'undefined' ? window : this);

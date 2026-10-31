@@ -37,6 +37,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ParentalGate } from '@/components/parental-gate';
 import { RemoteHost } from '@/components/remote-host';
+import type { WatchBridge } from '@/components/remote-host';
 
 /**
  * 播放页（唯一入口，替代旧版 watch.html → player.html 跳转链）。
@@ -266,6 +267,66 @@ function WatchContent() {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [currentIndex, episodes.length, goEpisode]);
+
+  // ---- 「扫一扫当遥控器」桥接 -------------------------------------------------
+  // 遥控器那边的「选集」直接点某一集就播，「线路」在电脑版等于「换源」。
+  // 用 ref 存最新值，桥对象只建一次，避免每次渲染都换引号让遥控端拿到旧集数。
+  const rcRef = useRef({ panel, skipPanelOpen, episodes, currentIndex, goEpisode, videoTitle });
+  rcRef.current = { panel, skipPanelOpen, episodes, currentIndex, goEpisode, videoTitle };
+
+  useEffect(() => {
+    const bridge: WatchBridge = {
+      get episodes() {
+        const n = rcRef.current.episodes.length;
+        if (n === 0) return [];
+        if (n === 1) return [rcRef.current.videoTitle || '正片'];
+        return Array.from({ length: n }, (_, i) => `第${i + 1}集`);
+      },
+      get index() {
+        return rcRef.current.currentIndex;
+      },
+      goEpisode: (i: number) => rcRef.current.goEpisode(i),
+      // 电脑版一个源就是一套地址，没有多线路；这一位留给「换源」面板
+      get lines() {
+        return rcRef.current.episodes.length > 0 ? ['换源'] : [];
+      },
+      get lineIndex() {
+        return 0;
+      },
+      setLine: () => setPanel('source'),
+    };
+    window.__mflWatch = bridge;
+    return () => {
+      if (window.__mflWatch === bridge) delete window.__mflWatch;
+    };
+  }, []);
+
+  // 遥控器的「返回」：先关最上层的浮层，关完了才让它退浏览器历史
+  useEffect(() => {
+    const onBack = (e: Event) => {
+      const s = rcRef.current;
+      if (s.panel !== 'none') {
+        setPanel('none');
+        e.preventDefault();
+        return;
+      }
+      if (s.skipPanelOpen) {
+        setSkipPanelOpen(false);
+        e.preventDefault();
+      }
+    };
+    const onBackAll = () => {
+      setPanel('none');
+      setSkipPanelOpen(false);
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('mfl:rc-back', onBack);
+    window.addEventListener('mfl:rc-back-all', onBackAll);
+    return () => {
+      window.removeEventListener('mfl:rc-back', onBack);
+      window.removeEventListener('mfl:rc-back-all', onBackAll);
+    };
+  }, []);
 
   const orderedEpisodes = reversed ? [...episodes].map((_, i) => episodes.length - 1 - i) : episodes.map((_, i) => i);
 
