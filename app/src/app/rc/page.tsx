@@ -7,6 +7,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  *
  * token 从 URL 的 ?t= 里来，30 分钟有效；全程只发到发起方所在的这台服务上，
  * 不经过任何外部服务器。被控端每秒来取一次指令，这里 1.2 秒取一次它的播放状态。
+ *
+ * 和安卓包里的 `assets/rc.html` 是同一份交互（那边是原生页面，这边是 Next 页面）：
+ * 十字键走格子、确定进片、选集点第几集就播第几集、线路换源。
  */
 
 interface State {
@@ -16,6 +19,10 @@ interface State {
   pos: number;
   dur: number;
   page: string;
+  /** `当前集下标|第1集|第2集…` */
+  eps?: string;
+  /** `当前线路下标|线路 1|线路 2…` */
+  lines?: string;
 }
 
 interface CtlResp {
@@ -24,6 +31,17 @@ interface CtlResp {
   state: State;
   hostAlive: boolean;
   ctls: number;
+}
+
+type Book = { cur: number; list: string[] };
+
+const EMPTY: Book = { cur: -1, list: [] };
+
+function unpack(v?: string): Book {
+  if (!v) return EMPTY;
+  const parts = String(v).split('|');
+  const cur = parseInt(parts[0], 10);
+  return { cur: Number.isNaN(cur) ? -1 : cur, list: parts.slice(1) };
 }
 
 function fmt(sec: number): string {
@@ -54,10 +72,10 @@ export default function RemoteControlPage() {
   const [gone, setGone] = useState(false);
   const [vibrate, setVibrate] = useState(true);
   const [drag, setDrag] = useState<number | null>(null);
+  const [sheet, setSheet] = useState<'' | 'eps' | 'lines'>('');
   const dragRef = useRef<number | null>(null);
   dragRef.current = drag;
   const whoRef = useRef('');
-  const sentAt = useRef(0);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -102,7 +120,6 @@ export default function RemoteControlPage() {
           /* 有些浏览器不允许 */
         }
       }
-      sentAt.current = Date.now();
       try {
         await fetch(
           `/api/rs/cmd?t=${encodeURIComponent(token)}&cmd=${encodeURIComponent(cmd)}&arg=${encodeURIComponent(arg)}`,
@@ -120,6 +137,8 @@ export default function RemoteControlPage() {
   const pos = drag ?? st?.pos ?? 0;
   const dur = st?.dur ?? 0;
   const alive = info?.hostAlive !== false;
+  const eps = unpack(st?.eps);
+  const lines = unpack(st?.lines);
 
   const btn =
     'select-none touch-manipulation rounded-xl bg-white/[0.06] active:bg-white/20 transition-colors grid place-items-center text-content';
@@ -128,7 +147,7 @@ export default function RemoteControlPage() {
     <div className="min-h-dvh bg-[#0a0a0d] text-white flex flex-col">
       <header className="px-4 pt-4 pb-2 flex items-center gap-2">
         <span
-          className={`inline-block w-2 h-2 rounded-full ${alive ? 'bg-emerald-400' : 'bg-red-500'}`}
+          className={`inline-block w-2 h-2 rounded-full ${gone ? 'bg-red-500' : alive ? 'bg-emerald-400' : 'bg-red-500'}`}
           aria-hidden
         />
         <div className="min-w-0 flex-1">
@@ -136,7 +155,7 @@ export default function RemoteControlPage() {
             {info?.name ? `正在遥控 ${info.name}` : '正在连接…'}
           </div>
           <div className="text-[11px] text-white/45 truncate">
-            {gone ? '这个会话已经关闭' : alive ? '遥控已连接' : '对方页面可能已关闭'}
+            {gone ? '这个会话已经关闭，让对方重新点一次遥控按钮' : alive ? '遥控已连接' : '对方页面可能已关闭'}
           </div>
         </div>
         <button
@@ -211,12 +230,13 @@ export default function RemoteControlPage() {
         </button>
       </div>
 
-      <div className="px-4 mt-3 flex items-center justify-center gap-3 text-[12px]">
-        <button className={`${btn} h-11 px-4`} onClick={() => void send('prev')}>
-          上一集
+      {/* 选集 / 线路 / 全屏 */}
+      <div className="px-4 mt-3 flex items-center justify-center gap-2.5 text-[12px]">
+        <button className={`${btn} h-11 flex-1`} onClick={() => setSheet('eps')}>
+          {eps.list.length > 1 && eps.cur >= 0 ? `选集 ${eps.cur + 1}/${eps.list.length}` : '选集'}
         </button>
-        <button className={`${btn} h-11 px-4`} onClick={() => void send('next')}>
-          下一集
+        <button className={`${btn} h-11 flex-1`} onClick={() => setSheet('lines')}>
+          {lines.list.length > 1 && lines.cur >= 0 ? `线路 ${lines.cur + 1}/${lines.list.length}` : '线路'}
         </button>
         <button className={`${btn} h-11 px-4`} onClick={() => void send('fullscreen')}>
           全屏
@@ -269,9 +289,70 @@ export default function RemoteControlPage() {
       </div>
 
       <p className="pb-6 text-center text-[10.5px] leading-relaxed text-white/30 px-8">
+        十字键走格子、确定键点进去——首页、详情页、搜索结果都能用，不只是播放器。
         这个页面只控制发起方的那一个页面，关掉对方页面后这里会显示「已关闭」。
-        {gone ? '' : ''}
       </p>
+
+      {/* 选集 / 线路 浮层 */}
+      {sheet ? (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end" onClick={() => setSheet('')}>
+          <div
+            className="w-full max-h-[64vh] overflow-auto bg-[#141416] rounded-t-[18px] px-4 pt-3.5 pb-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[13px] font-semibold">
+                {sheet === 'eps' ? `选集 · 共 ${eps.list.length} 集` : `线路 · 共 ${lines.list.length} 条`}
+              </span>
+              <button className="text-[12px] text-white/50" onClick={() => setSheet('')}>
+                关闭
+              </button>
+            </div>
+
+            {sheet === 'eps' ? (
+              eps.list.length === 0 ? (
+                <div className="text-[12px] text-white/40 text-center py-2">这个页面现在没有分集（首页 / 搜索页正常）</div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {eps.list.map((label, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        void send('ep', String(i));
+                        setTimeout(() => setSheet(''), 180);
+                      }}
+                      className={`h-[42px] rounded-[10px] text-[12px] px-1 truncate ${
+                        i === eps.cur ? 'bg-white text-[#0a0a0d] font-semibold' : 'bg-white/[0.06] active:bg-white/25'
+                      }`}
+                    >
+                      {label || `第${i + 1}集`}
+                    </button>
+                  ))}
+                </div>
+              )
+            ) : lines.list.length === 0 ? (
+              <div className="text-[12px] text-white/40 text-center py-2">这个页面现在没有可选线路</div>
+            ) : (
+              <div className="space-y-2">
+                {lines.list.map((label, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      void send('line', String(i));
+                      setTimeout(() => setSheet(''), 180);
+                    }}
+                    className={`w-full h-[46px] rounded-[10px] text-[12.5px] px-3 text-left ${
+                      i === lines.cur ? 'bg-white text-[#0a0a0d] font-semibold' : 'bg-white/[0.06] active:bg-white/25'
+                    }`}
+                  >
+                    {label || `线路 ${i + 1}`}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
