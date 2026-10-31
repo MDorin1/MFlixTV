@@ -13,7 +13,7 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 107
-        versionName = "1.7"
+        versionName = "1.6"
         // 这里原来写着 abiFilters += listOf("arm64-v8a")，再加一份用不到的 jniLibs/arm64-v8a/libnode.so
         // （42 MB 的 nodejs-mobile 残留）。结果 API 里声明了 native-code: arm64-v8a，
         // 32 位机型、部分平板/盒子和 x86 设备不是装不上就是起来就崩。
