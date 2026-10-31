@@ -6,6 +6,22 @@
 <meta name="theme-color" content="#000000">
 <link rel="icon" href="data:,">
 <title>MFlixTV · TV</title>
+<script>
+/* 电脑上打开电视版：先把 html.desk 打上（在样式之前，避免闪一下大按钮）。
+   电视版是按 1080p、三米外看的：html 基准字 = 1.0416vw。在 3440 宽的显示器上这个
+   基准会变成 35px，播放键 125px 高、一排按钮 100px 高，直接把画面底部的字幕压住。
+   电脑上有鼠标键盘、离屏幕 60cm，下面那套 px 尺寸只对 html.desk 生效。 */
+(function () {
+  try {
+    var ua = navigator.userAgent || '';
+    var tvLike = /leanback|Android ?TV|GoogleTV|google tv|AFT[A-Za-z]|BRAVIA|web0s|WebOS|NetCast|Tizen|CrKey|Chromecast|HbbTV|Shield|MiBOX|Mi Box|AppleTV|Apple TV|tv ?box/i.test(ua);
+    var deskLike = /Windows NT|Macintosh|X11|CrOS/i.test(ua);
+    /* iPadOS 13+ 的 UA 冒充 Macintosh，但它有触摸点，不是电脑 */
+    if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) deskLike = false;
+    if (deskLike && !tvLike) document.documentElement.className += ' desk';
+  } catch (e) {}
+})();
+</script>
 <style>
   /* ============ MFlixTV 电视版 · 10 英尺界面 ============
      基准 1920×1080：html 字号 = 视口宽 /96（1rem ≈ 20px @1080p），
@@ -677,6 +693,113 @@
   /* 遥控按「全屏」：顶栏浮层一起收掉，只留画面（#player 本来就是 fixed 铺满） */
   html.tvfs #nav{display:none}
   html.tvfs #toast{bottom:2.4rem}
+
+  /* ---- 面板头：左边说明，右边一个看得见的 × ----
+     遥控器上按「返回」能收面板，可电脑和手机上没这个键：之前选集面板一开就关不掉，
+     只能点别的地方或者干脆退出播放器。现在每个面板右上角都有一个 ×。 */
+  #eps-sheet .hd,#spd-sheet .hd,#line-sheet .hd{
+    display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.7rem}
+  #eps-sheet .hd span,#spd-sheet .hd span,#line-sheet .hd span{
+    font-size:.74rem;color:rgba(255,255,255,.45);font-weight:900;letter-spacing:.14em}
+  /* 面板右上角那个 ×：.pb 的尺寸是加权选择器给的，这里必须用 id 选择器压过它，
+     否则 × 会被撑成播放条上那种大按钮、或者干脆被压成 0 宽点不到。 */
+  #eps-sheet .xh,#spd-sheet .xh,#line-sheet .xh{
+    width:2.2rem;height:2.2rem;padding:0;flex:none;background:rgba(255,255,255,.14);
+    color:#fff;cursor:pointer;line-height:1}
+  #eps-sheet .xh svg,#spd-sheet .xh svg,#line-sheet .xh svg{width:.95rem;height:.95rem}
+  #eps-sheet .xh:hover,#spd-sheet .xh:hover,#line-sheet .xh:hover{background:rgba(255,255,255,.28)}
+
+  /* ---- 换线路面板：和选集 / 倍速同一块玻璃（电视版原来只有「选集」，换源得退出播放器） ---- */
+  #line-sheet{position:absolute;left:2.4rem;right:2.4rem;bottom:1.8rem;z-index:7;display:none;
+    border-radius:1.4rem;border:1px solid rgba(255,255,255,.1);background:rgba(26,26,28,.82);
+    padding:1.3rem 1.5rem 1.5rem;box-shadow:0 1.8rem 4.2rem rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.11);
+    max-height:58vh;overflow:auto}
+  #line-sheet.on{display:block}
+  @supports (backdrop-filter: blur(2px)){
+    #line-sheet{background:rgba(26,26,28,.62);
+      -webkit-backdrop-filter:blur(40px) saturate(1.7);backdrop-filter:blur(40px) saturate(1.7)}
+  }
+  html.lite #line-sheet{background:rgba(18,18,20,.94)}
+  #line-sheet .grid{display:flex;flex-wrap:wrap;gap:.5rem}
+  #line-sheet .ln{min-width:9rem;height:2.6rem;padding:0 1.1rem;border-radius:999px;
+    background:rgba(255,255,255,.12);color:#e8e8e8;font-size:.86rem;font-weight:600;
+    display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
+    border:1px solid rgba(255,255,255,.09);cursor:pointer}
+  #line-sheet .ln.on{background:#fff;color:#08080a}
+  #line-sheet .ln.fx.on{transform:scale(1.05);box-shadow:0 0 0 .09rem #fff,0 1rem 2rem rgba(0,0,0,.5)}
+  #line-sheet .ln i{font-style:normal;font-size:.76rem;color:rgba(255,255,255,.5)}
+  #line-sheet .ln.on i{color:rgba(0,0,0,.55)}
+
+  /* ============ 电脑上打开电视版：整套播放控件按桌面尺寸收一遍 ============
+     只有 html.desk 命中时才生效（电脑浏览器），电视 / 盒子 / 手机上原样不动。 */
+
+  /* 视觉基准：电视版是 1.0416vw（1080p 下 ≈20px）。3440 宽的显示器上它会放大成 35.8px，
+     于是两件事同时发生——顶栏挤不下，「遥控 / 设置 / 手机版」被顶出屏幕右侧看不见；
+     海报也大得离谱。电脑上把基准钉在 18px 上限、13px 下限，什么窗口尺寸都稳。 */
+  html.desk{font-size:clamp(13px,1.0416667vw,22px)}
+  html.desk #nav{padding:0.9rem 1.8rem 2.6rem;gap:1.5rem;flex-wrap:nowrap}
+  html.desk #navr{gap:1rem;flex:0 0 auto}
+  html.desk #navr>*{flex:0 0 auto}
+  /* 左侧那组负责撑开并把右侧推到边上；空间不够时它先缩，右边「遥控 / 搜索 / 设置 /
+     手机版 / 地址」永远不许被挤没（上次就是它们被挤掉了）。 */
+  html.desk #navItems{flex:1 1 auto;min-width:0;overflow:hidden}
+  html.desk #navr .nv{white-space:nowrap}
+  /* 电脑自己有任务栏时钟，这里的钟可以省掉，给右边腾地方 */
+  html.desk #clock{display:none}
+  html.desk #ptopbar{padding:1.15rem 2rem 2.2rem}
+  html.desk #ptitle{font-size:19px;letter-spacing:0}
+  html.desk #psub{font-size:12px;margin-top:4px}
+  /* 播放条：底部居中、限宽、贴底留一点空气，别横贯整块屏幕 */
+  html.desk #pbotbar{left:50%;right:auto;bottom:16px;width:min(1080px,calc(100% - 48px));
+    padding:9px 14px 11px;border-radius:14px;transform:translateX(-50%)}
+  html.desk #pbotbar.hide{transform:translateX(-50%) translateY(8px)}
+  html.desk #track{height:4px;margin:0 2px 6px}
+  html.desk #played:after{width:10px;height:10px;margin-top:-5px;right:-5px}
+  html.desk .ptime{font-size:11.5px}
+  html.desk #pbtns{gap:7px;margin-top:9px}
+  html.desk .pb{height:36px;padding:0 13px;font-size:12.5px;gap:5px}
+  html.desk .pb svg{width:16px;height:16px}
+  html.desk .pb.ic{width:36px;padding:0}
+  html.desk .pb.play{width:44px;height:44px}
+  html.desk .pb.play svg{width:17px;height:17px}
+  html.desk #pbSep{height:22px}
+  html.desk #tbub{bottom:1.9rem;font-size:11.5px}
+  html.desk #pbig{width:58px;height:58px;font-size:17px}
+  html.desk #pmsg{font-size:13px;max-width:60%;padding:13px 18px;border-radius:12px}
+  html.desk #pbrand .w{font-size:34px}
+  html.desk #pbrand .b{width:46px;height:2px;margin:10px 0 8px}
+  html.desk #pbrand .s{font-size:10px;letter-spacing:.3em}
+  html.desk #nx{width:336px;right:28px;bottom:154px;padding:12px 14px}
+  html.desk #nx .h{font-size:10px}
+  html.desk #nx .t{font-size:15px;margin:5px 0 3px}
+  html.desk #nx .s{font-size:11px}
+  html.desk #nx .cd{font-size:11px}
+  html.desk #eps-sheet,html.desk #spd-sheet,html.desk #line-sheet{padding:12px 14px 14px;border-radius:14px;max-height:58vh}
+  html.desk #eps-sheet .hd,html.desk #spd-sheet .hd,html.desk #line-sheet .hd{font-size:10.5px;margin-bottom:8px}
+  html.desk #eps-sheet .hd span,html.desk #spd-sheet .hd span,html.desk #line-sheet .hd span{font-size:10.5px}
+  html.desk .ep,html.desk #spd-sheet .sp{min-width:54px;height:30px;font-size:12px;padding:0 9px}
+  html.desk #line-sheet .ln{min-width:118px;height:32px;font-size:12px;padding:0 12px}
+  html.desk #eps-sheet .xh,html.desk #spd-sheet .xh,html.desk #line-sheet .xh{width:28px;height:28px;padding:0}
+  html.desk #eps-sheet .xh svg,html.desk #spd-sheet .xh svg,html.desk #line-sheet .xh svg{width:13px;height:13px}
+  html.desk #toast{font-size:12.5px;padding:9px 16px}
+
+  /* 「全屏」按钮：只在电脑上出现（电视 / 盒子里遥控按全屏已经走原生那条路） */
+  #pbFull{display:none}
+  html.desk #pbFull{display:inline-flex}
+  #pbFull .i-fsx{display:none}
+  html.fsreal #pbFull .i-fs{display:none}
+  html.fsreal #pbFull .i-fsx{display:block}
+
+  /* 遥控按了全屏、但这台设备还没有用户手势时挂的一条提示：
+     浏览器不许无手势进整屏，等这台电脑上下一次点击 / 按键就补上。 */
+  #fsHint{position:fixed;left:50%;top:18px;transform:translateX(-50%) translateY(-8px);
+    z-index:2147483000;padding:10px 20px;border-radius:999px;white-space:nowrap;
+    background:rgba(20,20,22,.88);border:1px solid rgba(255,255,255,.18);color:#fff;
+    font-size:clamp(12px,1.02vw,20px);font-weight:600;letter-spacing:.01em;
+    opacity:0;pointer-events:none;transition:opacity .18s linear,transform .2s var(--ease);
+    -webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px);box-shadow:0 12px 34px rgba(0,0,0,.55)}
+  #fsHint.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  #fsHint b{font-weight:800;color:#fff}
 </style>
 </head>
 <body>
@@ -879,7 +1002,16 @@
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.4" y="4.4" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/><rect x="13.2" y="4.4" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/><rect x="4.4" y="13.2" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/><rect x="13.2" y="13.2" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/></svg>
         选集
       </button>
+      <button class="pb fx" id="pbLine">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.8 8.2h11.4l-3-3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.2 15.8H7.8l3 3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        换线路
+      </button>
       <button class="pb fx" id="pbRate">1.0×</button>
+      <button class="pb fx" id="pbFull" aria-label="全屏">
+        <svg class="i-fs" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9.2 4.7H4.7v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.8 4.7h4.5v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.8 19.3h4.5v-4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2 19.3H4.7v-4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg class="i-fsx" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.9 9.3h4.4V4.9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.1 9.3h-4.4V4.9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.1 14.7h-4.4v4.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.9 14.7h4.4v4.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="pbFullT">全屏</span>
+      </button>
       <button class="pb fx" id="pbExt">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13.6 4.6h5.8v5.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.4 4.6l-7.6 7.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M11.2 5.6H7a2.4 2.4 0 00-2.4 2.4v9a2.4 2.4 0 002.4 2.4h9a2.4 2.4 0 002.4-2.4v-4.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
         外部播放器
@@ -894,12 +1026,28 @@
     </div>
   </div>
   <div id="eps-sheet">
-    <div class="hd">选集 · 方向键选择 · 回车播放 · 返回键收起</div>
+    <div class="hd"><span>选集 · 方向键选择 · 回车播放</span>
+      <button class="pb ic xh" id="epsClose" aria-label="收起选集" title="收起">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
     <div class="grid" id="pEpsGrid"></div>
   </div>
   <div id="spd-sheet">
-    <div class="hd">播放速度 · 方向键选择 · 回车确认 · 返回键收起</div>
+    <div class="hd"><span>播放速度 · 方向键选择 · 回车确认</span>
+      <button class="pb ic xh" id="spdClose" aria-label="收起倍速" title="收起">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
     <div class="grid" id="spdGrid"></div>
+  </div>
+  <div id="line-sheet">
+    <div class="hd"><span>切换线路 · 点一下或方向键选中</span>
+      <button class="pb ic xh" id="lineClose" aria-label="收起线路" title="收起">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="grid" id="pLineGrid"></div>
   </div>
 </section>
 
@@ -1015,6 +1163,7 @@
       list = visibleIn($('player'), '.fx');
       if ($('eps-sheet').classList.contains('on')) list = visibleIn($('eps-sheet'), '.fx');
       if ($('spd-sheet').classList.contains('on')) list = visibleIn($('spd-sheet'), '.fx');
+      if ($('line-sheet').classList.contains('on')) list = visibleIn($('line-sheet'), '.fx');
     }
     return list;
   }
@@ -1946,7 +2095,8 @@
   function bars(show) {
     $('ptopbar').classList.toggle('hide', !show);
     /* 选集 / 倍速面板占的是播放条那个位置，开着的时候把条子收起来，别两块玻璃叠在一起 */
-    var sheet = $('eps-sheet').classList.contains('on') || $('spd-sheet').classList.contains('on');
+    var sheet = $('eps-sheet').classList.contains('on') || $('spd-sheet').classList.contains('on') ||
+      $('line-sheet').classList.contains('on');
     $('pbotbar').classList.toggle('hide', !show || sheet);
     clearTimeout(hideT);
     if (show) hideT = setTimeout(function () {
@@ -2316,6 +2466,51 @@
       paintFocus($('pbEps'));
     }
   }
+  function closeEps() {
+    if (!$('eps-sheet').classList.contains('on')) return;
+    $('eps-sheet').classList.remove('on');
+    bars(true);
+    try { paintFocus($('pbEps')); } catch (e) {}
+  }
+
+  /* ---- 换线路面板 ----
+     电视版播放条原来只有「选集」：想换条线路得退出播放器回详情页。
+     电脑和手机上更没得点。这里补一个「换线路」，和选集同一块玻璃。 */
+  function buildSources() {
+    var box = $('pLineGrid');
+    if (!box) return;
+    box.innerHTML = '';
+    (S.groups || []).forEach(function (g, i) {
+      var n = (g.episodes || []).length;
+      var b = el('button', 'ln fx');
+      b.innerHTML = grpLabel(g, i) + (n ? ' <i>' + n + ' 集</i>' : '');
+      if (i === S.group) b.classList.add('on');
+      b.addEventListener('click', function () {
+        closeSources();
+        if (i !== S.group) rcTvSwitchLine(i);
+      });
+      box.appendChild(b);
+    });
+  }
+  function openSources() {
+    if (!(S.groups || []).length) { toast('还没拿到线路'); return; }
+    buildSources();
+    $('line-sheet').classList.add('on');
+    bars(true);
+    barFocus = false;
+    var cur = document.querySelector('#pLineGrid .ln.on') || document.querySelector('#pLineGrid .ln');
+    if (cur) paintFocus(cur);
+  }
+  function closeSources() {
+    $('line-sheet').classList.remove('on');
+    bars(true);
+    try { paintFocus($('pbLine')); } catch (e) {}
+  }
+  $('pbLine').addEventListener('click', function () { openSources(); });
+  $('epsClose').addEventListener('click', function (e) { if (e) e.stopPropagation(); closeEps(); });
+  $('spdClose').addEventListener('click', function (e) { if (e) e.stopPropagation(); closeSpeeds(); });
+  $('lineClose').addEventListener('click', function (e) { if (e) e.stopPropagation(); closeSources(); });
+
   /* 下一集倒计时 */
   var nxTimer = null, nxSec = 0;
   function offerNext() {
@@ -2900,6 +3095,11 @@
       if (a === 'back') { closeSpeeds(); return true; }
       move(a); return true;
     }
+    if ($('line-sheet').classList.contains('on')) {
+      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
+      if (a === 'back') { closeSources(); return true; }
+      move(a); return true;
+    }
     if (barFocus) {
       if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); bars(true); return true; }
       if (a === 'left' || a === 'right' || a === 'up' || a === 'down') { move(a); bars(true); return true; }
@@ -2960,6 +3160,7 @@
       }
       if ($('nx').classList.contains('on') || $('eps-sheet').classList.contains('on')) return true;
       if ($('spd-sheet').classList.contains('on')) { closeSpeeds(); return true; }
+      if ($('line-sheet').classList.contains('on')) { closeSources(); return true; }
       if (!barFocus) enterBar();
       return true;
     }
@@ -3426,21 +3627,138 @@
         nat = true;
       }
     } catch (e) {}
-    /* 电脑 / 浏览器里没有原生桥：有人工手势（双击、按键）时直接进系统全屏，
-       遥控过来的没有手势，这一下会被拒，忽略即可——顶栏照样收起来。 */
+    /* 电脑 / 浏览器里没有原生桥：真进整屏需要用户手势。
+       自己点按钮 / 按 F / 双击都有手势，直接进；遥控过来的没有手势，这一下会被
+       浏览器拒——那就挂一条提示，等这台电脑上下一次真实点击 / 按键补成整屏。 */
     if (!nat) {
-      try {
-        if (tvFullOn) {
-          if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
-        } else if (document.fullscreenElement && document.exitFullscreen) {
-          document.exitFullscreen();
-        }
-      } catch (e) {}
+      if (tvFullOn) enterRealFs();
+      else exitRealFs();
     }
     var de = document.documentElement;
     if (tvFullOn) de.classList.add('tvfs'); else de.classList.remove('tvfs');
     toast(tvFullOn ? '全屏 · 再按一次退出' : '退出全屏');
   }
+
+  /* ============ 真·系统全屏（F11 那种） ============
+     以前电视版播放条上根本没有全屏键：电视本来就整屏、遥控全屏走原生桥，
+     没人想到电脑上会缺一个。而浏览器只允许「用户手势」进整屏：自己点按钮、
+     按 F、双击画面都行；手机遥控走的是轮询，永远没有手势，那一发
+     requestFullscreen 必被拒。所以这里分两条路：
+       · 有手势 → 直接 requestFullscreen，铺满一整块屏幕，不是把网页铺满窗口
+       · 没手势 → 画面先铺满（伪全屏），屏幕上挂一条提示，
+                  这台电脑上下一次真实点击 / 按键立刻补成整屏
+     退出不需要手势，遥控按第二下就退得掉。 */
+  function fsReal() {
+    var vv = $('video');
+    return !!(document.fullscreenElement || document.webkitFullscreenElement ||
+      document.mozFullScreenElement || document.msFullscreenElement ||
+      (vv && vv.webkitDisplayingFullscreen));
+  }
+  function fsRequest() {
+    var el = document.documentElement;
+    return el.requestFullscreen || el.webkitRequestFullscreen ||
+      el.webkitRequestFullScreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+  }
+  function fsExit() {
+    var ex = document.exitFullscreen || document.webkitExitFullscreen ||
+      document.mozCancelFullScreen || document.msExitFullscreen;
+    if (!ex) return;
+    try { var r = ex.call(document); if (r && r.catch) r.catch(function () {}); } catch (e) {}
+  }
+  var fsArmed = false, fsArmTimer = 0;
+  function fsHintNode() {
+    var n = $('fsHint');
+    if (!n) {
+      n = document.createElement('div');
+      n.id = 'fsHint';
+      document.body.appendChild(n);
+    }
+    return n;
+  }
+  function fsHintShow(txt) {
+    var n = fsHintNode();
+    n.innerHTML = txt || '<b>点一下画面</b>或按任意键，进入整屏全屏';
+    n.classList.add('on');
+    clearTimeout(fsArmTimer);
+    fsArmTimer = setTimeout(function () { n.classList.remove('on'); fsArmed = false; }, 15000);
+  }
+  function fsHintHide() {
+    var n = $('fsHint'); if (n) n.classList.remove('on');
+    fsArmed = false; clearTimeout(fsArmTimer);
+  }
+  /** 记下「要进整屏」，等这台设备上下一次真实输入用那一下手势补上 */
+  function armRealFs(txt) {
+    fsArmed = true;
+    fsHintShow(txt);
+    /* 伪全屏先挂上：遥控按下去当场就有反应，不是一动不动 */
+    document.documentElement.classList.add('tvfs');
+    tvFullOn = true;
+    try { bars(true); } catch (e) {}
+  }
+  function enterRealFs() {
+    if (fsReal()) return;
+    /* iPhone / iPad：没有元素级全屏 API，只有 <video> 自带的 webkitEnterFullscreen，
+       它会切到苹果自己的播放内核（满屏画面 + 系统控制条），这是 iOS 上唯一的真全屏。 */
+    var vv = $('video');
+    if (vv && !fsRequest() && typeof vv.webkitEnterFullscreen === 'function') {
+      try { vv.webkitEnterFullscreen(); return; } catch (e) {}
+    }
+    var fn = fsRequest();
+    if (!fn) { armRealFs('这台浏览器没有整屏全屏 · 按 F11 可以再进一层'); return; }
+    var p = null;
+    try { p = fn.call(document.documentElement, { navigationUI: 'hide' }); }
+    catch (e) { p = null; }
+    if (p && p.catch) p.catch(function () { armRealFs(); });
+    else if (!p) armRealFs();
+  }
+  function exitRealFs() {
+    var vv = $('video');
+    if (vv && vv.webkitDisplayingFullscreen && typeof vv.webkitExitFullscreen === 'function') {
+      try { vv.webkitExitFullscreen(); } catch (e) {}
+      return;
+    }
+    if (fsReal()) fsExit();
+  }
+  function paintFsBtn() {
+    var on = fsReal(), de = document.documentElement;
+    de.classList.toggle('fsreal', on);
+    /* 真全屏时把网页顶栏一起收掉；退出时若遥控那层还开着就留着 */
+    if (on) de.classList.add('tvfs');
+    else if (!tvFullOn) de.classList.remove('tvfs');
+    var t = $('pbFullT'); if (t) t.textContent = on ? '退出全屏' : '全屏';
+    var b = $('pbFull'); if (b) b.setAttribute('aria-label', on ? '退出全屏' : '全屏');
+  }
+  function toggleRealFullscreen() {
+    /* App 里有原生桥：交给原生改窗口状态（沉浸式、隐藏系统栏） */
+    if (window.MFlixNative && window.MFlixNative.fullscreen) { toggleTvFull(); return; }
+    if (fsReal()) { exitRealFs(); return; }
+    enterRealFs();
+  }
+  (function bindFsBtn() {
+    var btn = $('pbFull');
+    if (btn) btn.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      toggleRealFullscreen();
+    });
+    /* 挂着「等下一次输入」时，这台设备上任何一次真实点击 / 按键都把它补完 */
+    var useGesture = function () {
+      if (!fsArmed) return;
+      fsHintHide();
+      enterRealFs();
+    };
+    window.addEventListener('pointerdown', useGesture, true);
+    window.addEventListener('keydown', useGesture, true);
+    ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange']
+      .forEach(function (ev) {
+        document.addEventListener(ev, function () {
+          /* Esc / 手势退出：伪全屏那层标记也要一起放掉，否则顶栏永远不回来 */
+          if (!fsReal() && !(window.MFlixNative && window.MFlixNative.fullscreen)) tvFullOn = false;
+          paintFsBtn();
+          try { bars(true); } catch (e) {}
+        });
+      });
+    paintFsBtn();
+  })();
   try {
     MFlixRC.mount({
       btn: $('rcBtn'),

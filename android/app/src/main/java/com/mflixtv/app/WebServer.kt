@@ -569,13 +569,21 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
      * 手动选过的优先级高于 UA，否则「我在电脑上想用手机版」这种需求永远做不到。
      */
     private fun pickScreen(session: IHTTPSession, p: Map<String, List<String>>): Screen {
+        val ua = (session.headers["user-agent"] ?: "").lowercase()
         val q = p["ui"]?.firstOrNull()?.trim()?.lowercase().orEmpty()
         val want = if (q.isNotEmpty()) q else cookie(session, "mfl_ui")
+        /* 手机上不认 cookie 里那个「电视版」：在手机上误点过一次，接下来 30 天打开全是
+           电视界面——键点不到、也没有 iOS 的播放内核全屏。手机只在地址里写 ?ui=tv 时给电视版，
+           落地就按手机版走。 */
+        if (guessScreen(ua) == Screen.PHONE) {
+            return if (q == "tv" || q == "t" || q == "big" || q == "desktop" || q == "pc")
+                Screen.TV else Screen.PHONE
+        }
         when (want) {
             "tv", "t", "big", "desktop", "pc" -> return Screen.TV
             "m", "phone", "mobile", "small" -> return Screen.PHONE
         }
-        return guessScreen((session.headers["user-agent"] ?: "").lowercase())
+        return guessScreen(ua)
     }
 
     /**

@@ -1,7 +1,7 @@
 'use client';
 
 import { installNav, topLayer, type NavDir, type NavHandle } from '@/lib/remote-nav';
-import { canNativeFullscreen, setNativeFullscreen } from '@/lib/native-fullscreen';
+import { canNativeFullscreen, setNativeFullscreen, armRealFullscreen } from '@/lib/native-fullscreen';
 
 /**
  * 「扫一扫当遥控器」的被控端引擎 —— 活在模块里，不跟着组件挂载 / 卸载。
@@ -375,7 +375,12 @@ export function exec(cmd: string, arg: string) {
         document.documentElement.dataset.mflFs = on ? '1' : '0';
         return;
       }
-      if (toggleCssFullscreen()) return;
+      if (toggleCssFullscreen()) {
+        // 遥控没有用户手势，浏览器不给进整屏：画面先铺满窗口，
+        // 再等这台电脑上下一次真实点击 / 按键，用那一下手势补成整屏全屏。
+        armRealFullscreen();
+        return;
+      }
       if (document.fullscreenElement) {
         // 本机用户自己按 F 进了原生全屏：遥控按一下就退出去
         void document.exitFullscreen().catch(() => {});

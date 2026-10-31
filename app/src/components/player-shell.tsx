@@ -40,7 +40,7 @@ import {
   DESKTOP_CONTROL_HIDE_MS,
   TOUCH_CONTROL_HIDE_MS,
 } from '@/lib/control-hide';
-import { toggleNativeFullscreen } from '@/lib/native-fullscreen';
+import { toggleNativeFullscreen, armRealFullscreen } from '@/lib/native-fullscreen';
 
 /** 片段时间统一保留 1 位小数：与面板展示保持一致，避免浮点尾巴 */
 const round1 = (v: number) => Math.round(v * 10) / 10;
@@ -1486,8 +1486,9 @@ export function PlayerShell({
       window.setTimeout(syncFsFlag, 80);
       if (on && !native) {
         // 浏览器里这是安全策略的死角：遥控按不出来系统全屏，得用户自己给一次手势。
+        // 不用让人去记 F 键：挂一条提示，这台电脑上下一次真实点击 / 按键就顺势补成整屏全屏。
         window.setTimeout(() => {
-          if (!document.fullscreenElement) showHint('已铺满画面 · 按 F 键可进系统全屏');
+          if (!document.fullscreenElement) armRealFullscreen();
         }, 280);
       }
     };

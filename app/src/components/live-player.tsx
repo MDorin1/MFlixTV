@@ -6,7 +6,7 @@ import Hls, { type HlsConfig } from 'hls.js';
 import { Spinner } from './states';
 import { prefersTouchPointer } from '@/lib/touch-pointer';
 import { ART_DEFAULT_CONTROL_HIDE_MS, TOUCH_CONTROL_HIDE_MS } from '@/lib/control-hide';
-import { toggleNativeFullscreen } from '@/lib/native-fullscreen';
+import { toggleNativeFullscreen, armRealFullscreen } from '@/lib/native-fullscreen';
 
 /**
  * 直播播放器：与点播 player-shell 完全独立。
@@ -377,8 +377,14 @@ export function LivePlayer({ url, title, onPrevChannel, onNextChannel }: LivePla
           /* 忽略 */
         }
       }
-      toggleNativeFullscreen(on);
+      const native = toggleNativeFullscreen(on);
       art.fullscreenWeb = on;
+      if (on && !native) {
+        // 遥控没有用户手势，浏览器不给进整屏：等这台电脑上下一次真实点击 / 按键补上
+        window.setTimeout(() => {
+          if (!document.fullscreenElement) armRealFullscreen();
+        }, 280);
+      }
       if (detail) detail.handled = true;
       window.setTimeout(syncFsFlag, 80);
     };

@@ -2603,6 +2603,66 @@
     document.addEventListener(ev, function () { paintFullBtns(); });
   });
 
+  /* ---- 遥控按全屏：浏览器不许「无手势」进整屏 ----
+     遥控指令走轮询，没有用户手势，requestFullscreen 会被浏览器直接拒，
+     于是「按了全屏」只剩伪全屏：画面铺满了窗口，浏览器自己的标签栏、地址栏还在，
+     看着就是「网页全屏」。这一步绕不过去，但可以缩短——
+     先把画面铺满，屏幕上挂一条提示，这台设备上下一次真实点击或按键，
+     用那一下手势把真·整屏补上。退出不需要手势，再按一次照样退得掉。 */
+  var fsArmed = false, fsArmT = 0;
+  function fsHintNode() {
+    var n = document.getElementById('fsHint');
+    if (n) return n;
+    n = document.createElement('div');
+    n.id = 'fsHint';
+    n.style.cssText = 'position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 10px);' +
+      'transform:translateX(-50%);z-index:2147483000;padding:9px 16px;border-radius:999px;' +
+      'background:rgba(20,20,22,.92);border:1px solid rgba(255,255,255,.18);color:#fff;' +
+      'font-size:13px;font-weight:600;white-space:nowrap;pointer-events:none;opacity:0;' +
+      'transition:opacity .16s linear;box-shadow:0 10px 26px rgba(0,0,0,.5)';
+    document.body.appendChild(n);
+    return n;
+  }
+  function fsHintShow(txt) {
+    var n = fsHintNode();
+    n.innerHTML = txt || '<b>点一下画面</b>或按任意键，进入整屏全屏';
+    n.style.opacity = '1';
+    clearTimeout(fsArmT);
+    fsArmT = setTimeout(function () { n.style.opacity = '0'; fsArmed = false; }, 15000);
+  }
+  function armRealFull(txt) {
+    fsArmed = true;
+    fsHintShow(txt);
+  }
+  /** 用当前这一下手势把整屏全屏补上（播放器元素级全屏，和右下角那个「全屏」键同一条路） */
+  function enterRealFull() {
+    if (fsElement()) return;
+    var el = $('player');
+    var fn = el && (el.requestFullscreen || el.webkitRequestFullscreen ||
+      el.webkitRequestFullScreen || el.mozRequestFullScreen || el.msRequestFullscreen);
+    if (!fn) { pfullOn(isIOS()); return; }
+    try {
+      var r = fn.call(el);
+      if (r && r.catch) r.catch(function () { pfullOn(isIOS()); });
+      setTimeout(function () {
+        if (!fsElement() && !$('player').classList.contains('pfull')) pfullOn(isIOS());
+      }, 420);
+    } catch (e) { pfullOn(isIOS()); }
+  }
+  (function bindFsArmGesture() {
+    var go = function () {
+      if (!fsArmed) return;
+      fsArmed = false;
+      clearTimeout(fsArmT);
+      var n = document.getElementById('fsHint');
+      if (n) n.style.opacity = '0';
+      enterRealFull();
+    };
+    window.addEventListener('pointerdown', go, true);
+    window.addEventListener('touchstart', go, true);
+    window.addEventListener('keydown', go, true);
+  })();
+
   /* ---- 播放器里的选集 / 换线路 / 播放设置（对齐电脑端，不只靠右下角「下一集」） ---- */
   function sheetOpen(title, kind) {
     $('psheetT').textContent = title;
@@ -3382,6 +3442,8 @@
             return true;
           }
           pfullOn(true);
+          /* 遥控没有手势：先铺满，再等这台设备上下一次真实点击 / 按键补成整屏 */
+          armRealFull();
           return true;
         }
         /* 播放页里「确定」在没选中控件时就是播放/暂停；其它页面交给方向键导航去点 */
