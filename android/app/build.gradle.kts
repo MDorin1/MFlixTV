@@ -12,7 +12,7 @@ android {
         // 0.13：往下兼容到 Android 7.0（API 24）。之前是 26，Android 7.x 的老机型直接装不上。
         minSdk = 24
         targetSdk = 34
-        versionCode = 109
+        versionCode = 110
         versionName = "1.2"
         // 这里原来写着 abiFilters += listOf("arm64-v8a")，再加一份用不到的 jniLibs/arm64-v8a/libnode.so
         // （42 MB 的 nodejs-mobile 残留）。结果 API 里声明了 native-code: arm64-v8a，

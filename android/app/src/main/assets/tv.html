@@ -613,12 +613,13 @@
     -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:0 .6rem 1.6rem rgba(0,0,0,.55)}
 
   /* 左下角：上一集 / 播放（白圆大键）/ 下一集 */
-  #pbL{position:absolute;left:1.7rem;bottom:3.1rem;display:flex;align-items:center;gap:.95rem;
+  #pbL{position:absolute;left:1.7rem;bottom:2rem;display:flex;align-items:center;gap:.95rem;
     pointer-events:auto}
 
-  /* 右下角：所有功能竖着排一列；图标为主，聚焦或悬停时从左侧浮出名字 */
-  #pbR{position:absolute;right:1.7rem;bottom:3.1rem;display:flex;flex-direction:column-reverse;
-    align-items:flex-end;gap:.5rem;pointer-events:auto}
+  /* 右下角：所有功能竖着排一列；图标为主，聚焦或悬停时从左侧浮出名字
+     整列压到进度条上沿（离底 2rem），不再浮在半空；间距也收紧一点 */
+  #pbR{position:absolute;right:1.7rem;bottom:2rem;display:flex;flex-direction:column-reverse;
+    align-items:flex-end;gap:.44rem;pointer-events:auto}
 
   /* 按钮底色是深色玻璃，不是白色半透明：亮画面（雪景、白字海报）上也看得见 */
   .pb{height:2.8rem;min-width:2.8rem;padding:0 .9rem;border-radius:999px;font-size:.82rem;
@@ -629,8 +630,20 @@
     box-shadow:0 .25rem .9rem rgba(0,0,0,.38);
     transition:background .16s var(--ease),color .16s var(--ease),transform .16s var(--ease)}
   .pb svg{width:1.12rem;height:1.12rem;display:block;flex:none}
+  /* 右下角这一列（和左下两个切换键）做成「浮在画面上」的：底色只留薄薄一层黑，
+     靠模糊把身后的画面糊化，亮画面（雪景 / 白底海报）上仍能看出轮廓；
+     聚焦或悬停时才恢复成实心白。播放键是白色实心，不在此列 */
   #pbR .pb{width:2.8rem;height:2.8rem;padding:0;border-radius:50%}
+  #pbR .pb,#pbL .pb:not(.play){background:rgba(12,12,14,.42);
+    border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.95);
+    box-shadow:0 .18rem .6rem rgba(0,0,0,.2);
+    -webkit-backdrop-filter:blur(16px) saturate(1.45);backdrop-filter:blur(16px) saturate(1.45)}
+  /* 图标自带一点暗影：万一压在雪景 / 白底画面上，白色图标也不会糊成一片 */
+  #pbR .pb svg,#pbL .pb:not(.play) svg{filter:drop-shadow(0 .07rem .2rem rgba(0,0,0,.55))}
   #pbR .pb.wide{width:auto;padding:0 .85rem;border-radius:999px}
+  #pbR .pb.fx.on,#pbR .pb:hover,
+  #pbL .pb:not(.play).fx.on,#pbL .pb:not(.play):hover{background:#fff;color:#08080a;border-color:transparent;
+    box-shadow:0 0 0 .09rem rgba(255,255,255,.95),0 1rem 2.4rem rgba(0,0,0,.5)}
   #pbR .pb .lb{position:absolute;right:calc(100% + .62rem);top:50%;transform:translate(.35rem,-50%);
     white-space:nowrap;font-size:.74rem;font-weight:600;letter-spacing:.02em;color:#fff;
     padding:.28rem .6rem;border-radius:.5rem;background:rgba(18,18,20,.82);
@@ -776,8 +789,8 @@
   html.desk #ptitle{font-size:19px;letter-spacing:0}
   html.desk #psub{font-size:12px;margin-top:4px}
   /* 播放条：贴底一条进度线 + 左下播放组 + 右下竖列；电脑上整套控件按 px 定死 */
-  html.desk #pbL{left:26px;bottom:56px;gap:12px}
-  html.desk #pbR{right:26px;bottom:56px;gap:8px}
+  html.desk #pbL{left:26px;bottom:38px;gap:12px}
+  html.desk #pbR{right:26px;bottom:38px;gap:6px}
   html.desk .pb{height:38px;min-width:38px;padding:0 13px;font-size:12.5px;gap:5px}
   html.desk .pb svg{width:16px;height:16px}
   html.desk #pbR .pb{width:38px;height:38px}
