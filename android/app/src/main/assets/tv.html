@@ -582,52 +582,78 @@
     font-size:1.82rem;font-weight:600;letter-spacing:-.008em;line-height:1.22}
   #psub{font-size:.9rem;color:rgba(255,255,255,.6);margin-top:.46rem;font-weight:500;letter-spacing:.012em}
 
-  /* --- 底部悬浮面板 --- */
-  #pbotbar{left:2.4rem;right:2.4rem;bottom:1.8rem;padding:1.1rem 1.5rem 1.25rem;border-radius:1.4rem;
-    background:rgba(26,26,28,.62);border:1px solid rgba(255,255,255,.1);
-    box-shadow:0 1.8rem 4.2rem rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.11);
-    transition:opacity .3s var(--ease),transform .3s var(--ease)}
-  #pbotbar.hide{transform:translateY(1.1rem)}
-  @supports (backdrop-filter: blur(2px)){
-    #pbotbar{background:rgba(26,26,28,.5);
-      -webkit-backdrop-filter:blur(40px) saturate(1.8);backdrop-filter:blur(40px) saturate(1.8)}
-    #ptopbar{-webkit-backdrop-filter:none;backdrop-filter:none}
-  }
-  html.lite #pbotbar{background:rgba(18,18,20,.9);box-shadow:0 1rem 2rem rgba(0,0,0,.6)}
+  /* --- 底部控制：苹果播放器式布局（1.2 改） ---
+     一条贴底的进度线 + 左下角「上一集 / 播放 / 下一集」+ 右下角竖排一列图标。
+     中间整块留空：字幕就压在画面底部，也不会被控件盖住。
+     不再是「一整条黑渐变 + 一排方块按钮」，所以压不到画面中间。 */
+  #pbotbar{position:absolute;inset:0;z-index:5;padding:0;border:none;border-radius:0;background:none;
+    box-shadow:none;pointer-events:none;transition:opacity .28s var(--ease)}
+  #pbotbar.hide{opacity:0}
+  /* 控件隐藏时连点击也不接：否则整块屏幕都成了「点不动的死区」 */
+  #pbotbar.hide #pbL,#pbotbar.hide #pbR,#pbotbar.hide #pbScr{pointer-events:none}
 
-  /* --- 进度条：细白线 + 圆形滑块 --- */
-  #track{height:.3rem;margin:0 .18rem .58rem;background:rgba(255,255,255,.22);border-radius:999px;
-    overflow:visible;position:relative}
+  /* 进度：贴底一条细白线，两端是时间；交互时线变粗、滑块才露头 */
+  #pbScr{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:auto 1fr auto;
+    align-items:center;gap:.9rem;padding:0 1.5rem .78rem;pointer-events:auto}
+  #track{height:.22rem;margin:0;background:rgba(255,255,255,.34);border-radius:999px;
+    overflow:visible;position:relative;cursor:pointer;box-shadow:0 0 0 1px rgba(0,0,0,.22);
+    transition:height .18s var(--ease)}
   #played{height:100%;background:#fff;border-radius:999px;transition:width .2s linear;position:relative}
-  #played:after{content:'';position:absolute;right:-.36rem;top:50%;width:.78rem;height:.78rem;
-    margin-top:-.39rem;border-radius:50%;background:#fff;box-shadow:0 .12rem .5rem rgba(0,0,0,.55)}
-  #tbub{bottom:2.6rem;border-radius:999px;background:rgba(28,28,30,.78);border:1px solid rgba(255,255,255,.14);
-    padding:.28rem .8rem;font-size:.8rem;font-weight:600;letter-spacing:.02em;
-    -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:0 .6rem 1.6rem rgba(0,0,0,.5)}
-  .ptime{font-size:.78rem;letter-spacing:.02em;color:rgba(255,255,255,.52);font-weight:500}
-  #pcur{color:rgba(255,255,255,.92);font-weight:600}
+  #played:after{content:'';position:absolute;right:-.42rem;top:50%;width:.84rem;height:.84rem;margin-top:-.42rem;
+    border-radius:50%;background:#fff;box-shadow:0 .1rem .45rem rgba(0,0,0,.6);opacity:0;transition:opacity .18s}
+  #pbScr:hover #track,
+  #pbotbar:focus-within #track{height:.44rem}
+  #pbScr:hover #played:after,
+  #pbotbar:focus-within #played:after{opacity:1}
+  .pt{font-size:.72rem;font-weight:600;letter-spacing:.03em;color:rgba(255,255,255,.6);
+    font-variant-numeric:tabular-nums;text-shadow:0 .06rem .3rem rgba(0,0,0,.7);white-space:nowrap}
+  #pcur{color:rgba(255,255,255,.95)}
+  #tbub{bottom:2.2rem;border-radius:999px;background:rgba(22,22,24,.82);border:1px solid rgba(255,255,255,.14);
+    padding:.26rem .75rem;font-size:.76rem;font-weight:600;letter-spacing:.02em;
+    -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:0 .6rem 1.6rem rgba(0,0,0,.55)}
 
-  /* --- 按钮 --- */
-  #pbtns{display:flex;align-items:center;gap:.72rem;margin-top:1rem;flex-wrap:wrap}
-  .pb{height:2.9rem;padding:0 1.05rem;border-radius:999px;font-size:.9rem;font-weight:600;letter-spacing:.01em;
-    background:rgba(255,255,255,.13);color:#fff;border:1px solid rgba(255,255,255,.09);
-    display:inline-flex;align-items:center;justify-content:center;gap:.45rem;box-sizing:border-box;
-    font-family:-apple-system,"SF Pro Display","PingFang SC","HarmonyOS Sans SC","MiSans",sans-serif}
-  .pb svg{width:1.1rem;height:1.1rem;display:block;flex:none}
-  .pb.ic{width:2.9rem;padding:0}
-  .pb.play{width:3.5rem;height:3.5rem;background:#fff;color:#08080a;border:none;
+  /* 左下角：上一集 / 播放（白圆大键）/ 下一集 */
+  #pbL{position:absolute;left:1.7rem;bottom:3.1rem;display:flex;align-items:center;gap:.95rem;
+    pointer-events:auto}
+
+  /* 右下角：所有功能竖着排一列；图标为主，聚焦或悬停时从左侧浮出名字 */
+  #pbR{position:absolute;right:1.7rem;bottom:3.1rem;display:flex;flex-direction:column-reverse;
+    align-items:flex-end;gap:.5rem;pointer-events:auto}
+
+  /* 按钮底色是深色玻璃，不是白色半透明：亮画面（雪景、白字海报）上也看得见 */
+  .pb{height:2.8rem;min-width:2.8rem;padding:0 .9rem;border-radius:999px;font-size:.82rem;
+    font-weight:600;letter-spacing:.01em;background:rgba(18,18,20,.55);color:#fff;
+    border:1px solid rgba(255,255,255,.16);display:inline-flex;align-items:center;justify-content:center;
+    gap:.4rem;box-sizing:border-box;position:relative;
+    -webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);
+    box-shadow:0 .25rem .9rem rgba(0,0,0,.38);
+    transition:background .16s var(--ease),color .16s var(--ease),transform .16s var(--ease)}
+  .pb svg{width:1.12rem;height:1.12rem;display:block;flex:none}
+  #pbR .pb{width:2.8rem;height:2.8rem;padding:0;border-radius:50%}
+  #pbR .pb.wide{width:auto;padding:0 .85rem;border-radius:999px}
+  #pbR .pb .lb{position:absolute;right:calc(100% + .62rem);top:50%;transform:translate(.35rem,-50%);
+    white-space:nowrap;font-size:.74rem;font-weight:600;letter-spacing:.02em;color:#fff;
+    padding:.28rem .6rem;border-radius:.5rem;background:rgba(18,18,20,.82);
+    border:1px solid rgba(255,255,255,.12);opacity:0;pointer-events:none;
+    transition:opacity .14s linear,transform .14s var(--ease)}
+  #pbR .pb.fx.on .lb,
+  #pbR .pb:hover .lb{opacity:1;transform:translate(0,-50%)}
+  .pb.play{width:4.1rem;height:4.1rem;background:#fff;color:#08080a;border:none;
     box-shadow:0 .5rem 1.6rem rgba(0,0,0,.45)}
-  .pb.play svg{width:1.34rem;height:1.34rem}
+  .pb.play svg{width:1.5rem;height:1.5rem}
   .pb.play .i-pause{display:none}
   .pb.play.playing .i-play{display:none}
   .pb.play.playing .i-pause{display:block}
-  .pb.fx.on{background:#fff;color:#08080a;transform:scale(1.07);
+  .pb.fx.on{background:#fff;color:#08080a;transform:scale(1.06);
     box-shadow:0 0 0 .09rem rgba(255,255,255,.95),0 1rem 2.4rem rgba(0,0,0,.5)}
   /* 播放键本身就是白的：聚焦时先垫一圈深色再套白环，白键和彩色画面上都看得见 */
-  .pb.play.fx.on{transform:scale(1.12);
+  .pb.play.fx.on{transform:scale(1.1);
     box-shadow:0 0 0 .12rem rgba(6,6,8,.92),0 0 0 .3rem #fff,0 1.2rem 3rem rgba(0,0,0,.6)}
   .pb[disabled]{opacity:.38}
-  #pbSep{width:1px;height:1.9rem;background:rgba(255,255,255,.16);margin-left:auto}
+  /* 静音键：喇叭 / 划掉的喇叭两种图标，按状态切换 */
+  #pbMute .i-mute{display:none}
+  #pbMute.on .i-vol{display:none}
+  #pbMute.on .i-mute{display:block}
 
   /* --- 选集 / 倍速 面板：和播放条同一个位置、同一块毛玻璃 --- */
   #eps-sheet,#spd-sheet{left:2.4rem;right:2.4rem;bottom:1.8rem;border-radius:1.4rem;
@@ -749,21 +775,21 @@
   html.desk #ptopbar{padding:1.15rem 2rem 2.2rem}
   html.desk #ptitle{font-size:19px;letter-spacing:0}
   html.desk #psub{font-size:12px;margin-top:4px}
-  /* 播放条：底部居中、限宽、贴底留一点空气，别横贯整块屏幕 */
-  html.desk #pbotbar{left:50%;right:auto;bottom:16px;width:min(1080px,calc(100% - 48px));
-    padding:9px 14px 11px;border-radius:14px;transform:translateX(-50%)}
-  html.desk #pbotbar.hide{transform:translateX(-50%) translateY(8px)}
-  html.desk #track{height:4px;margin:0 2px 6px}
-  html.desk #played:after{width:10px;height:10px;margin-top:-5px;right:-5px}
-  html.desk .ptime{font-size:11.5px}
-  html.desk #pbtns{gap:7px;margin-top:9px}
-  html.desk .pb{height:36px;padding:0 13px;font-size:12.5px;gap:5px}
+  /* 播放条：贴底一条进度线 + 左下播放组 + 右下竖列；电脑上整套控件按 px 定死 */
+  html.desk #pbL{left:26px;bottom:56px;gap:12px}
+  html.desk #pbR{right:26px;bottom:56px;gap:8px}
+  html.desk .pb{height:38px;min-width:38px;padding:0 13px;font-size:12.5px;gap:5px}
   html.desk .pb svg{width:16px;height:16px}
-  html.desk .pb.ic{width:36px;padding:0}
-  html.desk .pb.play{width:44px;height:44px}
-  html.desk .pb.play svg{width:17px;height:17px}
-  html.desk #pbSep{height:22px}
-  html.desk #tbub{bottom:1.9rem;font-size:11.5px}
+  html.desk #pbR .pb{width:38px;height:38px}
+  html.desk #pbR .pb.wide{width:auto;padding:0 12px}
+  html.desk #pbR .pb .lb{font-size:11.5px;padding:5px 9px}
+  html.desk .pb.play{width:52px;height:52px}
+  html.desk .pb.play svg{width:19px;height:19px}
+  html.desk #pbScr{padding:0 26px 13px;gap:12px}
+  html.desk #track{height:3px}
+  html.desk #played:after{width:10px;height:10px;margin-top:-5px;right:-5px}
+  html.desk .pt{font-size:11.5px}
+  html.desk #tbub{bottom:2.1rem;font-size:11.5px}
   html.desk #pbig{width:58px;height:58px;font-size:17px}
   html.desk #pmsg{font-size:13px;max-width:60%;padding:13px 18px;border-radius:12px}
   html.desk #pbrand .w{font-size:34px}
@@ -983,10 +1009,7 @@
     </div>
   </div>
   <div id="pbotbar">
-    <div id="tbub">00:00</div>
-    <div id="track"><div id="played"></div></div>
-    <div class="ptime"><span id="pcur">00:00</span><span id="pdur">00:00</span></div>
-    <div id="pbtns">
+    <div id="pbL">
       <button class="pb ic fx" id="pbPrev" aria-label="上一集">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 5.2v13.6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M19.4 5.6v12.8L9.1 12z" fill="currentColor"/></svg>
       </button>
@@ -997,33 +1020,46 @@
       <button class="pb ic fx" id="pbNext" aria-label="下一集">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M17.4 5.2v13.6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M4.6 5.6v12.8L14.9 12z" fill="currentColor"/></svg>
       </button>
-      <div id="pbSep"></div>
+    </div>
+    <div id="pbR">
       <button class="pb fx" id="pbEps">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.4" y="4.4" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/><rect x="13.2" y="4.4" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/><rect x="4.4" y="13.2" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/><rect x="13.2" y="13.2" width="6.4" height="6.4" rx="1.9" stroke="currentColor" stroke-width="1.8"/></svg>
-        选集
+        <span class="lb">选集</span>
       </button>
       <button class="pb fx" id="pbLine">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.8 8.2h11.4l-3-3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.2 15.8H7.8l3 3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        换线路
+        <span class="lb">换线路</span>
       </button>
-      <button class="pb fx" id="pbRate">1.0×</button>
+      <button class="pb fx wide" id="pbRate">1.0×</button>
+      <button class="pb fx" id="pbMute" aria-label="静音">
+        <svg class="i-vol" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.6 9.4h3.3L12.6 5.6v12.8L7.9 14.6H4.6z" fill="currentColor"/><path d="M16 9.1c.9.8 1.4 1.8 1.4 2.9s-.5 2.1-1.4 2.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M18.6 6.6c1.5 1.4 2.3 3.3 2.3 5.4s-.8 4-2.3 5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <svg class="i-mute" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.6 9.4h3.3L12.6 5.6v12.8L7.9 14.6H4.6z" fill="currentColor"/><path d="M16.4 9.6l5 5M21.4 9.6l-5 5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        <span class="lb" id="pbMuteT">静音</span>
+      </button>
       <button class="pb fx" id="pbFull" aria-label="全屏">
         <svg class="i-fs" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9.2 4.7H4.7v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.8 4.7h4.5v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.8 19.3h4.5v-4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2 19.3H4.7v-4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <svg class="i-fsx" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.9 9.3h4.4V4.9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.1 9.3h-4.4V4.9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.1 14.7h-4.4v4.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.9 14.7h4.4v4.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span id="pbFullT">全屏</span>
+        <span class="lb" id="pbFullT">全屏</span>
       </button>
       <button class="pb fx" id="pbExt">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13.6 4.6h5.8v5.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.4 4.6l-7.6 7.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M11.2 5.6H7a2.4 2.4 0 00-2.4 2.4v9a2.4 2.4 0 002.4 2.4h9a2.4 2.4 0 002.4-2.4v-4.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
-        外部播放器
+        <span class="lb">外部播放器</span>
       </button>
       <button class="pb fx" id="pbRc" aria-label="扫码遥控">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.4" y="3.4" width="6.2" height="6.2" rx="1.4" stroke="currentColor" stroke-width="1.8"/><rect x="14.4" y="3.4" width="6.2" height="6.2" rx="1.4" stroke="currentColor" stroke-width="1.8"/><rect x="3.4" y="14.4" width="6.2" height="6.2" rx="1.4" stroke="currentColor" stroke-width="1.8"/><path d="M14.6 14.6h2.6v2.6h-2.6zM18.6 18.6h1.8v1.8h-1.8zM14.6 19.2h1.4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-        遥控
+        <span class="lb">遥控</span>
       </button>
       <button class="pb ic fx" id="pbBack" aria-label="退出播放">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span class="lb">退出播放</span>
       </button>
     </div>
+    <div id="pbScr">
+      <span class="pt" id="pcur">00:00</span>
+      <div id="track"><div id="played"></div></div>
+      <span class="pt" id="pdur">00:00</span>
+    </div>
+    <div id="tbub">00:00</div>
   </div>
   <div id="eps-sheet">
     <div class="hd"><span>选集 · 方向键选择 · 回车播放</span>
@@ -2266,6 +2302,9 @@
     } else {
       $('pbRate').textContent = '1.0×';
     }
+    /* 静音状态接着上次：换集不重置 */
+    try { v.muted = localStorage.getItem('mfl:mute') === '1'; } catch (e) {}
+    paintMute();
     /* 起播位置：先把 loadedmetadata 的监听挂上，再交给 attach。
        顺序反过来的话，本地 / 局域网秒开的片子会在监听注册之前就跑完 metadata，
        「从上次位置继续」和「跳过片头」都会静默失效。
@@ -2589,6 +2628,21 @@
     paintFocus($('pbRate'));
   }
   $('pbRate').addEventListener('click', function () { openSpeeds(); });
+
+  /* 静音：电视上音量归遥控器管，网页里也留一个「先安静一下」的开关 */
+  function paintMute() {
+    var on = !!v.muted;
+    $('pbMute').classList.toggle('on', on);
+    $('pbMute').setAttribute('aria-label', on ? '取消静音' : '静音');
+    $('pbMuteT').textContent = on ? '取消静音' : '静音';
+  }
+  $('pbMute').addEventListener('click', function () {
+    v.muted = !v.muted;
+    try { localStorage.setItem('mfl:mute', v.muted ? '1' : '0'); } catch (e) {}
+    paintMute();
+    toast(v.muted ? '已静音' : '已取消静音');
+  });
+  v.addEventListener('volumechange', paintMute);
 
   /* 播放页里的「外部播放器」键：菜单键进入按钮条后可选（见 handlePlayer） */
   $('pbExt').addEventListener('click', function () {

@@ -215,9 +215,9 @@ MFlixTV 不是一个「客户端 + 服务器」的两段式软件，它就是**�
 | --- | --- |
 | ![电视版首页](docs/images/tv-home.png) | ![电视版详情](docs/images/tv-detail.png) |
 
-| 电视版搜索（方向键走字母键盘） | 电视版播放器（毛玻璃控制条 · 白实心播放键 · 白色进度带圆点） |
+| 电视版搜索（方向键走字母键盘） | 电视版播放器（进度条贴底 · 左下播放 · 右下竖排功能列） |
 | --- | --- |
-| ![电视版搜索](docs/images/tv-search.png) | ![电视版播放器](docs/images/tv-player.png) |
+| ![电视版搜索](docs/images/tv-search.png) | ![电视版播放器](docs/images/tv-player-bar.png) |
 
 | 选集面板（同一块毛玻璃，正在看用细白环） | 倍速面板（当前速度白底） |
 | --- | --- |
