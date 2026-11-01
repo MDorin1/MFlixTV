@@ -645,9 +645,18 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         return resp
     }
 
+    /**
+     * 页面资产（tv.html / rc-host.js / rc.html…）一律 no-cache：
+     * 这些文件会随 App 升级而变，浏览器要是自己留一份旧的，用户看到的就是上一版的界面和逻辑
+     * （遥控码修好之后，别人还拿着旧 rc-host.js 照样不换码）。播放流不走这里，不受影响。
+     */
     private fun asset(name: String, mime: String): Response = try {
         val bytes = ctx.assets.open(name).use { it.readBytes() }
-        newFixedLengthResponse(Response.Status.OK, mime, ByteArrayInputStream(bytes), bytes.size.toLong())
+        val resp = newFixedLengthResponse(
+            Response.Status.OK, mime, ByteArrayInputStream(bytes), bytes.size.toLong()
+        )
+        resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+        resp
     } catch (e: Exception) {
         newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "asset missing: $name")
     }
