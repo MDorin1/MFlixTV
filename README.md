@@ -498,6 +498,7 @@ CI（[.github/workflows/build.yml](.github/workflows/build.yml)）只做 `next b
 - 随包二进制的许可文本：[LICENSES/](LICENSES/)
 - 合规与免责说明：[docs/合规与免责.md](docs/合规与免责.md)
 - 版本变更：[CHANGELOG.md](CHANGELOG.md)
+- **开发流程记录**（从 0 到现在的全过程、踩过的坑、调试与发布手册）：[docs/开发流程记录.md](docs/开发流程记录.md)
 
 > **AGPL-3.0 第 13 条**：通过网络使用本软件的用户有权获取对应源码。本仓库即完整源码，未做任何删减。
 
