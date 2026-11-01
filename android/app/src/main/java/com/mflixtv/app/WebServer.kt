@@ -192,6 +192,19 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         return "http://$ip:$portNum$path"
     }
 
+    /**
+     * 会话没了（服务重启、App 重装、30 分钟没人用）。
+     *
+     * 必须回 **404**：被控页（rc-host.js）和手机遥控页（rc.html）都是拿 404 当「码已失效」的信号，
+     * 收到就各自重新领码 / 提示重扫。以前这里回的是 200 + {"error":…}，前端 js 那边
+     * 只会当成一次正常回执，于是码一直不换、手机上还显示「遥控已连接」，按什么都没反应。
+     */
+    private fun gone(): Response = newFixedLengthResponse(
+        Response.Status.NOT_FOUND,
+        "application/json; charset=utf-8",
+        "{\"error\":\"会话已失效\",\"gone\":true}"
+    )
+
     private fun remoteCreate(p: Map<String, List<String>>): Response {
         val o = RemoteSession.create(p["name"]?.firstOrNull().orEmpty())
         val token = o.optString("token")
@@ -203,7 +216,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         val t = (p["t"]?.firstOrNull() ?: "").uppercase()
         val since = (p["since"]?.firstOrNull() ?: "0").toLongOrNull() ?: 0L
         val waitMs = (p["wait"]?.firstOrNull() ?: "0").toLongOrNull()?.coerceIn(0L, 700L) ?: 0L
-        var body = RemoteSession.hostPoll(t, since) ?: return json("{\"error\":\"会话已失效\"}")
+        var body = RemoteSession.hostPoll(t, since) ?: return gone()
         // 长轮询（wait=1）：没指令就把请求挂一会儿，有指令立刻返回，
         // 手机按一下到被控页真的动，从「最坏等一个轮询间隔」变成「几十毫秒」。
         if (waitMs > 0 && RemoteSession.seqOf(t) <= since) {
@@ -216,7 +229,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 val s = RemoteSession.seqOf(t)
                 if (s < 0 || s > since) break
             }
-            body = RemoteSession.hostPoll(t, since) ?: return json("{\"error\":\"会话已失效\"}")
+            body = RemoteSession.hostPoll(t, since) ?: return gone()
         }
         return json(body)
     }
@@ -224,7 +237,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private fun remoteCtl(p: Map<String, List<String>>): Response {
         val t = (p["t"]?.firstOrNull() ?: "").uppercase()
         val body = RemoteSession.ctlPoll(t, p["who"]?.firstOrNull().orEmpty())
-            ?: return json("{\"error\":\"会话已失效\"}")
+            ?: return gone()
         return json(body)
     }
 
@@ -233,7 +246,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         val cmd = (p["cmd"]?.firstOrNull() ?: "").trim()
         if (cmd.isEmpty()) return json("{\"error\":\"缺少 cmd\"}")
         val id = RemoteSession.push(t, cmd, p["arg"]?.firstOrNull().orEmpty())
-            ?: return json("{\"error\":\"会话已失效\"}")
+            ?: return gone()
         return json("{\"ok\":true,\"id\":" + id + "}")
     }
 
@@ -252,13 +265,13 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         p["vol"]?.firstOrNull()?.let { o.put("vol", it.toIntOrNull() ?: 100) }
         p["rate"]?.firstOrNull()?.let { o.put("rate", it.toIntOrNull() ?: 100) }
         p["muted"]?.firstOrNull()?.let { o.put("muted", it == "1") }
-        if (!RemoteSession.setState(t, o)) return json("{\"error\":\"会话已失效\"}")
+        if (!RemoteSession.setState(t, o)) return gone()
         return json("{\"ok\":true}")
     }
 
     private fun remoteInfo(p: Map<String, List<String>>): Response {
         val t = (p["t"]?.firstOrNull() ?: "").uppercase()
-        val body = RemoteSession.info(t) ?: return json("{\"error\":\"会话已失效\"}")
+        val body = RemoteSession.info(t) ?: return gone()
         return json(body)
     }
 

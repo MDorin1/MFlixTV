@@ -743,6 +743,15 @@
     elSeek.value = String(Math.floor(p));
   }, 250);
 
+  /* 码失效（对方页面关了 / App 重启过 / 30 分钟没人用）：把话说清楚，
+     别让页面卡在「遥控已连接」上，按了没反应还以为是手机的问题 */
+  function deadNotice() {
+    elWho.textContent = '遥控码已失效';
+    elSub.textContent = '回到对方页面再点一次「遥控」，扫新出的码';
+    elSub.className = 'bad';
+    elDot.className = 'dot off';
+  }
+
   function tick() {
     if (!T) {
       elWho.textContent = '链接里没有遥控码';
@@ -752,16 +761,14 @@
     fetch('/api/rs/ctl?t=' + encodeURIComponent(T) + '&who=' + encodeURIComponent(ctlId),
       { cache: 'no-store' })
       .then(function (r) {
-        if (r.status === 404) {
-          elWho.textContent = '会话已关闭';
-          elSub.textContent = '让对方重新点一次遥控按钮';
-          elSub.className = 'bad';
-          elDot.className = 'dot off';
-          return null;
-        }
+        if (r.status === 404) { deadNotice(); return null; }
         return r.ok ? r.json() : null;
       })
-      .then(function (d) { if (d) render(d); })
+      .then(function (d) {
+        /* 老版本服务端回的是 200 + {"error":…}，也照样按失效处理 */
+        if (d && d.error) { deadNotice(); return; }
+        if (d) render(d);
+      })
       .catch(function () {})
       .then(function () { setTimeout(tick, 900); });
   }
