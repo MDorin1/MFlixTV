@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- 遥控器的音量条改的是系统媒体音量（AudioManager），普通权限，装上就有 -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- 兼容性：WiFi / 触摸屏一律标成「非必需」。
          以前 ACCESS_WIFI_STATE 会隐式要求 android.hardware.wifi，没 WiFi 的平板 / 电视盒子/

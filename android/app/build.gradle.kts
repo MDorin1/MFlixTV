@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
@@ -9,19 +9,19 @@ android {
 
     defaultConfig {
         applicationId = "com.mflixtv.app"
-        // 0.13：往下兼容到 Android 7.0（API 24）。之前是 26，Android 7.x 的老机型直接装不上。
+        // 0.13锛氬線涓嬪吋瀹瑰埌 Android 7.0锛圓PI 24锛夈€備箣鍓嶆槸 26锛孉ndroid 7.x 鐨勮€佹満鍨嬬洿鎺ヨ涓嶄笂銆?
         minSdk = 24
         targetSdk = 34
-        versionCode = 111
+        versionCode = 112
         versionName = "1.2"
-        // 这里原来写着 abiFilters += listOf("arm64-v8a")，再加一份用不到的 jniLibs/arm64-v8a/libnode.so
-        // （42 MB 的 nodejs-mobile 残留）。结果 API 里声明了 native-code: arm64-v8a，
-        // 32 位机型、部分平板/盒子和 x86 设备不是装不上就是起来就崩。
-        // 现在这条链路上没有任何 native 库，去掉限制 → 通用包，什么 ABI 都能装。
+        // 杩欓噷鍘熸潵鍐欑潃 abiFilters += listOf("arm64-v8a")锛屽啀鍔犱竴浠界敤涓嶅埌鐨?jniLibs/arm64-v8a/libnode.so
+        // 锛?2 MB 鐨?nodejs-mobile 娈嬬暀锛夈€傜粨鏋?API 閲屽０鏄庝簡 native-code: arm64-v8a锛?
+        // 32 浣嶆満鍨嬨€侀儴鍒嗗钩鏉?鐩掑瓙鍜?x86 璁惧涓嶆槸瑁呬笉涓婂氨鏄捣鏉ュ氨宕┿€?
+        // 鐜板湪杩欐潯閾捐矾涓婃病鏈変换浣?native 搴擄紝鍘绘帀闄愬埗 鈫?閫氱敤鍖咃紝浠€涔?ABI 閮借兘瑁呫€?
         vectorDrawables.useSupportLibrary = true
     }
 
-    // 正式签名：keystore 只在本地，不进仓库。没有 keystore 时退回 debug 签名，保证还能出包。
+    // 姝ｅ紡绛惧悕锛歬eystore 鍙湪鏈湴锛屼笉杩涗粨搴撱€傛病鏈?keystore 鏃堕€€鍥?debug 绛惧悕锛屼繚璇佽繕鑳藉嚭鍖呫€?
     val ksFile = rootProject.file("keystore/mflixtv.jks")
     if (ksFile.exists()) {
         signingConfigs {

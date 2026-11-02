@@ -202,8 +202,107 @@
     url: '',
     listAt: 0,
     lastEps: '',
-    lastLines: ''
+    lastLines: '',
+    /* 音量是不是系统音量（安卓有原生桥就是），null = 还没测过 */
+    volSys: null,
+    /* 亮度：brPct 是最近一次设定值，brDim 表示退成了「画面亮度」而不是屏幕亮度 */
+    brPct: null,
+    brDim: false
   };
+
+  /* ---------------- 系统音量 / 屏幕亮度 ----------------
+     遥控器上那两根竖条管的是「这台设备」的音量和亮度，不是网页里那个 <video>：
+
+     - 安卓 App：走 MFlixNative 的 AudioManager（系统媒体音量）与窗口亮度（全屏时即整块屏幕）；
+     - 电脑 / 手机浏览器版：没有系统权限，退回播放器音量与画面亮度（filter: brightness），
+       并在上报里带上 volSys / brDim，遥控页据此把标签写清楚，而不是假装调了系统。
+
+     静音始终动 <video>.muted：系统音量模式下它依然有效，恢复时也不用记忆原音量。 */
+  function nat() {
+    var n = root.MFlixNative;
+    if (!n) return null;
+    if (typeof n.volGet === 'function') return n;
+    return n;
+  }
+
+  function hasSysVol() {
+    if (S.volSys !== null) return S.volSys;
+    var n = nat();
+    try {
+      if (n && typeof n.volGet === 'function' && n.volGet() >= 0) S.volSys = true;
+      else S.volSys = false;
+    } catch (e) {
+      S.volSys = false;
+    }
+    return S.volSys;
+  }
+
+  /** 设音量（0–100）。返回 true 表示真的改到了系统音量 */
+  function applyVol(pct, v) {
+    var p = Math.max(0, Math.min(100, Math.round(pct)));
+    var n = nat();
+    var ok = false;
+    if (n && typeof n.vol === 'function') {
+      try { ok = n.vol(p) === true; } catch (e) { ok = false; }
+    }
+    S.volSys = ok;
+    if (!v) v = pickVideo();
+    if (ok) {
+      // 系统音量已经管了，播放器别再衰减一次，否则 10% × 10% = 1%
+      if (v) { try { v.volume = 1; v.muted = false; } catch (e2) {} }
+    } else if (v) {
+      try { v.volume = p / 100; v.muted = false; } catch (e3) {}
+    }
+    return ok;
+  }
+
+  /** 当前音量：系统音量模式下读系统，否则读播放器 */
+  function curVol(v) {
+    if (hasSysVol()) {
+      var n = nat();
+      try {
+        if (n && typeof n.volGet === 'function') {
+          var x = n.volGet();
+          if (x >= 0) return x;
+        }
+      } catch (e) {}
+    }
+    if (!v) v = pickVideo();
+    return v ? Math.round((v.volume || 0) * 100) : 100;
+  }
+
+  /** 设亮度（0–100）。返回 true 表示真的改到了屏幕亮度 */
+  function applyBright(pct) {
+    var p = Math.max(5, Math.min(100, Math.round(pct)));
+    var n = nat();
+    var ok = false;
+    if (n && typeof n.bright === 'function') {
+      try { ok = n.bright(p) === true; } catch (e) { ok = false; }
+    }
+    S.brPct = p;
+    S.brDim = !ok;
+    if (!ok) {
+      // 浏览器版：只能调画面亮度。0.35 起步（5% 不至于全黑），100% 略提亮
+      var k = 0.35 + (p / 100) * 0.85;
+      var box = byId('player') || pickVideo();
+      if (box && box.style) box.style.filter = 'brightness(' + k.toFixed(2) + ')';
+    }
+    return ok;
+  }
+
+  /** 当前亮度：屏幕亮度模式读原生，画面亮度模式用自己记的值 */
+  function curBright() {
+    if (!S.brDim) {
+      var n = nat();
+      try {
+        if (n && typeof n.brightGet === 'function') {
+          var b = n.brightGet();
+          if (b >= 0) return b;
+        }
+      } catch (e) {}
+    }
+    return S.brPct == null ? 60 : S.brPct;
+  }
 
   /* 服务端长轮询挂多久：有指令会立刻返回，没指令才等这么久 */
   var WAIT_MS = 700;
@@ -337,16 +436,23 @@
         }
         return;
       case 'volup':
-        bumpVol(v, 0.1);
+        applyVol(curVol(v) + 10, v);
         return;
       case 'voldown':
-        bumpVol(v, -0.1);
+        applyVol(curVol(v) - 10, v);
         return;
       case 'volset':
-        if (v && isFinite(n)) {
-          v.volume = Math.min(1, Math.max(0, Math.round(n) / 100));
-          v.muted = false;
-        }
+        if (isFinite(n)) applyVol(n, v);
+        return;
+      /* 亮度：安卓改窗口亮度（全屏时就是整块屏幕），浏览器版退成画面亮度 */
+      case 'brset':
+        if (isFinite(n)) applyBright(n);
+        return;
+      case 'brup':
+        applyBright(curBright() + 10);
+        return;
+      case 'brdown':
+        applyBright(curBright() - 10);
         return;
       case 'rateset':
         if (v && isFinite(n) && n > 0) {
@@ -615,8 +721,12 @@
       '&pos=' + (v && isFinite(v.currentTime) ? Math.round(v.currentTime) : 0) +
       '&dur=' + (v && isFinite(v.duration) ? Math.round(v.duration) : 0) +
       '&page=' + encodeURIComponent(pg.slice(0, 200)) +
-      // 音量 / 倍速 / 静音：遥控器上要能看见自己按到了多少
-      '&vol=' + (v ? Math.round((v.volume || 0) * 100) : 100) +
+      // 音量 / 亮度：安卓上调的是系统音量与屏幕亮度，浏览器版退成播放器与画面亮度，
+      // volsys / brdim 把「是哪一种」告诉遥控页，标签上能写实话
+      '&vol=' + curVol(v) +
+      '&volsys=' + (hasSysVol() ? '1' : '0') +
+      '&bright=' + curBright() +
+      '&brdim=' + (S.brDim ? '1' : '0') +
       '&rate=' + (v ? Math.round((v.playbackRate || 1) * 100) : 100) +
       '&muted=' + (v && v.muted ? '1' : '0') +
       // 全屏状态：遥控页那颗按钮要跟着亮/灭，按了没生效也得看得出来

@@ -261,8 +261,12 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         p["page"]?.firstOrNull()?.let { o.put("page", it) }
         p["eps"]?.firstOrNull()?.let { o.put("eps", it) }
         p["lines"]?.firstOrNull()?.let { o.put("lines", it) }
-        // 音量 / 倍速 / 静音：遥控器上要能看见自己按到了多少
+        // 音量 / 亮度 / 倍速 / 静音：遥控器上要能看见自己按到了多少，
+        // volsys / brdim 还要能告诉遥控页「这是系统音量还是播放器音量」
         p["vol"]?.firstOrNull()?.let { o.put("vol", it.toIntOrNull() ?: 100) }
+        p["volsys"]?.firstOrNull()?.let { o.put("volsys", it == "1") }
+        p["bright"]?.firstOrNull()?.let { o.put("bright", it.toIntOrNull() ?: 60) }
+        p["brdim"]?.firstOrNull()?.let { o.put("brdim", it == "1") }
         p["rate"]?.firstOrNull()?.let { o.put("rate", it.toIntOrNull() ?: 100) }
         p["muted"]?.firstOrNull()?.let { o.put("muted", it == "1") }
         if (!RemoteSession.setState(t, o)) return gone()

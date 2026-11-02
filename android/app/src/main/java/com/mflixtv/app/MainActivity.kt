@@ -132,6 +132,80 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        /* ---------------- 系统音量 / 屏幕亮度（遥控器上那两根竖条） ----------------
+           遥控器调的是「这台电视」的音量和亮度，不是网页里那个 <video> 的音量：
+
+           - 音量走 AudioManager 的媒体流，改完系统里所有声音都跟着变（包括切到外部播放器之后）；
+             网页里 <video>.volume 保持 1，避免两处衰减叠乘。
+           - 亮度走窗口亮度（全屏播放时就是整块屏幕），不写系统设置、不需要 WRITE_SETTINGS，
+             App 退出自动还原；开机亮度跟随系统的机器上，第一次调节才接管。
+
+           两者都可能被系统挡住（勿扰模式锁住音量、部分电视固件不给改亮度），
+           那就返回 false / -1，让页面自己降级到播放器音量与画面亮度，不要假报成功。 */
+
+        @JavascriptInterface
+        fun vol(pct: Int): Boolean {
+            return try {
+                val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                val max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                if (max <= 0) return false
+                val step = Math.round(max * (pct.coerceIn(0, 100) / 100f))
+                am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, step, 0)
+                true
+            } catch (e: Throwable) {
+                false
+            }
+        }
+
+        /** 当前系统媒体音量百分比（0–100）；读不到返回 -1。 */
+        @JavascriptInterface
+        fun volGet(): Int {
+            return try {
+                val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                val max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                if (max <= 0) -1
+                else Math.round(am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) * 100f / max)
+            } catch (e: Throwable) {
+                -1
+            }
+        }
+
+        @JavascriptInterface
+        fun bright(pct: Int): Boolean {
+            return try {
+                // 别给到 0：屏幕亮度 0 在部分电视上等于直接黑屏，找不回来
+                val v = pct.coerceIn(5, 100) / 100f
+                runOnUiThread {
+                    try {
+                        val lp = window.attributes
+                        lp.screenBrightness = v
+                        window.attributes = lp
+                    } catch (_: Throwable) {
+                    }
+                }
+                true
+            } catch (e: Throwable) {
+                false
+            }
+        }
+
+        /** 当前屏幕亮度百分比；跟随系统时读一次系统值给页面当起点。 */
+        @JavascriptInterface
+        fun brightGet(): Int {
+            return try {
+                val own = window.attributes.screenBrightness
+                if (own >= 0f) Math.round(own * 100f)
+                else {
+                    val sys = android.provider.Settings.System.getInt(
+                        contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS
+                    )
+                    Math.round(sys * 100f / 255f)
+                }
+            } catch (e: Throwable) {
+                50
+            }
+        }
+
         /**
          * 外部播放器（0.26）：把地址交给系统里带硬件解码的播放器去放。
          *

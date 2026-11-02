@@ -46,6 +46,11 @@ object RemoteSession {
         @Volatile var lines = ""
         /** 音量 0–100：遥控器上要能看见自己按到了多少 */
         @Volatile var vol = 100
+        /** 这个音量是系统音量还是播放器音量：安卓 App 上是系统音量，浏览器上是播放器 */
+        @Volatile var volSys = false
+        /** 亮度 0–100；brDim=true 表示退成了画面亮度（浏览器），不是屏幕亮度 */
+        @Volatile var bright = 60
+        @Volatile var brDim = false
         /** 倍速 ×100（150 = 1.5×） */
         @Volatile var rate = 100
         @Volatile var muted = false
@@ -150,6 +155,9 @@ object RemoteSession {
         if (body.has("eps")) s.eps = body.optString("eps").take(8000)
         if (body.has("lines")) s.lines = body.optString("lines").take(2000)
         if (body.has("vol")) s.vol = body.optInt("vol", s.vol).coerceIn(0, 100)
+        if (body.has("volsys")) s.volSys = body.optBoolean("volsys", s.volSys)
+        if (body.has("bright")) s.bright = body.optInt("bright", s.bright).coerceIn(0, 100)
+        if (body.has("brdim")) s.brDim = body.optBoolean("brdim", s.brDim)
         if (body.has("rate")) s.rate = body.optInt("rate", s.rate).coerceIn(25, 400)
         if (body.has("muted")) s.muted = body.optBoolean("muted", s.muted)
         if (body.has("fs")) s.fs = body.optBoolean("fs", s.fs)
@@ -193,6 +201,9 @@ object RemoteSession {
         .put("eps", s.eps)
         .put("lines", s.lines)
         .put("vol", s.vol)
+        .put("volSys", s.volSys)
+        .put("bright", s.bright)
+        .put("brDim", s.brDim)
         .put("rate", s.rate)
         .put("muted", s.muted)
         .put("fs", s.fs)

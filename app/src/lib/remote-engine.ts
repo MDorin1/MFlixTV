@@ -237,6 +237,29 @@ function setVolume(pct: number) {
   }
 }
 
+/**
+ * 亮度（浏览器端）：网页拿不到系统亮度，退成「画面亮度」——
+ * 只给视频元素挂 CSS filter，不去改整页亮度，菜单和字幕才不会被一起压黑。
+ * 安卓 WebView 那份走原生窗口亮度，轮不到这里。
+ */
+let BRI = 60;
+/** 上一次挂过滤器的视频元素：换集换了 <video> 时要补挂，否则亮度看起来「自己回去了」 */
+let briEl: HTMLVideoElement | null = null;
+
+function applyBright() {
+  const f = `brightness(${(0.35 + (BRI / 100) * 0.85).toFixed(3)})`;
+  for (const el of allVideos()) {
+    if (BRI >= 100) el.style.removeProperty('filter');
+    else el.style.filter = f;
+  }
+  briEl = mainVideo();
+}
+
+function setBright(pct: number) {
+  BRI = Math.max(5, Math.min(100, Math.round(pct)));
+  applyBright();
+}
+
 function setRate(rate: number) {
   const r = Math.min(3, Math.max(0.5, Math.round(rate * 4) / 4));
   for (const el of allVideos()) el.playbackRate = r;
@@ -337,6 +360,15 @@ export function exec(cmd: string, arg: string) {
       return;
     case 'volset':
       if (Number.isFinite(num)) setVolume(num);
+      return;
+    case 'brup':
+      setBright(BRI + 10);
+      return;
+    case 'brdown':
+      setBright(BRI - 10);
+      return;
+    case 'brset':
+      if (Number.isFinite(num)) setBright(num);
       return;
     case 'mute':
       for (const el of allVideos()) el.muted = !el.muted;
@@ -533,6 +565,7 @@ async function reportState(token: string, force = false) {
   S.stateAt = now;
   S.stateBusy = true;
   const v = mainVideo();
+  if (v && v !== briEl) applyBright();
   const docTitle = (document.title || '').replace(/\s*[-–|]\s*MFlixTV.*$/i, '').trim();
   const h = document.querySelector('h1');
   const bridge = window.__mflWatch;
@@ -552,6 +585,10 @@ async function reportState(token: string, force = false) {
       vol: String(v ? Math.round((v.volume || 0) * 100) : 100),
       rate: String(v ? Math.round((v.playbackRate || 1) * 100) : 100),
       muted: v && v.muted ? '1' : '0',
+      // 浏览器里没有系统音量 / 系统亮度：volsys=0 让遥控页在标签上标「播放」，brdim=1 标「画面」
+      volsys: '0',
+      bright: String(BRI),
+      brdim: '1',
       // 全屏状态：遥控页的按钮要跟着亮/灭，按了没生效也得看得出来
       fs: fsOn() ? '1' : '0',
     });

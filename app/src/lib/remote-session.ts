@@ -37,6 +37,12 @@ export interface RsState {
   muted: boolean;
   /** 是否处于全屏：遥控页的全屏键要跟着亮/灭 */
   fs: boolean;
+  /** 音量管的是不是系统音量（安卓原生桥接才有；网页版退成播放器音量） */
+  volSys: boolean;
+  /** 亮度 5–100 */
+  bright: number;
+  /** 亮度是不是退成了「画面亮度」（网页版拿不到系统亮度） */
+  brDim: boolean;
 }
 
 export interface RsSession {
@@ -109,7 +115,7 @@ export function createSession(name: string): RsSession {
     hostBeat: Date.now(),
     seq: 0,
     cmds: [],
-    state: { title: '', sub: '', playing: false, pos: 0, dur: 0, page: '', eps: '', lines: '', vol: 100, rate: 100, muted: false, fs: false },
+    state: { title: '', sub: '', playing: false, pos: 0, dur: 0, page: '', eps: '', lines: '', vol: 100, rate: 100, muted: false, fs: false, volSys: false, bright: 60, brDim: false },
     ctls: new Map(),
   };
   s.sessions.set(token, sess);
@@ -178,6 +184,9 @@ export function setState(token: string, patch: Partial<RsState>): boolean {
     rate: clampInt(patch.rate, v.state.rate, 25, 400),
     muted: Boolean(patch.muted ?? v.state.muted),
     fs: Boolean(patch.fs ?? v.state.fs),
+    volSys: Boolean(patch.volSys ?? v.state.volSys),
+    bright: clampInt(patch.bright, v.state.bright, 5, 100),
+    brDim: Boolean(patch.brDim ?? v.state.brDim),
   };
   return true;
 }

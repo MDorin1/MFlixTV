@@ -128,6 +128,10 @@ export async function GET(req: Request, ctx: Ctx) {
       rate: g('rate') == null ? undefined : Number(g('rate')),
       muted: g('muted') == null ? undefined : g('muted') === '1',
       fs: g('fs') == null ? undefined : g('fs') === '1',
+      // 音量/亮度是不是系统级：遥控页据此在标签上标「播放 / 画面」
+      volSys: g('volsys') == null ? undefined : g('volsys') === '1',
+      bright: g('bright') == null ? undefined : Number(g('bright')),
+      brDim: g('brdim') == null ? undefined : g('brdim') === '1',
     })) return NextResponse.json({ error: '会话已失效' }, { status: 404 });
     return NextResponse.json({ ok: true });
   }

@@ -62,9 +62,9 @@
   .chips .b{height:44px;padding:0 14px;-webkit-flex:1;flex:1}
   .chips .b.dim{opacity:.4}
 
-  /* 十字键 + 竖音量条：音量条就在上下左右的右边，跟苹果手机的音量键一样往上拖变大声 */
+  /* 十字键夹在两根竖条中间：左边亮度、右边音量，对称；往上拖变大 */
   .padwrap{display:-webkit-flex;display:flex;-webkit-justify-content:center;justify-content:center;
-    -webkit-align-items:flex-start;align-items:flex-start;gap:12px;margin:14px auto 0;width:252px}
+    -webkit-align-items:flex-start;align-items:flex-start;gap:10px;margin:14px auto 0;width:auto}
   .pad{display:-webkit-grid;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
     gap:8px;width:196px}
   .pad .b{height:54px;font-size:15px}
@@ -83,6 +83,12 @@
     display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center}
   .vmute.on{background:#fff;color:#0a0a0d}
   .vlab{font-size:10px;color:rgba(255,255,255,.45);height:12px;line-height:12px}
+  /* 亮度这一列的图标位：和静音键同尺寸，视觉上两根条等高 */
+  .vic{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.04);
+    display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;
+    -webkit-justify-content:center;justify-content:center;color:rgba(255,255,255,.6)}
+  /* 亮度填充比音量稍暖一点，一眼能分出哪根是哪根 */
+  .vfill.bfill{background:rgba(255,246,214,.9)}
 
   /* 音量 / 倍速：都能长按连发 */
   .kb{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;
@@ -195,6 +201,25 @@
   </div>
 
   <div class="padwrap">
+    <!-- 亮度：放在十字键左边，和右边的音量条对称；管的是屏幕亮度（浏览器版退成画面亮度） -->
+    <div class="vcol">
+      <div class="vtrack" id="brTrack" role="slider" tabindex="0"
+        aria-label="亮度" aria-valuemin="5" aria-valuemax="100" aria-valuenow="60">
+        <div class="vfill bfill" id="brFill" style="height:60%"></div>
+        <span class="vtick" style="bottom:20%"></span>
+        <span class="vtick" style="bottom:40%"></span>
+        <span class="vtick" style="bottom:60%"></span>
+        <span class="vtick" style="bottom:80%"></span>
+        <span class="vnum" id="brNum" hidden></span>
+      </div>
+      <span class="vic" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="4.2"/>
+          <path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="vlab" id="brLab">60%</span>
+    </div>
     <div class="pad">
       <span></span><button class="b" data-cmd="up" data-hold="1" aria-label="上">▲</button><span></span>
       <button class="b" data-cmd="left" data-hold="1" aria-label="左">◀</button>
@@ -441,6 +466,12 @@
     var p = 1 - (clientY - r.top) / Math.max(1, r.height);
     return Math.round(Math.min(1, Math.max(0, p)) * 100);
   }
+  /* 任意一根竖条上的位置 → 百分比（音量、亮度共用） */
+  function pctAtEl(el, clientY) {
+    var r = el.getBoundingClientRect();
+    var p = 1 - (clientY - r.top) / Math.max(1, r.height);
+    return Math.round(Math.min(1, Math.max(0, p)) * 100);
+  }
   function setVol(p, force) {
     var v = Math.max(0, Math.min(100, Math.round(p)));
     volLatest = v;
@@ -477,6 +508,51 @@
       var v = Math.round(eff('vol', curState && curState.vol != null ? curState.vol : 100));
       if (e.key === 'ArrowUp') { setVol(v + VOL_STEP, true); e.preventDefault(); }
       else if (e.key === 'ArrowDown') { setVol(v - VOL_STEP, true); e.preventDefault(); }
+    });
+  }
+
+  /* ---------- 竖亮度条：和音量条同一套手感，只是最小 5%（别把屏幕调到全黑） ---------- */
+  var brTrack = document.getElementById('brTrack');
+  var brFill = document.getElementById('brFill');
+  var brNum = document.getElementById('brNum');
+  var brLab = document.getElementById('brLab');
+  var brHold = false, brSentAt = 0, brLatest = 60;
+
+  function setBright(p, force) {
+    var v = Math.max(5, Math.min(100, Math.round(p)));
+    brLatest = v;
+    mark({ bright: v });
+    brNum.hidden = false;
+    brNum.textContent = v;
+    var now = Date.now();
+    if (!force && now - brSentAt < 90) return;
+    brSentAt = now;
+    send('brset', String(v), 3);
+  }
+  if (brTrack) {
+    brTrack.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      brHold = true;
+      try { brTrack.setPointerCapture(e.pointerId); } catch (err) {}
+      setBright(pctAtEl(brTrack, e.clientY), true);
+    });
+    brTrack.addEventListener('pointermove', function (e) {
+      if (!brHold) return;
+      setBright(pctAtEl(brTrack, e.clientY));
+    });
+    function endBr(e) {
+      if (!brHold) return;
+      brHold = false;
+      try { brTrack.releasePointerCapture(e.pointerId); } catch (err) {}
+      send('brset', String(brLatest), 3);
+      setTimeout(function () { brNum.hidden = true; }, 260);
+    }
+    brTrack.addEventListener('pointerup', endBr);
+    brTrack.addEventListener('pointercancel', endBr);
+    brTrack.addEventListener('keydown', function (e) {
+      var v = Math.round(eff('bright', curState && curState.bright != null ? curState.bright : 60));
+      if (e.key === 'ArrowUp') { setBright(v + 10, true); e.preventDefault(); }
+      else if (e.key === 'ArrowDown') { setBright(v - 10, true); e.preventDefault(); }
     });
   }
 
@@ -631,6 +707,7 @@
     var html = muted
       ? '<b>已静音</b>'
       : '音量 ' + Math.round(vol) + '%';
+    if (st.bright != null) html += '<u>·</u>亮度 ' + Math.round(st.bright) + '%';
     html += '<u>·</u>' + fmtRate(rate);
     if (st.playing) html += '<u>·</u><i>播放中</i>';
     elStat.innerHTML = html;
@@ -650,6 +727,7 @@
     paintStat();
     paintMute();
     paintVol();
+    paintBright();
     paintFs();
     paintEpsButtons();
   }
@@ -657,13 +735,27 @@
   function paintVol() {
     var muted = eff('muted', curState ? !!curState.muted : false);
     var v = Math.round(eff('vol', curState && curState.vol != null ? curState.vol : 100));
+    var sys = curState ? !!curState.volSys : false;
     if (volFill) {
       volFill.style.height = (muted ? 0 : v) + '%';
       volFill.className = 'vfill' + (muted ? ' mute' : '');
     }
-    if (volLab) volLab.textContent = muted ? '静音' : v + '%';
+    // 是系统音量就直接写百分比；退成播放器音量时标一下，别让人以为调了电视
+    if (volLab) volLab.textContent = muted ? '静音' : ((sys ? '' : '播放 ') + v + '%');
     if (volTrack) volTrack.setAttribute('aria-valuenow', String(v));
     if (volNum && !volHold) volNum.hidden = true;
+  }
+
+  function paintBright() {
+    var b = Math.round(eff('bright', curState && curState.bright != null ? curState.bright : 60));
+    var dim = curState ? !!curState.brDim : false;
+    if (brFill) {
+      brFill.style.height = b + '%';
+      brFill.className = 'vfill bfill';
+    }
+    if (brLab) brLab.textContent = (dim ? '画面 ' : '') + b + '%';
+    if (brTrack) brTrack.setAttribute('aria-valuenow', String(b));
+    if (brNum && !brHold) brNum.hidden = true;
   }
 
   function paintMute() {
@@ -724,6 +816,8 @@
     paintPlay();
     paintStat();
     paintMute();
+    paintVol();
+    paintBright();
     paintFs();
     paintEpsButtons();
   }
