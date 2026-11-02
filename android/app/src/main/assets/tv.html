@@ -3379,6 +3379,15 @@
     /* 音量 / 倍速 / 静音：老的 /api/remote 通道以前落到 handle() 被直接吞掉，
        手机上的音量键和倍速键因此没反应。倍速同样必须过 setRate()。 */
     if (cmd === 'volup' || cmd === 'voldown' || cmd === 'volset') {
+      /* 有系统音量能力（安卓端）就交给 MFlixRC 调系统的：改的是这台电视的音量。
+         这里抢先把 v.volume 改小，等于只压了播放器那一层，系统音量一动不动。 */
+      if (window.MFlixRC && typeof MFlixRC.volSet === 'function' && MFlixRC.hasSysVol()) {
+        var vp = cmd === 'volset' ? Math.round(Number(arg) || 0)
+          : MFlixRC.volCur() + (cmd === 'volup' ? 10 : -10);
+        MFlixRC.volSet(vp);
+        if (v) v.muted = false;
+        return true;
+      }
       if (!v) return false;
       var rcv = Math.round((v.volume || 0) * 10) / 10;
       if (cmd === 'volset') v.volume = Math.min(1, Math.max(0, Math.round(Number(arg) || 0) / 100));
@@ -3911,6 +3920,14 @@
            倍速必须经过 setRate()——它同时写 defaultPlaybackRate、更新播放条文字、
            记住偏好；直接改 video.playbackRate 的话，换集 load() 之后会被打回原速。 */
         if (cmd === 'volup' || cmd === 'voldown' || cmd === 'volset') {
+          /* 同上：安卓端走系统音量，别只压播放器那一层 */
+          if (MFlixRC && typeof MFlixRC.volSet === 'function' && MFlixRC.hasSysVol()) {
+            var vp2 = cmd === 'volset' ? Math.round(n)
+              : MFlixRC.volCur() + (cmd === 'volup' ? 10 : -10);
+            MFlixRC.volSet(vp2);
+            if (v) v.muted = false;
+            return true;
+          }
           if (!v) return true;
           var cur = Math.round((v.volume || 0) * 10) / 10;
           if (cmd === 'volset') v.volume = Math.min(1, Math.max(0, Math.round(n) / 100));

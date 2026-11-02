@@ -912,5 +912,11 @@
     exec: exec,
     isOpen: function () { return !!S.open; },
     nav: installNav,
+    /* 页面自己的 onCmd 会先截走音量键（电视端 / 手机端的页面都只改 <video>.volume）。
+       有系统音量能力时，页面回到这里来调：applyVol 会把播放器音量压回 1，避免两次衰减。 */
+    volSet: function (p) { return applyVol(p, pickVideo()); },
+    volCur: function () { return curVol(); },
+    hasSysVol: hasSysVol,
+    brightSet: function (p) { return applyBright(p); },
   };
 })(typeof window !== 'undefined' ? window : this);
