@@ -36,6 +36,12 @@ interface State {
   muted?: boolean;
   /** 对方页面现在是不是全屏 */
   fs?: boolean;
+  /** 音量管的是不是系统音量（安卓原生桥接才有，网页端是播放器音量） */
+  volSys?: boolean;
+  /** 亮度 5–100 */
+  bright?: number;
+  /** 亮度退成了「画面亮度」而不是屏幕亮度 */
+  brDim?: boolean;
 }
 
 interface CtlResp {
@@ -49,11 +55,14 @@ interface CtlResp {
 type Book = { cur: number; list: string[] };
 
 /** 本地乐观值：按完先显示这个，最多活这么久（够服务端状态回来一轮） */
-type Optim = { playing?: boolean; vol?: number; rate?: number; muted?: boolean; at: number };
+type Optim = { playing?: boolean; vol?: number; rate?: number; muted?: boolean; bright?: number; at: number };
 
 const EMPTY: Book = { cur: -1, list: [] };
 const OPTIM_TTL = 1800;
 const VOL_STEP = 10;
+const BR_STEP = 10;
+/** 亮度下限 5%：别把电视调到全黑找不回来 */
+const BR_MIN = 5;
 const RATE_STEP = 0.25;
 const RATE_MIN = 0.5;
 const RATE_MAX = 3;
@@ -158,6 +167,7 @@ export default function RemoteControlPage() {
   const [flashMsg, setFlashMsg] = useState('');
   const [optim, setOptim] = useState<Optim>({ at: 0 });
   const [volDrag, setVolDrag] = useState<number | null>(null);
+  const [brDrag, setBrDrag] = useState<number | null>(null);
   const [, setClock] = useState(0);
 
   const flashTimer = useRef<number | undefined>(undefined);
@@ -289,6 +299,10 @@ export default function RemoteControlPage() {
   const muted = (fresh ? optim.muted : undefined) ?? !!st?.muted;
   const fsOn = !!st?.fs;
   const vol = (fresh ? optim.vol : undefined) ?? Math.round(st?.vol ?? 100);
+  /** 音量到底调的是系统还是播放器：标签上直接写清楚，不假装动了电视 */
+  const volSys = !!st?.volSys;
+  const bright = (fresh ? optim.bright : undefined) ?? Math.round(st?.bright ?? 60);
+  const brDim = !!st?.brDim;
   const rawRate = st?.rate ? st.rate / 100 : 1;
   const rate = (fresh ? optim.rate : undefined) ?? rawRate;
 
@@ -388,6 +402,60 @@ export default function RemoteControlPage() {
     // 松手必发一次：节流可能把最后那一格吞掉，不补发就会「拖到 20 实际停在 30」
     void send('volset', String(volLatest.current), 3);
     window.setTimeout(() => setVolDrag(null), 260);
+  };
+
+  /* 竖亮度条：放在十字键左边，和右边的音量条对称，手感完全一样 */
+  const brTrackRef = useRef<HTMLDivElement | null>(null);
+  const brHold = useRef(false);
+  const brSentAt = useRef(0);
+  const brLatest = useRef(bright);
+
+  const brPctAt = (clientY: number): number => {
+    const el = brTrackRef.current;
+    if (!el) return bright;
+    const r = el.getBoundingClientRect();
+    const p = 1 - (clientY - r.top) / Math.max(1, r.height);
+    return Math.round(Math.min(1, Math.max(0, p)) * 100);
+  };
+
+  const brSet = (p: number, force = false) => {
+    const v = Math.max(BR_MIN, Math.min(100, Math.round(p)));
+    brLatest.current = v;
+    setBrDrag(v);
+    markOptim({ bright: v });
+    const now = Date.now();
+    if (!force && now - brSentAt.current < 90) return;
+    brSentAt.current = now;
+    void send('brset', String(v), 3);
+  };
+
+  const onBrDown = (e: RPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    brHold.current = true;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* 老浏览器没有捕获也无所谓 */
+    }
+    brSet(brPctAt(e.clientY), true);
+  };
+
+  const onBrMove = (e: RPointerEvent<HTMLDivElement>) => {
+    if (!brHold.current) return;
+    brSet(brPctAt(e.clientY));
+  };
+
+  const onBrUp = (e: RPointerEvent<HTMLDivElement>) => {
+    if (!brHold.current) return;
+    brHold.current = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    // 节流可能吞掉最后一格，松手补发一次
+    void send('brset', String(brLatest.current), 3);
+    window.setTimeout(() => setBrDrag(null), 260);
   };
 
   const togglePlay = () => {
@@ -494,6 +562,12 @@ export default function RemoteControlPage() {
             ) : (
               <>
                 <span className="tabular-nums">{muted ? '已静音' : `音量 ${vol}%`}</span>
+                {st?.bright != null ? (
+                  <>
+                    <span className="text-white/20">·</span>
+                    <span className="tabular-nums">亮度 {bright}%</span>
+                  </>
+                ) : null}
                 <span className="text-white/20">·</span>
                 <span className="tabular-nums">{fmtRate(rate)}</span>
                 {st?.playing ? (
@@ -568,7 +642,59 @@ export default function RemoteControlPage() {
       </div>
 
       <div className="px-4 mt-4">
-        <div className="mx-auto flex items-start justify-center gap-3">
+        <div className="mx-auto flex items-start justify-center gap-2.5">
+          {/* 竖亮度条：在十字键左边，和右边的音量条对称；管屏幕亮度，网页端退成画面亮度 */}
+          <div className="flex flex-col items-center gap-1.5 select-none">
+            <div
+              ref={brTrackRef}
+              role="slider"
+              tabIndex={0}
+              aria-label="亮度"
+              aria-valuemin={BR_MIN}
+              aria-valuemax={100}
+              aria-valuenow={bright}
+              onPointerDown={onBrDown}
+              onPointerMove={onBrMove}
+              onPointerUp={onBrUp}
+              onPointerCancel={onBrUp}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowUp') brSet(Math.min(100, bright + BR_STEP), true);
+                else if (e.key === 'ArrowDown') brSet(Math.max(BR_MIN, bright - BR_STEP), true);
+              }}
+              className="relative w-[30px] h-[172px] rounded-[15px] bg-white/[0.08] overflow-hidden touch-none cursor-pointer"
+            >
+              <div
+                className="absolute inset-x-0 bottom-0 transition-[height] duration-75 bg-[rgba(255,246,214,0.9)]"
+                style={{ height: `${bright}%` }}
+              />
+              {[20, 40, 60, 80].map((p) => (
+                <span
+                  key={p}
+                  className="absolute left-1.5 right-1.5 h-px bg-black/20"
+                  style={{ bottom: `${p}%` }}
+                  aria-hidden
+                />
+              ))}
+              {brDrag !== null ? (
+                <span className="absolute inset-x-0 -top-0.5 text-center text-[10px] font-semibold text-black/70 tabular-nums">
+                  {brDrag}
+                </span>
+              ) : null}
+            </div>
+            <span className="w-[30px] h-[30px] grid place-items-center rounded-full bg-white/[0.06] text-white/70" aria-hidden>
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="12" cy="12" r="4.2" />
+                <path
+                  d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            <span className="w-[54px] h-3 text-center whitespace-nowrap overflow-hidden text-[10px] tabular-nums text-white/45">
+              {brDim ? `画面 ${bright}%` : `${bright}%`}
+            </span>
+          </div>
+
           <div className="w-[196px] grid grid-cols-3 grid-rows-3 gap-2">
             <span />
             <button className={`${btn} h-14`} {...navUp} aria-label="上">
@@ -651,7 +777,9 @@ export default function RemoteControlPage() {
                 </svg>
               )}
             </button>
-            <span className="text-[10px] tabular-nums text-white/45 h-3">{muted ? '静音' : `${vol}%`}</span>
+            <span className="w-[54px] h-3 text-center whitespace-nowrap overflow-hidden text-[10px] tabular-nums text-white/45">
+              {muted ? '静音' : `${volSys ? '' : '播放 '}${vol}%`}
+            </span>
           </div>
         </div>
       </div>
