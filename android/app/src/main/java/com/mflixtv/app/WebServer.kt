@@ -913,46 +913,9 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             }
             if (variants.size >= 2) break
         }
-        if (variants.isEmpty()) {
-            // 没有变体清单，这份就是媒体清单本身
-            warmSegs(master, 2)
-            return
-        }
-        // 起播用哪个清晰度是 hls.js 自己挑的：低清那一档通常先被选中，
-        // 所以两档都备一个首片，谁被挑中都热
-        for (v in variants) {
-            val media = manifestBytes(v)?.let { String(it, Charsets.UTF_8) } ?: continue
-            warmSegs(media, 1)
-        }
-    }
-
-    private fun warmSegs(media: String, maxSeg: Int) {
-        val marker = "/api/proxy?url="
-        val segs = media.lines().mapNotNull { line ->
-            val t = line.trim()
-            if (t.isEmpty() || t.startsWith("#")) null
-            else if (t.startsWith(marker)) try {
-                java.net.URLDecoder.decode(t.substring(marker.length), "UTF-8")
-            } catch (e: Exception) {
-                null
-            } else t
-        }.filter { it.startsWith("http") }
-        for (s in segs.take(maxSeg)) {
-            val key = "seg|" + s
-            if (MediaCache.peek(key) != null) continue
-            try {
-                val conn = Net.open(s, 12000).also {
-                    it.readTimeout = 25000
-                    it.instanceFollowRedirects = true
-                }
-                val code = conn.responseCode
-                if (code !in 200..299) continue
-                val len = conn.getHeaderField("Content-Length")?.toLongOrNull() ?: conn.contentLengthLong
-                if (len <= 0 || len > CACHE_SEG_MAX) continue
-                val bytes = conn.inputStream.readBytes()
-                if (bytes.isNotEmpty()) MediaCache.put(key, bytes, mediaType(s, conn.contentType ?: ""), SEG_TTL)
-            } catch (_: Throwable) {
-            }
-        }
+        if (variants.isEmpty()) return
+        // 只预热清单，不预取分片：分片动辄 1MB，慢网下会和真正在播的那一路抢带宽，
+        // 「预热反而让起播更慢」。清单几百 KB 且本来就串在关键路径上，缓住它就够了。
+        for (v in variants) manifestBytes(v)
     }
 }
