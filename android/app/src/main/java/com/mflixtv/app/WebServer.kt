@@ -161,6 +161,9 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 // 没源了：去远端拉最新源清单，合并后重测
                 uri == "/api/sources/autofix" -> json(autofixJson())
                 uri == "/api/netcfg" -> netcfg(p["proxy"]?.firstOrNull())
+                // 预热：详情页一出现就把这条线路的清单和头几个分片先拉进缓存，
+                // 用户按「播放」时 hls.js 直接吃缓存，不用再等一轮 500KB 的清单
+                uri == "/api/warm" -> warm(p["url"]?.firstOrNull().orEmpty())
                 uri == "/api/proxy" -> proxy(session)
                 // 外部播放器用的整条线路播放列表（连播不断，切集不用回 App）
                 uri == "/api/list.m3u" -> playlist(p)
@@ -692,10 +695,48 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
      *  - Range / Content-Range 透传（拖动进度条、分片并发下载要靠它）
      *  - 内容是 m3u8 时把里面的 URI 重写成代理地址，跨域/防盗链都绕开
      */
+    /* ---------------- 取流缓存：清单 + 小分片 + 单飞 ----------------
+       采集站的媒体清单能到 500KB、里面几千个分片，hls.js 每次起播、轮询、拖动都要再来一趟；
+       详情页预热和「按下播放」还会同时打同一个地址。这里做三件事：
+         1) 清单按有没有 #EXT-X-ENDLIST 区分点播/直播：点播缓 90 秒，直播只缓 4 秒；
+         2) 同一个地址同一时刻只发一次上游请求（单飞），另一个请求直接吃结果；
+         3) 小分片（≤4MB）顺手存一份，拖动、回看、换集回来都不必再跑上游。
+       取流语义一点没动：上游 206 还是回 206，定长还是定长，Range 照透传。 */
+    private val CACHE_SEG_MAX = 4L * 1024 * 1024
+    private val SEG_TTL = 60_000L
+    private val CACHE_IMG_MAX = 2L * 1024 * 1024
+    private val IMG_TTL = 30L * 60_000L
+    private val MANIFEST_VOD_TTL = 90_000L
+    private val MANIFEST_MASTER_TTL = 60_000L
+    private val MANIFEST_LIVE_TTL = 5_000L
+
     private fun proxy(session: IHTTPSession): Response {
         val raw = session.parameters["url"]?.firstOrNull()
             ?: return json("{\"error\":\"missing url\"}")
         val target = if (raw.startsWith("http")) raw else "https://" + raw
+
+        // 清单：命中缓存立刻回；没命中就和「预热」那一路合成一次上游请求
+        if (looksManifest(target)) {
+            val bytes = manifestBytes(target)
+            if (bytes == null || bytes.isEmpty()) return json("{\"error\":\"not a manifest\"}")
+            return manifestResponse(bytes)
+        }
+
+        // 分片：同一地址短时间内在缓存里就直接给（带 Range 的请求不碰缓存，语义照旧）
+        val range = session.headers["range"]
+        val segKey = if (range.isNullOrEmpty()) "seg|" + target else null
+        if (segKey != null) {
+            val hit = MediaCache.peek(segKey)
+            if (hit != null && hit.isNotEmpty()) return segResponse(target, null, hit)
+        }
+        // 封面/剧照：一个首页要拉二十多张，采集站的图床从电视上拉一张要好几秒；
+        // 图片内容不会变，按地址存一份，翻回来、进详情、重开都不会再跑一趟上游
+        val imgKey = if (looksImage(target)) "img|" + target else null
+        if (imgKey != null) {
+            val hit = MediaCache.peek(imgKey)
+            if (hit != null && hit.isNotEmpty()) return segResponse(target, null, hit)
+        }
+
         val conn = try {
             // 统一走 Net：证书宽容（采集站常缺中间证书，Java 校验比浏览器严）+ 可选代理
             Net.open(target, 12000).also { it.readTimeout = 25000 }
@@ -704,27 +745,17 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         }
         return try {
             conn.instanceFollowRedirects = true
-            session.headers["range"]?.let { conn.setRequestProperty("Range", it) }
+            range?.let { conn.setRequestProperty("Range", it) }
 
             val code = conn.responseCode
             val contentType = conn.contentType ?: "application/octet-stream"
-            val isM3u8 = target.contains(".m3u8", true) ||
-                contentType.contains("mpegurl", true) ||
-                contentType.contains("x-mpegURL", true)
 
-            if (isM3u8) {
-                val text = (if (code in 200..299) conn.inputStream else conn.errorStream)
-                    ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
-                if (!text.contains("#EXTM3U")) {
-                    return json("{\"error\":\"not a manifest\",\"code\":" + code + "}")
-                }
-                val bytes = M3u8Rewriter.rewrite(text, target).toByteArray(Charsets.UTF_8)
-                return newFixedLengthResponse(
-                    Response.Status.OK, "application/vnd.apple.mpegurl", ByteArrayInputStream(bytes), bytes.size.toLong()
-                ).apply {
-                    addHeader("Access-Control-Allow-Origin", "*")
-                    addHeader("Cache-Control", "no-cache")
-                }
+            // 地址里没有 m3u8 字样但上游给的就是清单：回头按清单处理，别把裸清单直接发出去
+            if (contentType.contains("mpegurl", true) || contentType.contains("x-mpegURL", true)) {
+                try { conn.disconnect() } catch (_: Throwable) {}
+                val bytes = manifestBytes(target)
+                if (bytes == null || bytes.isEmpty()) return json("{\"error\":\"not a manifest\",\"code\":" + code + "}")
+                return manifestResponse(bytes)
             }
 
             // 分片 / MP4 的类型按扩展名兜底：采集站常把 .ts 标成 octet-stream 甚至 text/plain，
@@ -743,6 +774,30 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             }
             val declared = conn.getHeaderField("Content-Length")?.toLongOrNull()
                 ?: conn.contentLengthLong.takeIf { it > 0 }
+
+            // 图片：整张读完存一份再发（封面都是几十 KB，翻回来就是本地读）
+            if (imgKey != null && code in 200..299 && contentType.startsWith("image/") &&
+                (declared == null || declared in 1L..CACHE_IMG_MAX)
+            ) {
+                val bytes = stream.readBytes()
+                stream.close()
+                if (bytes.isNotEmpty()) {
+                    MediaCache.put(imgKey, bytes, contentType, IMG_TTL)
+                    return segResponse(target, contentType, bytes)
+                }
+            }
+
+            // 小分片先整段读完、落一份再发：这一段的读取本来就得读满，
+            // 顺序读进内存不会更慢，下一次（拖动/回看/换集回来）就是本地秒出
+            if (segKey != null && code in 200..299 && declared != null && declared in 1L..CACHE_SEG_MAX) {
+                val bytes = stream.readBytes()
+                stream.close()
+                if (bytes.isNotEmpty()) {
+                    MediaCache.put(segKey, bytes, segType, SEG_TTL)
+                    return segResponse(target, segType, bytes)
+                }
+            }
+
             val resp = if (declared != null && declared > 0) {
                 newFixedLengthResponse(status, segType, stream, declared)
             } else {
@@ -754,6 +809,150 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             resp
         } catch (e: Exception) {
             json("{\"error\":\"" + esc(e.message ?: "proxy failed") + "\"}")
+        }
+    }
+
+    private fun looksManifest(url: String): Boolean = url.contains("m3u8", true)
+
+    private fun looksImage(url: String): Boolean {
+        val u = url.substringBefore('?').lowercase()
+        return u.endsWith(".jpg") || u.endsWith(".jpeg") || u.endsWith(".png") ||
+            u.endsWith(".webp") || u.endsWith(".gif") || u.endsWith(".avif") || u.endsWith(".bmp")
+    }
+
+    private fun manifestResponse(bytes: ByteArray) = newFixedLengthResponse(
+        Response.Status.OK, "application/vnd.apple.mpegurl", ByteArrayInputStream(bytes), bytes.size.toLong()
+    ).apply {
+        addHeader("Access-Control-Allow-Origin", "*")
+        addHeader("Cache-Control", "no-cache")
+    }
+
+    private fun segResponse(target: String, type: String?, bytes: ByteArray) = newFixedLengthResponse(
+        Response.Status.OK, type ?: mediaType(target, ""), ByteArrayInputStream(bytes), bytes.size.toLong()
+    ).apply {
+        addHeader("Accept-Ranges", "bytes")
+        addHeader("Access-Control-Allow-Origin", "*")
+    }
+
+    /** 拉一份清单（已重写成本机代理地址）并进缓存；失败返回 null */
+    private fun manifestBytes(target: String): ByteArray? {
+        val key = "m3u8|" + target
+        MediaCache.peek(key)?.let { return it }
+        val owner = MediaCache.claim(key)
+        try {
+            if (!owner) MediaCache.peek(key)?.let { return it }
+            val conn = try {
+                Net.open(target, 12000).also {
+                    it.readTimeout = 25000
+                    it.instanceFollowRedirects = true
+                    // 大清单压缩后能小一个量级：3300 个分片的清单 490KB → 几十 KB
+                    it.setRequestProperty("Accept-Encoding", "gzip")
+                }
+            } catch (e: Exception) {
+                return null
+            }
+            val code = conn.responseCode
+            val body = (if (code in 200..299) conn.inputStream else conn.errorStream) ?: return null
+            val stream = if ("gzip".equals(conn.getHeaderField("Content-Encoding"), true))
+                java.util.zip.GZIPInputStream(body) else body
+            val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            if (!text.contains("#EXTM3U")) return null
+            val out = M3u8Rewriter.rewrite(text, target).toByteArray(Charsets.UTF_8)
+            // 变体清单（带 STREAM-INF）几乎不变、点播清单（带 ENDLIST）也不会再变，都缓久一点；
+            // 只有真正会长的直播清单才用短 TTL，否则每几秒又去拉一遍几百 KB
+            val ttl = when {
+                text.contains("#EXT-X-STREAM-INF") -> MANIFEST_MASTER_TTL
+                text.contains("#EXT-X-ENDLIST") -> MANIFEST_VOD_TTL
+                else -> MANIFEST_LIVE_TTL
+            }
+            MediaCache.put(key, out, "application/vnd.apple.mpegurl", ttl)
+            return out
+        } finally {
+            if (owner) MediaCache.release(key)
+        }
+    }
+
+    /** 预热：把这条线路的清单 + 头两个分片先拉进缓存（后台跑，页面不等它） */
+    private fun warm(url: String): Response {
+        if (url.length < 8) return json("{\"ok\":false}")
+        val target = if (url.startsWith("http")) url else "https://" + url
+        thread(name = "mfl-warm", isDaemon = true) {
+            try {
+                warmChain(target)
+            } catch (_: Throwable) {
+            }
+        }
+        return json("{\"ok\":true}")
+    }
+
+    private fun warmChain(target: String) {
+        val master = manifestBytes(target)?.let { String(it, Charsets.UTF_8) } ?: return
+        // 重写后的清单里 URI 已经是 /api/proxy?url=...，还原成真实地址再自己拉
+        fun real(line: String): String? {
+            val t = line.trim()
+            if (t.isEmpty() || t.startsWith("#")) return null
+            val marker = "/api/proxy?url="
+            if (!t.startsWith(marker)) return t
+            return try {
+                java.net.URLDecoder.decode(t.substring(marker.length), "UTF-8")
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        val lines = master.lines()
+        val variants = ArrayList<String>()
+        for (i in lines.indices) {
+            if (!lines[i].startsWith("#EXT-X-STREAM-INF")) continue
+            for (j in i + 1 until lines.size) {
+                val u = real(lines[j])
+                if (u != null) {
+                    variants.add(u)
+                    break
+                }
+            }
+            if (variants.size >= 2) break
+        }
+        if (variants.isEmpty()) {
+            // 没有变体清单，这份就是媒体清单本身
+            warmSegs(master, 2)
+            return
+        }
+        // 起播用哪个清晰度是 hls.js 自己挑的：低清那一档通常先被选中，
+        // 所以两档都备一个首片，谁被挑中都热
+        for (v in variants) {
+            val media = manifestBytes(v)?.let { String(it, Charsets.UTF_8) } ?: continue
+            warmSegs(media, 1)
+        }
+    }
+
+    private fun warmSegs(media: String, maxSeg: Int) {
+        val marker = "/api/proxy?url="
+        val segs = media.lines().mapNotNull { line ->
+            val t = line.trim()
+            if (t.isEmpty() || t.startsWith("#")) null
+            else if (t.startsWith(marker)) try {
+                java.net.URLDecoder.decode(t.substring(marker.length), "UTF-8")
+            } catch (e: Exception) {
+                null
+            } else t
+        }.filter { it.startsWith("http") }
+        for (s in segs.take(maxSeg)) {
+            val key = "seg|" + s
+            if (MediaCache.peek(key) != null) continue
+            try {
+                val conn = Net.open(s, 12000).also {
+                    it.readTimeout = 25000
+                    it.instanceFollowRedirects = true
+                }
+                val code = conn.responseCode
+                if (code !in 200..299) continue
+                val len = conn.getHeaderField("Content-Length")?.toLongOrNull() ?: conn.contentLengthLong
+                if (len <= 0 || len > CACHE_SEG_MAX) continue
+                val bytes = conn.inputStream.readBytes()
+                if (bytes.isNotEmpty()) MediaCache.put(key, bytes, mediaType(s, conn.contentType ?: ""), SEG_TTL)
+            } catch (_: Throwable) {
+            }
         }
     }
 }

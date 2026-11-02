@@ -1544,7 +1544,29 @@
     if (tg) { var x = el('div', 'tag'); x.textContent = tg; p.appendChild(x); }
     b.appendChild(p);
     b.addEventListener('click', function () { openDetail(b.__item); });
+    /* 光标在这张海报上停住 0.6 秒，就先把这部片第一集预热掉：
+       等真的进详情、按播放时，清单和头两个分片多半已经在缓存里了。
+       每张卡一次会话只预一次，快速划过不会打出一串请求。 */
+    b.addEventListener('focus', function () { prewarmCard(b.__item); });
+    b.addEventListener('blur', function () { clearTimeout(prewarmCard.timer); });
     return b;
+  }
+
+  var prewarmSeen = {};
+  function prewarmCard(it) {
+    try {
+      if (!it) return;
+      var ck = (it.src || '') + '|' + (it.vodId || it.id || '');
+      if (!ck || prewarmSeen[ck]) return;
+      clearTimeout(prewarmCard.timer);
+      prewarmCard.timer = setTimeout(function () {
+        prewarmSeen[ck] = 1;
+        getJSON('/api/detail?src=' + encodeURIComponent(it.src || '') +
+          '&id=' + encodeURIComponent(it.vodId || it.id || ''))
+          .then(function (d) { warmAll((d && d.groups) || [], 0); })
+          .catch(function () {});
+      }, 600);
+    } catch (e) {}
   }
 
   /* ================= 本机记录行的卡片 ================= */
@@ -1997,6 +2019,7 @@
         S.ep = 0;
         var sp = resumeSpot(S.groups);
         renderGroups(sp ? sp.gi : 0, sp ? sp.ei : 0, d.pic || it.pic || '');
+        warmAll(S.groups, sp ? sp.ei : 0);
         getJSON('/api/lines?name=' + encodeURIComponent(S.title) +
           '&src=' + encodeURIComponent(S.src) + '&id=' + encodeURIComponent(S.vodId))
           .then(function (l) {
@@ -2005,6 +2028,7 @@
               S.groups = gs;
               var sp2 = resumeSpot(S.groups);
               renderGroups(sp2 ? sp2.gi : 0, sp2 ? sp2.ei : 0, d.pic || it.pic || '');
+              warmAll(S.groups, sp2 ? sp2.ei : 0);
             }
           }).catch(function () {});
       })
@@ -2043,6 +2067,8 @@
     if (!S.eps.length) { box.innerHTML = '<div class="hintline">这条线路没有分集</div>'; $('dtEpCnt').textContent = ''; return; }
     $('dtEpCnt').textContent = '共 ' + S.eps.length + ' 集 · 回车直接播';
     var start = Math.max(0, Math.min(S.eps.length - 1, epIdx || 0));
+    // 换线路也要重新预热：线路不同，清单和分片地址完全不同
+    warmEp(g, start);
     S.eps.forEach(function (e, i) {
       var b = el('button', 'epc fx');
       b.dataset.name = (e.label || ('第' + (i + 1) + '集'));
@@ -2224,6 +2250,25 @@
     $('pmsg').innerHTML = head + (tryCount > 0 ? '（已自动换过 ' + tryCount + ' 条线路）' : '') +
       '<br>按返回换一部片试试';
   }
+  /* 预热：详情页/选集一出现，就先把这一集的清单和头两个分片拉进本机缓存。
+     服务端后台跑，页面不等它；等按「播放」时 hls.js 直接吃缓存，
+     省掉那 2~5 秒的清单下载（采集站的媒体清单能到 500KB、三千多个分片）。 */
+  function warmEp(g, ei) {
+    try {
+      var e = g && g.episodes && g.episodes[ei];
+      if (!e || !e.url) return;
+      var u = '/api/warm?url=' + encodeURIComponent(e.url);
+      var seen = warmEp.seen || (warmEp.seen = {});
+      if (seen[u]) return;
+      seen[u] = 1;
+      fetch(u, { cache: 'no-store' }).catch(function () {});
+    } catch (err) {}
+  }
+  /* 详情页有三四条线路，用户可能点任意一条：前三条各自的第一集一起预热，
+     谁先被点谁就是热的，不用等「换线路」那一下才发现没预热过 */
+  function warmAll(groups, ei) {
+    (groups || []).slice(0, 3).forEach(function (g) { warmEp(g, ei); });
+  }
   function attach(url) {
     var seq = ++attachSeq;
     rawUrl = url || '';
@@ -2298,6 +2343,8 @@
     if (!e) return;
     S.ep = i;
     S.nxTag = '';
+    // 点选集/连播换集都先预热这一集，和 attach 的真实请求在服务端合并成一次上游拉取
+    warmEp(g, i);
     resetFailover();
     /* 一换集就把「继续观看」那条记录挪到这一集（进度归零，等 timeupdate 再填真实秒数） */
     try { touchCont({ resetPos: true }); } catch (err) {}
