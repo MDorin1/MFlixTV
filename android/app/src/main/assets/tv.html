@@ -1929,6 +1929,11 @@
   $('scClear').addEventListener('click', function () { word = ''; paintWord(); $('sres').innerHTML = ''; $('hot').classList.remove('off'); $('resH').textContent = '热门搜索'; });
   $('scGo').addEventListener('click', doSearch);
 
+  /* 遥控器在手机上打好了字：和电视自己搜同一条路（rcSearch 会先收起播放器） */
+  window.startSearch = function (q) {
+    try { rcSearch(q); } catch (e) {}
+  };
+
   /* ================= 详情 ================= */
   /** 这部片看过的话，算回复播的线路与集索引（线路名 / 集标优先，索引兜底）。 */
   function resumeSpot(groups) {
@@ -3311,10 +3316,35 @@
   function rcSearch(w) {
     var t = String(w || '').trim();
     if (!t) return;
+    /* 全屏播放中切搜索：必须先把播放器这层收起来。
+       以前只切了背后的视图，播放器仍然盖在最上面、焦点也还压在它身上，
+       看起来就是「按了搜索没反应、之后怎么按都不动」——用户眼里的假死。 */
+    try {
+      if (inPlayer()) closePlayer();
+    } catch (e) {}
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        var p = document.exitFullscreen();
+        if (p && p.catch) p.catch(function () {});
+      }
+    } catch (e2) {}
+    try {
+      if (window.MFlixNative && window.MFlixNative.fullscreen) window.MFlixNative.fullscreen(false);
+      tvFullOn = false;
+    } catch (e3) {}
+    try { document.body.classList.remove('mfl-fs-lock'); } catch (e4) {}
+    var vs = document.querySelectorAll('video');
+    for (var i = 0; i < vs.length; i++) {
+      try { vs[i].classList.remove('mfl-fs-video'); } catch (e5) {}
+    }
     word = t;
     showView('search');
     paintWord();
     doSearch();
+    /* 结果回来要能看见：把搜索页拉到顶，别停在上一次的滚动位置 */
+    setTimeout(function () {
+      try { window.scrollTo(0, 0); } catch (e6) {}
+    }, 30);
   }
   /** 执行一条来自手机的指令。返回 true 表示认识并处理了。 */
   function rcApply(c) {

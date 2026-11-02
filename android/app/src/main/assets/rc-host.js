@@ -489,9 +489,37 @@
         if (typeof h.back === 'function') { h.back(); return; }
         if (!layeredBack()) { if (root.history) root.history.back(); }
         return;
+      case 'search': {
+        var q = String(arg || '').trim().slice(0, 60);
+        if (!q) return;
+        if (S.nav) S.nav.clear();
+        // 先退出全屏：搜索页是竖着的横屏列表页，留在原生全屏里会挤成一条；
+        // body 上的滚动锁不解掉，页面就是真的「动不了」——用户看到的就是假死
+        exitAllFs(v);
+        // 页面自己接了搜索（电视端 / 手机端都有现成的搜索页）：直接用，
+        // 不整页跳转 —— 全屏播放时整页跳最容易把画面层卡住
+        if (typeof h.search === 'function') {
+          try { h.search(q); return; } catch (e) {}
+        }
+        if (typeof root.startSearch === 'function') {
+          try { root.startSearch(q); return; } catch (e2) {}
+        }
+        // 兜底才跳页：跳完要是没动静，1.2 秒后补一次硬跳
+        var url = '/?s=' + encodeURIComponent(q);
+        setTimeout(function () {
+          goPage(url);
+          setTimeout(function () {
+            try {
+              if (root.location.search.indexOf('s=') < 0) root.location.href = url;
+            } catch (e3) {}
+          }, 1200);
+        }, 80);
+        return;
+      }
       case 'home':
         if (typeof h.home === 'function') { h.home(); return; }
-        root.location.href = '/';
+        exitAllFs(v);
+        setTimeout(function () { goPage('/'); }, 80);
         return;
       default:
         return;
@@ -571,6 +599,40 @@
    * 页面自己没接管时的「逐层返回」：先退出全屏，再找最上层浮层的关闭按钮点一下，
    * 都没有才真的后退一页。这样按返回不会直接跳出整个站点。
    */
+  /**
+   * 把「全屏」这件事彻底收回：原生全屏、CSS 铺满、安卓窗口全屏都退掉。
+   *
+   * 全屏播放时整页跳转最容易出事：原生全屏在导航途中不退出，
+   * 有的机芯会停在「画面没了但还占着整屏」的样子，看着就是假死。
+   * 所以凡是可能跳页的指令（搜索 / 回首页）都先调这里，再跳。
+   */
+  function exitAllFs(v) {
+    var fs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fs) {
+      try { (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document); } catch (e) {}
+    }
+    // 伪全屏的 class 可能挂在任意一个 <video> 上（换集会换元素），全清一遍
+    try {
+      var vs = document.querySelectorAll('video');
+      for (var i = 0; i < vs.length; i++) {
+        if (vs[i].classList) vs[i].classList.remove('mfl-fs-video');
+      }
+    } catch (e4) {}
+    if (v && v.classList) v.classList.remove('mfl-fs-video');
+    // body 上的滚动锁一定要解：不解掉页面就真的「动不了」了
+    try { document.body.classList.remove('mfl-fs-lock'); } catch (e2) {}
+    var nat = root.MFlixNative;
+    if (nat && nat.fullscreen) { try { nat.fullscreen(false); } catch (e3) {} }
+    // 页面自己的伪全屏（#player.pfull，安卓浏览器打开时走这条）
+    var pl = byId('player');
+    if (pl && pl.classList) pl.classList.remove('pfull');
+  }
+
+  function goPage(url) {
+    try { root.location.assign(url); }
+    catch (e) { try { root.location.href = url; } catch (e2) {} }
+  }
+
   function layeredBack() {
     var fs = document.fullscreenElement || document.webkitFullscreenElement;
     if (fs) {

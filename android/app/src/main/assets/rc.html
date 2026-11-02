@@ -112,8 +112,10 @@
   /* 搜索浮层：一直挂着（只是移出屏幕），点「搜索」时 focus 能直接顶起键盘 */
   #ssearch{position:fixed;top:0;right:0;bottom:0;left:0;z-index:52;background:rgba(0,0,0,.6);
     display:-webkit-flex;display:flex;-webkit-align-items:flex-end;align-items:flex-end;
-    opacity:0;pointer-events:none;-webkit-transition:opacity .18s;transition:opacity .18s}
-  #ssearch.on{opacity:1;pointer-events:auto}
+    opacity:0;pointer-events:none;visibility:hidden;
+    -webkit-transition:opacity .18s,visibility 0s .18s;transition:opacity .18s,visibility 0s .18s}
+  #ssearch.on{opacity:1;pointer-events:auto;visibility:visible;
+    -webkit-transition:opacity .18s,visibility 0s 0s;transition:opacity .18s,visibility 0s 0s}
   #ssearch .sh{-webkit-transform:translateY(100%);transform:translateY(100%);
     -webkit-transition:-webkit-transform .2s;transition:transform .2s}
   #ssearch.on .sh{-webkit-transform:translateY(0);transform:translateY(0)}
@@ -671,20 +673,29 @@
 
   function openSearch() {
     ss.className = 'on';
+    ss.removeAttribute('aria-hidden');
     // 输入框一直在 DOM 里（只是移出屏幕），这里 focus 能直接顶起手机键盘
     try { ssInput.focus(); } catch (e) {}
   }
   function closeSearch() {
     ss.className = '';
+    ss.setAttribute('aria-hidden', 'true');
     try { ssInput.blur(); } catch (e) {}
+    /* 键盘收起后有的机芯会把视口停在偏移位置，页面看着「点了没反应」：
+       收完强制回顶，避免假死般的错觉 */
+    try { window.scrollTo(0, 0); } catch (e) {}
   }
+  var sending = false;
   function submitSearch() {
+    if (sending) return;
     var q2 = (ssInput.value || '').trim();
     if (!q2) { try { ssInput.focus(); } catch (e) {} return; }
+    sending = true;
     send('search', q2);
     ssNote.textContent = '已让「' + (elWho.textContent || '对方页面') + '」搜索「' + q2 + '」';
     ssInput.value = '';
     closeSearch();
+    setTimeout(function () { sending = false; }, 600);
     setTimeout(function () { ssNote.textContent = '对方页面会自己回到首页并搜这个词。'; }, 2400);
   }
   document.getElementById('btnSearch').addEventListener('click', openSearch);

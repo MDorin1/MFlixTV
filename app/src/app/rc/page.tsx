@@ -283,6 +283,8 @@ export default function RemoteControlPage() {
     setFlash(`已让「${info?.name || '对方页面'}」搜索「${q}」`);
     try {
       wordRef.current?.blur();
+      // 键盘收起后有的手机浏览器会把视口停在偏移位置，看着像「点了没反应」
+      window.scrollTo(0, 0);
     } catch {
       /* ignore */
     }
@@ -822,8 +824,9 @@ export default function RemoteControlPage() {
 
       {/* 搜索浮层：一直挂在 DOM 里（只是移到屏幕外），点「搜索」时 input.focus() 能直接顶起手机键盘 */}
       <div
+        aria-hidden={sheet !== 'search'}
         className={`fixed inset-0 z-50 flex items-end bg-black/60 transition-opacity duration-200 ${
-          sheet === 'search' ? 'opacity-100' : 'pointer-events-none opacity-0'
+          sheet === 'search' ? 'opacity-100 visible' : 'pointer-events-none invisible opacity-0'
         }`}
         onClick={() => setSheet('')}
       >

@@ -482,7 +482,8 @@ export function exec(cmd: string, arg: string) {
     case 'home':
       nav?.clear();
       window.dispatchEvent(new CustomEvent('mfl:rc-back-all'));
-      navigate('home');
+      // 全屏播放时先退全屏再整页跳：否则可能停在「整屏但点不动」的样子
+      leaveFullscreenThen(() => navigate('home'));
       return;
     case 'search': {
       // 手机上打片名、点搜索 → 这个页面直接搜一遍（和顶栏搜索走同一条路径）
@@ -490,7 +491,7 @@ export function exec(cmd: string, arg: string) {
       if (!q) return;
       if (panelOpen) window.dispatchEvent(new CustomEvent('mfl:rc-panel-close'));
       window.dispatchEvent(new CustomEvent('mfl:rc-back-all'));
-      navigate('search', q);
+      leaveFullscreenThen(() => navigate('search', q));
       return;
     }
     case 'settings':
@@ -538,6 +539,39 @@ function toggleCssFullscreen(): boolean {
     document.body.classList.add(FS_LOCK);
   }
   return true;
+}
+
+/**
+ * 全屏播放时整页跳转最容易出事：原生全屏（F11 / requestFullscreen）在导航途中不退出，
+ * 有的浏览器会停在「画面没了但还占着整屏、页面点不动」的状态，看着就是假死。
+ * 所以凡是可能跳页的遥控指令（搜索 / 回首页）都先退全屏，再跳；退不掉也别等，
+ * 60ms 就跳，另外留一条 400ms 的兜底，保证一定会走。
+ */
+function leaveFullscreenThen(cb: () => void) {
+  let done = false;
+  const go = () => {
+    if (done) return;
+    done = true;
+    cb();
+  };
+  try {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  } catch {
+    /* 老浏览器没有这个方法 */
+  }
+  const v = mainVideo();
+  if (v) v.classList.remove(FS_CLASS);
+  document.body.classList.remove(FS_LOCK);
+  if (document.documentElement.dataset.mflFs) document.documentElement.dataset.mflFs = '0';
+  if (canNativeFullscreen()) {
+    try {
+      setNativeFullscreen(false);
+    } catch {
+      /* 桥不在就算了 */
+    }
+  }
+  window.setTimeout(go, 60);
+  window.setTimeout(go, 400);
 }
 
 /** 当前是不是处于任何一种全屏（播放页自己的网页全屏会在 dataset.mflFs 里写 1） */

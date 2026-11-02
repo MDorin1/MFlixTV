@@ -1683,6 +1683,18 @@
     $('q').value = wd || '';
     doSearch();
   }
+  /**
+   * 遥控器在手机上把词打好了：先退出播放页，再开搜索。
+   * 故意不整页跳转 —— 全屏播放时 location 跳转会留下「画面没了但还占着整屏」的样子，
+   * 看着就是假死；同页切视图则不会。
+   */
+  window.startSearch = function (wd) {
+    wd = String(wd || '').trim();
+    if (!wd) return;
+    try { if ($('player').classList.contains('on') && typeof closePlayer === 'function') closePlayer(); } catch (e) {}
+    startSearch(wd);
+  };
+
   $('searchView').addEventListener('click', function (e) {
     var c = e.target.closest('.card');
     if (c) openDetail(c.dataset.src, c.dataset.id, c.dataset.name, false, 0);
@@ -3408,6 +3420,20 @@
           var wd = String(arg || '').trim();
           if (!wd) return true;
           if (inPlayer) closePlayer();
+          /* 全屏播放时先把伪全屏收干净：body 上的滚动锁留着，
+             后面的搜索页就是「怎么划都不动」 */
+          try { document.body.classList.remove('mfl-fs-lock'); } catch (e5) {}
+          try {
+            var vs = document.querySelectorAll('video');
+            for (var vi = 0; vi < vs.length; vi++) vs[vi].classList.remove('mfl-fs-video');
+          } catch (e6) {}
+          try {
+            if (document.fullscreenElement && document.exitFullscreen) {
+              var fp = document.exitFullscreen();
+              if (fp && fp.catch) fp.catch(function () {});
+            }
+            if (window.MFlixNative && window.MFlixNative.fullscreen) window.MFlixNative.fullscreen(false);
+          } catch (e7) {}
           startSearch(wd);
           return true;
         }
