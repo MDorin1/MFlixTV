@@ -1980,6 +1980,7 @@
 
   function openDetail(it) {
     if (!it) return;
+    S.userLine = 0;   // 换一部片，线路可以是自动挑的
     S.detailItem = it;
     S.title = it.name || '';
     S.src = it.src || '';
@@ -2057,7 +2058,7 @@
       var b = el('button', 'chip fx');
       b.textContent = grpLabel(g, i) + (g.total ? ' · ' + g.total + ' 集' : '');
       if (i === S.group) b.classList.add('on');
-      b.addEventListener('click', function () { renderGroups(i, 0, pic); });
+      b.addEventListener('click', function () { S.userLine = 1; renderGroups(i, 0, pic); });
       chips.appendChild(b);
     });
     $('dtLineCnt').textContent = S.groups.length ? '共 ' + S.groups.length + ' 条线路' : '';
@@ -2334,7 +2335,48 @@
     /* 家长控制：命中关键词或正处于限时时段，先跟用户要密码，通过后自动继续 */
     var blocked = parentalGate(S.title, function () { playEpRaw(i); });
     if (blocked) return;
-    playEpRaw(i);
+    // 先花几毫秒问一下哪条线路最快（服务端预热时就量过了），再真正起播
+    pickLineThen(i, function (idx) { playEpRaw(idx); });
+  }
+
+  /* 起播前挑线路：拿预热时量到的清单耗时比一比，明显更快才换。
+     用户自己点过线路就不插手；服务端没数据就立刻放行，绝不在这里卡人。 */
+  function pickLineThen(i, cb) {
+    var gs = S.groups || [];
+    if (S.userLine || gs.length < 2) { cb(i); return; }
+    var urls = [], idx = [];
+    gs.forEach(function (g, k) {
+      var eps = g.episodes || [];
+      var e = eps[Math.min(i, eps.length - 1)];
+      if (e && e.url) { urls.push(e.url); idx.push(k); }
+    });
+    if (urls.length < 2) { cb(i); return; }
+    var done = false;
+    var finish = function (n) { if (!done) { done = true; cb(n == null ? i : n); } };
+    var timer = setTimeout(function () { finish(i); }, 700);
+    fetch('/api/speed?urls=' + encodeURIComponent(urls.join(',')))
+      .then(function (r) { return r.json(); })
+      .then(function (list) {
+        clearTimeout(timer);
+        var best = -1, bestMs = 0, curMs = -1;
+        (list || []).forEach(function (o) {
+          var k = idx[urls.indexOf(o.u)];
+          if (typeof k !== 'number') return;
+          if (k === S.group) curMs = o.ms;
+          if (o.ms > 0 && (best < 0 || o.ms < bestMs)) { best = k; bestMs = o.ms; }
+        });
+        if (best >= 0 && best !== S.group && (curMs < 0 || curMs - bestMs >= 700)) {
+          S.group = best;
+          S.eps = (S.groups[best] || {}).episodes || [];
+          try {
+            toast('这条线路慢，已换到更快的「' + grpLabel(S.groups[best], best) + '」');
+          } catch (e) {}
+          finish(Math.min(i, Math.max(0, S.eps.length - 1)));
+          return;
+        }
+        finish(i);
+      })
+      .catch(function () { clearTimeout(timer); finish(i); });
   }
   function playEpRaw(i) {
     var g = S.groups[S.group] || {};

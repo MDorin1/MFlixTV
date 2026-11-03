@@ -35,12 +35,35 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
     private val ctx = context
     private val portNum = port
 
+    init {
+        // 封面磁盘缓存在起服务时就准备好（清过头、量好占用）
+        try {
+            DiskCache.init(ctx)
+        } catch (_: Throwable) {
+        }
+    }
+
     companion object {
         const val VERSION = "android-1.2"
     }
 
     /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
     private val lineCache = ConcurrentHashMap<String, Pair<String, Long>>()
+
+    /** 正在下载分片/图片的请求数；预热只在 0 的时候才预取分片，绝不和播放抢带宽 */
+    private val segBusy = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /** 最近一次播放取流的时间戳（毫秒） */
+    @Volatile
+    private var lastPlayAt = 0L
+
+    /** 封面缓存命中计数（排查用，/api/cache 里看得到） */
+    private val memHit = java.util.concurrent.atomic.AtomicLong(0)
+    private val diskHit = java.util.concurrent.atomic.AtomicLong(0)
+    private val cacheMiss = java.util.concurrent.atomic.AtomicLong(0)
+
+    /** 每条线路清单实测耗时（毫秒）：key=清单地址。起播时用它挑最快的一条 */
+    private val lineSpeed = ConcurrentHashMap<String, Long>()
 
     /** 首页 hero 推荐缓存：like|type -> (json, 时间)。 */
     private val heroCache = ConcurrentHashMap<String, Pair<String, Long>>()
@@ -164,6 +187,16 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 // 预热：详情页一出现就把这条线路的清单和头几个分片先拉进缓存，
                 // 用户按「播放」时 hls.js 直接吃缓存，不用再等一轮 500KB 的清单
                 uri == "/api/warm" -> warm(p["url"]?.firstOrNull().orEmpty())
+                // 线路测速（预热时顺手量的，不再额外打源站）：urls=a,b,c -> [{ms}]
+                uri == "/api/speed" -> speedOf(p["urls"]?.firstOrNull().orEmpty())
+                uri == "/api/cache" -> {
+                    val st = DiskCache.stats()
+                    json(
+                        "{\"memHit\":" + memHit.get() + ",\"diskHit\":" + diskHit.get() +
+                            ",\"miss\":" + cacheMiss.get() + ",\"diskFiles\":" + st.first +
+                            ",\"diskBytes\":" + st.second + "}"
+                    )
+                }
                 uri == "/api/proxy" -> proxy(session)
                 // 外部播放器用的整条线路播放列表（连播不断，切集不用回 App）
                 uri == "/api/list.m3u" -> playlist(p)
@@ -734,13 +767,30 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         val imgKey = if (looksImage(target)) "img|" + target else null
         if (imgKey != null) {
             val hit = MediaCache.peek(imgKey)
-            if (hit != null && hit.isNotEmpty()) return segResponse(target, null, hit)
+            if (hit != null && hit.isNotEmpty()) {
+                memHit.incrementAndGet()
+                return segResponse(target, null, hit)
+            }
+            // 内存里没有就翻磁盘（上次开机留下的还在），命中就顺手回填内存
+            DiskCache.get(target)?.let { pair ->
+                diskHit.incrementAndGet()
+                MediaCache.put(imgKey, pair.first, pair.second, IMG_TTL)
+                return segResponse(target, pair.second, pair.first)
+            }
+            cacheMiss.incrementAndGet()
         }
 
+        // 只有真正的媒体分片才算「正在播」：封面图一直在拉，用它判断空闲会把预热永远挡住
+        val media = imgKey == null
+        if (media) {
+            segBusy.incrementAndGet()
+            lastPlayAt = System.currentTimeMillis()
+        }
         val conn = try {
             // 统一走 Net：证书宽容（采集站常缺中间证书，Java 校验比浏览器严）+ 可选代理
             Net.open(target, 12000).also { it.readTimeout = 25000 }
         } catch (e: Exception) {
+            if (media) segBusy.decrementAndGet()
             return json("{\"error\":\"" + esc(e.message ?: "bad url") + "\"}")
         }
         return try {
@@ -776,14 +826,16 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 ?: conn.contentLengthLong.takeIf { it > 0 }
 
             // 图片：整张读完存一份再发（封面都是几十 KB，翻回来就是本地读）
-            if (imgKey != null && code in 200..299 && contentType.startsWith("image/") &&
-                (declared == null || declared in 1L..CACHE_IMG_MAX)
-            ) {
+            // 不认上游的类型：采集站常把 webp/jpg 标成 octet-stream 甚至 text/plain，
+            // 按扩展名兜底照样缓存，否则这些图每次都要重下
+            if (imgKey != null && code in 200..299 && (declared == null || declared in 1L..CACHE_IMG_MAX)) {
                 val bytes = stream.readBytes()
                 stream.close()
                 if (bytes.isNotEmpty()) {
-                    MediaCache.put(imgKey, bytes, contentType, IMG_TTL)
-                    return segResponse(target, contentType, bytes)
+                    val itype = if (contentType.startsWith("image/")) contentType else mediaType(target, contentType)
+                    MediaCache.put(imgKey, bytes, itype, IMG_TTL)
+                    DiskCache.put(target, bytes, itype)
+                    return segResponse(target, itype, bytes)
                 }
             }
 
@@ -809,6 +861,9 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             resp
         } catch (e: Exception) {
             json("{\"error\":\"" + esc(e.message ?: "proxy failed") + "\"}")
+        } finally {
+            // 真实取流结束：预热的「空闲才预取」靠这个计数判断
+            if (media) segBusy.decrementAndGet()
         }
     }
 
@@ -841,6 +896,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         val owner = MediaCache.claim(key)
         try {
             if (!owner) MediaCache.peek(key)?.let { return it }
+            val t0 = System.currentTimeMillis()
             val conn = try {
                 Net.open(target, 12000).also {
                     it.readTimeout = 25000
@@ -857,6 +913,8 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 java.util.zip.GZIPInputStream(body) else body
             val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
             if (!text.contains("#EXTM3U")) return null
+            // 顺手记下这条线路的清单耗时：起播时用它挑最快的一条，不再额外打源站
+            lineSpeed[target] = System.currentTimeMillis() - t0
             val out = M3u8Rewriter.rewrite(text, target).toByteArray(Charsets.UTF_8)
             // 变体清单（带 STREAM-INF）几乎不变、点播清单（带 ENDLIST）也不会再变，都缓久一点；
             // 只有真正会长的直播清单才用短 TTL，否则每几秒又去拉一遍几百 KB
@@ -914,8 +972,68 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             if (variants.size >= 2) break
         }
         if (variants.isEmpty()) return
-        // 只预热清单，不预取分片：分片动辄 1MB，慢网下会和真正在播的那一路抢带宽，
-        // 「预热反而让起播更慢」。清单几百 KB 且本来就串在关键路径上，缓住它就够了。
+        // 清单必预热：几百 KB、本来就串在起播的关键路径上，缓住它等于省掉 1~3 秒
         for (v in variants) manifestBytes(v)
+        // 首片只在「真的空闲」时预取：正在播/正在拉图的时候绝不抢带宽
+        // （之前不看空闲就预取，真机起播反而从 3 秒拖到 6 秒）
+        warmFirstSeg(variants.first())
+    }
+
+    /** 空闲时才预取首片；一旦有真实取流进来就立刻停手，把带宽让回去 */
+    private fun warmFirstSeg(variant: String) {
+        if (segBusy.get() > 0) return
+        if (System.currentTimeMillis() - lastPlayAt < 20_000) return
+        val media = manifestBytes(variant)?.let { String(it, Charsets.UTF_8) } ?: return
+        val marker = "/api/proxy?url="
+        val seg = media.lines().asSequence().mapNotNull { line ->
+            val t = line.trim()
+            if (t.isEmpty() || t.startsWith("#")) null
+            else if (t.startsWith(marker)) try {
+                java.net.URLDecoder.decode(t.substring(marker.length), "UTF-8")
+            } catch (e: Exception) {
+                null
+            } else t
+        }.firstOrNull { it.startsWith("http") } ?: return
+
+        val key = "seg|" + seg
+        if (MediaCache.peek(key) != null) return
+        val base = segBusy.get()
+        try {
+            val conn = Net.open(seg, 12000).also {
+                it.readTimeout = 20000
+                it.instanceFollowRedirects = true
+            }
+            val code = conn.responseCode
+            if (code !in 200..299) return
+            val len = conn.getHeaderField("Content-Length")?.toLongOrNull() ?: conn.contentLengthLong
+            if (len <= 0 || len > CACHE_SEG_MAX) return
+            val input = conn.inputStream
+            val buf = java.io.ByteArrayOutputStream(minOf(len, 4L * 1024 * 1024).toInt())
+            val chunk = ByteArray(64 * 1024)
+            while (true) {
+                // 有人开始播了：立刻放弃，剩下的带宽全都让给播放
+                if (segBusy.get() > base) return
+                val n = input.read(chunk)
+                if (n <= 0) break
+                buf.write(chunk, 0, n)
+            }
+            val bytes = buf.toByteArray()
+            if (bytes.isNotEmpty()) MediaCache.put(key, bytes, mediaType(seg, conn.contentType ?: ""), SEG_TTL)
+        } catch (_: Throwable) {
+        }
+    }
+
+    /** 线路测速查询：urls=a,b,c -> [{"u":...,"ms":...}]，没量过的给 -1 */
+    private fun speedOf(urls: String): Response {
+        val arr = JSONArray()
+        if (urls.isNotBlank()) {
+            urls.split(',').take(8).forEach { u ->
+                val v = u.trim()
+                if (v.isEmpty()) return@forEach
+                val ms = lineSpeed[v] ?: -1L
+                arr.put(JSONObject().put("u", v).put("ms", ms))
+            }
+        }
+        return json(arr.toString())
     }
 }
