@@ -31,6 +31,7 @@ if [ ! -x "$NODE" ]; then
   exit 1
 fi
 
+# ffmpeg 放到 PATH 里，短剧内核直接找 ffmpeg 就能用
 mkdir -p "$ROOT/runtime/bin"
 ln -sf "$FFMPEG" "$ROOT/runtime/bin/ffmpeg" 2>/dev/null
 export PATH="$ROOT/runtime/bin:$PATH"
@@ -50,18 +51,27 @@ fi
 
 [ -f "$ROOT/app/.env" ] || cp "$ROOT/app/.env.example" "$ROOT/app/.env" 2>/dev/null
 
-# 1) 短剧内核
+# 1) 短剧内核：必须以 hongguo 为工作目录启动（它按 cwd 找 config/web）
 if ! port_open 8000; then
   echo "[1/2] 启动短剧内核…"
-  PORT=8000 BIND_HOST=127.0.0.1 HG_OPEN_BROWSER=0 HG_CACHE_MAX_FILES=120 \
-    "$NODE" "$ROOT/hongguo/server/src/main.js" > "$ROOT/hongguo/hg.log" 2>&1 &
+  (
+    cd "$ROOT/hongguo" || exit 1
+    PORT=8000 \
+    BIND_HOST=127.0.0.1 \
+    HG_TRANSCODE=1 \
+    HG_CACHE_MAX_FILES=120 \
+    HG_OPEN_BROWSER=0 \
+      exec "$NODE" "$ROOT/hongguo/server/src/main.js"
+  ) > "$ROOT/hongguo/hg.log" 2>&1 &
   HG_PID=$!
 fi
 
-# 2) 主站
+# 2) 主站：Next 必须把工作目录设在 app 里，否则它找不到 .next
 echo "[2/2] 启动 MFlixTV…"
-"$NODE" "$ROOT/app/node_modules/next/dist/bin/next" start -p 8080 \
-  > "$ROOT/app/server.log" 2>&1 &
+(
+  cd "$ROOT/app" || exit 1
+  exec "$NODE" "$ROOT/app/node_modules/next/dist/bin/next" start -p 8080
+) > "$ROOT/app/server.log" 2>&1 &
 NEXT_PID=$!
 
 cleanup() {
@@ -69,6 +79,9 @@ cleanup() {
   echo "正在停止…"
   [ -n "$NEXT_PID" ] && kill "$NEXT_PID" 2>/dev/null
   [ -n "$HG_PID" ] && kill "$HG_PID" 2>/dev/null
+  # 短剧内核会另起 ffmpeg，留着会占 CPU
+  pkill -f "hongguo/server/src/main.js" 2>/dev/null
+  pkill -f "runtime/bin/ffmpeg" 2>/dev/null
   exit 0
 }
 trap cleanup INT TERM
@@ -80,6 +93,7 @@ done
 
 if port_open 8080; then
   echo "已启动：http://localhost:8080   默认密码 MFlixTV"
+  echo "同一 WiFi 的手机 / 电视用「http://$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null):8080」也能看。"
   open "http://localhost:8080"
 else
   echo "启动没成功，看日志：app/server.log"
