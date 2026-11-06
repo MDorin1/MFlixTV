@@ -93,7 +93,7 @@ jobs:
           echo "--- launch.log ---"; cat "$RUNNER_TEMP/launch.log" || true
           echo "--- app/server.log ---"; tail -n 40 "$P/app/server.log" || true
           echo "--- hongguo/hg.log ---"; tail -n 20 "$P/hongguo/hg.log" || true
-          echo "--- /api/status ---"; curl -s --max-time 5 http://127.0.0.1:8080/api/status || true; echo
+          echo "--- 静态资源 ---"; curl -s -o /dev/null -w "icon-192=%{http_code}\n" --max-time 5 http://127.0.0.1:8080/icons/icon-192.png || true
           echo "--- 首页标题 ---"; curl -s --max-time 5 http://127.0.0.1:8080/ | grep -o '<title>[^<]*</title>' | head -1 || true
           pkill -f 'next/dist/bin/next' || true
           pkill -f 'hongguo/server/src/main.js' || true
@@ -191,7 +191,8 @@ jobs:
           rm -f "$RUNNER_TEMP/MFlixTV-macOS.zip"
           ditto -c -k --sequesterRsrc --keepParent MFlixTV-macOS "$RUNNER_TEMP/MFlixTV-macOS.zip"
           ls -l "$RUNNER_TEMP/MFlixTV-macOS.zip"
-          unzip -Z "$RUNNER_TEMP/MFlixTV-macOS.zip" | grep '启动MFlixTV.command' | head -2
+          unzip -l "$RUNNER_TEMP/MFlixTV-macOS.zip" | tail -3
+          unzip -l "$RUNNER_TEMP/MFlixTV-macOS.zip" | grep -c 'MFlixTV-macOS/' || true
 
       - name: 汇总校验值
         run: |
