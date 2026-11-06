@@ -36,6 +36,16 @@ mkdir -p "$ROOT/runtime/bin"
 ln -sf "$FFMPEG" "$ROOT/runtime/bin/ffmpeg" 2>/dev/null
 export PATH="$ROOT/runtime/bin:$PATH"
 
+# Apple 芯片上，未签名的可执行文件会被系统直接杀掉（连报错都没有）。
+# 先试跑一次，跑不起来就在本机 ad-hoc 签一遍——不需要开发者证书。
+if ! "$FFMPEG" -hide_banner -version >/dev/null 2>&1; then
+  if command -v codesign >/dev/null 2>&1; then
+    echo "给运行时补 ad-hoc 签名…"
+    codesign --force --sign - "$FFMPEG" >/dev/null 2>&1
+    codesign --force --sign - "$NODE" >/dev/null 2>&1
+  fi
+fi
+
 echo "MFlixTV · $ARCHNAME"
 echo "目录：$ROOT"
 

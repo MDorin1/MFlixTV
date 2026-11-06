@@ -1,9 +1,10 @@
 name: 出 macOS 包（DMG + ZIP）
 
-# 为什么要有这个 workflow：
-#   Windows 上没有 hdiutil，做不出能被 Finder 挂载的 HFS+/APFS 镜像，
-#   也签不了 arm64 二进制（macOS 上未签名的 arm64 可执行文件会被直接杀掉）。
-#   所以 macOS 的成品统一在真正的 Mac 上出：组装 .app → ad-hoc 签名 → 冒烟测试 → hdiutil 打 DMG。
+# 为什么要在 macOS runner 上做：
+#   · Windows 上没有 hdiutil，做不出能被 Finder 挂载的 HFS+ 镜像，所以出不了 DMG；
+#   · macOS 上未签名的 arm64 可执行文件会被系统直接杀掉（连报错都没有），
+#     而 codesign 只有 Mac 上才有，所以签名也只能在这做。
+#   · 顺带在真 Mac 上把启动脚本跑一遍，确认 8080 真能起来，而不是只验文件结构。
 
 on:
   workflow_dispatch:
@@ -17,18 +18,21 @@ on:
         required: false
         default: 'MFlixTV-macOS.zip'
       upload:
-        description: '上传到 Release（不填 yes 就只构建、只留 artifact）'
+        description: '上传到 Release（填 yes 才传）'
         required: false
         default: 'yes'
 
 permissions:
   contents: write
 
+env:
+  PYTHONUNBUFFERED: '1'
+
 jobs:
   build:
-    name: 组装 .app + 签名 + 冒烟测试 + 出 DMG（Apple 芯片机器）
-    runs-on: macos-14
-    timeout-minutes: 45
+    name: 组装 .app + 签名 + 冒烟测试 + 出 DMG
+    runs-on: macos-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -44,11 +48,11 @@ jobs:
           curl -fL --retry 3 -o "$RUNNER_TEMP/dl/payload.zip" "$URL"
           ls -l "$RUNNER_TEMP/dl/payload.zip"
           unzip -q "$RUNNER_TEMP/dl/payload.zip" -d "$RUNNER_TEMP/work"
-          ls -l "$RUNNER_TEMP/work"
           test -f "$RUNNER_TEMP/work/MFlixTV-macOS/app/.next/BUILD_ID"
           test -f "$RUNNER_TEMP/work/MFlixTV-macOS/hongguo/server/src/main.js"
+          echo "uname -m: $(uname -m)"
 
-      - name: 去掉隔离属性、补执行位
+      - name: 去掉隔离属性、补执行位、核对架构
         run: |
           set -euo pipefail
           P="$RUNNER_TEMP/work/MFlixTV-macOS"
@@ -68,19 +72,16 @@ jobs:
           for f in "$P/runtime/node-arm64" "$P/runtime/node-x64" \
                    "$P/runtime/ffmpeg/ffmpeg-arm64" "$P/runtime/ffmpeg/ffmpeg-x64"; do
             codesign --force --sign - --timestamp=none "$f"
+            printf '%-40s %s\n' "$(basename "$f")" "$(codesign -dv "$f" 2>&1 | grep -m1 'Signature')"
           done
-          codesign -dv "$P/runtime/node-arm64" 2>&1 | head -3
-          codesign -dv "$P/runtime/ffmpeg/ffmpeg-arm64" 2>&1 | head -3
 
       - name: 冒烟测试（跑真·启动脚本，验 8080）
         run: |
           set -euo pipefail
           P="$RUNNER_TEMP/work/MFlixTV-macOS"
-          "$P/runtime/node-arm64" -v
-          "$P/runtime/ffmpeg/ffmpeg-arm64" -hide_banner -version | head -2
-          echo "== 语法 =="
+          "$P/runtime/node-x64" -v
+          "$P/runtime/ffmpeg/ffmpeg-x64" -hide_banner -version | head -2
           bash -n "$P/启动MFlixTV.command"
-          echo "== 起服务 =="
           cd "$P"
           ( bash 启动MFlixTV.command > "$RUNNER_TEMP/launch.log" 2>&1 & ) || true
           ok=""
@@ -92,8 +93,8 @@ jobs:
           echo "--- launch.log ---"; cat "$RUNNER_TEMP/launch.log" || true
           echo "--- app/server.log ---"; tail -n 40 "$P/app/server.log" || true
           echo "--- hongguo/hg.log ---"; tail -n 20 "$P/hongguo/hg.log" || true
-          curl -s --max-time 5 http://127.0.0.1:8080/api/status || true
-          echo
+          echo "--- /api/status ---"; curl -s --max-time 5 http://127.0.0.1:8080/api/status || true; echo
+          echo "--- 首页标题 ---"; curl -s --max-time 5 http://127.0.0.1:8080/ | grep -o '<title>[^<]*</title>' | head -1 || true
           pkill -f 'next/dist/bin/next' || true
           pkill -f 'hongguo/server/src/main.js' || true
           test "$ok" = "200"
@@ -108,7 +109,6 @@ jobs:
           cp packaging/macos/Info.plist "$APP/Contents/Info.plist"
           cp packaging/macos/MFlixTV "$APP/Contents/MacOS/MFlixTV"
           chmod +x "$APP/Contents/MacOS/MFlixTV"
-          # 图标：512 的 png 铺一套 iconset 再转 icns
           ICON_SRC=app/public/icons/icon-512.png
           if [ -f "$ICON_SRC" ]; then
             rm -rf "$RUNNER_TEMP/icon.iconset"; mkdir -p "$RUNNER_TEMP/icon.iconset"
@@ -117,10 +117,10 @@ jobs:
             done
             sips -z 1024 1024 "$ICON_SRC" --out "$RUNNER_TEMP/icon.iconset/icon_512x512@2x.png" >/dev/null
             iconutil -c icns "$RUNNER_TEMP/icon.iconset" -o "$APP/Contents/Resources/app.icns"
+            echo "图标已生成"
           else
             echo "没有图标源，跳过 icns"
           fi
-          # 载荷整块塞进 Resources/payload
           ditto "$P" "$APP/Contents/Resources/payload"
           du -sh "$APP"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist"
@@ -134,7 +134,7 @@ jobs:
           bash -n "$APP/Contents/Resources/payload/启动MFlixTV.command"
           bash -n "$APP/Contents/MacOS/MFlixTV"
           test -x "$APP/Contents/Resources/payload/runtime/node-arm64"
-          test -f "$APP/Contents/Resources/app.icns" || echo "无 icns（不致命）"
+          test -f "$APP/Contents/Resources/app.icns"
 
       - name: 打 DMG
         run: |
@@ -160,29 +160,27 @@ jobs:
           test -x "$MNT/MFlixTV.app/Contents/Resources/payload/runtime/node-arm64"
           test -f "$MNT/MFlixTV.app/Contents/Resources/payload/app/.next/BUILD_ID"
           codesign --verify --deep --strict "$MNT/MFlixTV.app"
-          du -sh "$MNT/MFlixTV.app"
+          echo "挂载后的总大小：$(du -sh "$MNT/MFlixTV.app" | cut -f1)"
           hdiutil detach "$MNT"
 
-      - name: 同时刷一份 ZIP（给不想装 app 的人）
+      - name: 同时刷一份 ZIP（给不想装 App 的人）
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/work"
           rm -f "$RUNNER_TEMP/MFlixTV-macOS.zip"
           ditto -c -k --sequesterRsrc --keepParent MFlixTV-macOS "$RUNNER_TEMP/MFlixTV-macOS.zip"
           ls -l "$RUNNER_TEMP/MFlixTV-macOS.zip"
-          unzip -l "$RUNNER_TEMP/MFlixTV-macOS.zip" | tail -3
           unzip -Z "$RUNNER_TEMP/MFlixTV-macOS.zip" | grep '启动MFlixTV.command' | head -2
 
       - name: 汇总校验值
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP"
-          for f in MFlixTV-macOS.dmg MFlixTV-macOS.zip; do
-            printf '%-24s %12d  MD5 %s\n' "$f" "$(stat -f%z "$f")" "$(md5 -q "$f")"
-          done | tee "$RUNNER_TEMP/SUMS.txt"
-          echo "__SUMS__" >> "$GITHUB_STEP_SUMMARY"
+          { for f in MFlixTV-macOS.dmg MFlixTV-macOS.zip; do
+              printf '%-24s %12d  MD5 %s\n' "$f" "$(stat -f%z "$f")" "$(md5 -q "$f")"
+            done; } | tee SUMS.txt
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          cat "$RUNNER_TEMP/SUMS.txt" >> "$GITHUB_STEP_SUMMARY"
+          cat SUMS.txt >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
@@ -201,17 +199,15 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          gh release upload "$TAG" "$RUNNER_TEMP/MFlixTV-macOS.dmg" \
-             --clobber --repo "$GITHUB_REPOSITORY"
-          gh release upload "$TAG" "$RUNNER_TEMP/MFlixTV-macOS.zip" \
-             --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$TAG" "$RUNNER_TEMP/MFlixTV-macOS.dmg" --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$TAG" "$RUNNER_TEMP/MFlixTV-macOS.zip" --clobber --repo "$GITHUB_REPOSITORY"
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
              -q '.assets[] | "\(.name)  \(.size)"'
 
-  intel:
-    name: 在 Intel 机器上验一遍（不传包，失败不挡主流程）
-    runs-on: macos-13
-    timeout-minutes: 45
+  arm64:
+    name: 在 Apple 芯片机器上验一遍（不传包，失败不挡主流程）
+    runs-on: macos-14-arm64
+    timeout-minutes: 60
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -226,21 +222,20 @@ jobs:
           curl -fL --retry 3 -o "$RUNNER_TEMP/dl/payload.zip" \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}"
           unzip -q "$RUNNER_TEMP/dl/payload.zip" -d "$RUNNER_TEMP/work"
+          echo "uname -m: $(uname -m)"
 
-      - name: 签名 + 冒烟测试（x86_64 路径）
+      - name: 签名 + 冒烟测试（arm64 路径）
         run: |
           set -euo pipefail
           P="$RUNNER_TEMP/work/MFlixTV-macOS"
           xattr -cr "$P" || true
-          chmod +x "$P/启动MFlixTV.command" "$P/runtime/node-x64" \
-                   "$P/runtime/node-arm64" "$P/runtime/ffmpeg/ffmpeg-x64" \
-                   "$P/runtime/ffmpeg/ffmpeg-arm64"
-          for f in "$P/runtime/node-x64" "$P/runtime/ffmpeg/ffmpeg-x64"; do
+          chmod +x "$P/启动MFlixTV.command" "$P/runtime/node-arm64" "$P/runtime/node-x64" \
+                   "$P/runtime/ffmpeg/ffmpeg-arm64" "$P/runtime/ffmpeg/ffmpeg-x64"
+          for f in "$P/runtime/node-arm64" "$P/runtime/ffmpeg/ffmpeg-arm64"; do
             codesign --force --sign - --timestamp=none "$f" || true
           done
-          "$P/runtime/node-x64" -v
-          "$P/runtime/ffmpeg/ffmpeg-x64" -hide_banner -version | head -2
-          echo "uname -m: $(uname -m)"
+          "$P/runtime/node-arm64" -v
+          "$P/runtime/ffmpeg/ffmpeg-arm64" -hide_banner -version | head -2
           cd "$P"
           ( bash 启动MFlixTV.command > "$RUNNER_TEMP/launch.log" 2>&1 & ) || true
           ok=""
@@ -249,7 +244,7 @@ jobs:
             if [ "$code" = "200" ]; then ok="200"; break; fi
             sleep 2
           done
-          echo "--- launch.log ---"; cat "$RUNNER_TEMP/launch.log" || true
+          echo "--- launch.log（应显示 Apple 芯片 arm64）---"; cat "$RUNNER_TEMP/launch.log" || true
           tail -n 40 "$P/app/server.log" || true
           pkill -f 'next/dist/bin/next' || true
           pkill -f 'hongguo/server/src/main.js' || true
