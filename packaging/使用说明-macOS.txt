@@ -1,42 +1,56 @@
 MFlixTV · macOS 版使用说明
 =====================================
 
-一、安装（不用安装，解压即用）
-  1. 把 MFlixTV-macOS.zip 解压到「应用程序」以外的任意位置
-     （例如 ~/MFlixTV 或桌面，路径里尽量别有空格）。
-  2. 双击目录里的「启动MFlixTV.command」。
-  3. 首次运行如果提示「无法打开，因为来自身份不明的开发者」：
-       · 右键点「启动MFlixTV.command」→ 打开 → 再点「打开」；
-       · 或者打开「系统设置 → 隐私与安全性」，拉到下面点「仍要打开」；
-       · 命令行办法：xattr -dr com.apple.quarantine ~/MFlixTV
-  4. 浏览器会自动打开 http://localhost:8080
-     默认密码：MFlixTV（在 app/.env 里的 PASSWORD 可改）
+一、装法（推荐 DMG）
+  1. 双击下载下来的 MFlixTV-macOS.dmg，会弹出一个磁盘映像窗口。
+  2. 把窗口里的「MFlixTV」拖到旁边的「应用程序」，等它拷完（约 550MB，几十秒）。
+  3. 把磁盘映像推出（右键桌面上的 MFlixTV 卷 → 推出）。
+  4. 打开「启动台」或「应用程序」，双击 MFlixTV。
 
-二、支持哪些 Mac
-  · Apple 芯片（M1/M2/M3/M4）：用 runtime/node-arm64
-  · Intel 芯片：用 runtime/node-x64
-  启动脚本会自己按 uname -m 选，不用你操心。
+  不想装也可以：解压 MFlixTV-macOS.zip，直接双击文件夹里的
+  「启动MFlixTV.command」，一样能用，只是每次都得先进到那个文件夹。
+
+二、第一次打开会被拦一次（没做 Apple 开发者签名）
+  · 提示「无法打开，因为 Apple 无法验证」：
+      在 MFlixTV 上右键 → 打开 → 再点「打开」。
+  · 提示「已损坏，无法打开」：
+      终端执行  sudo xattr -dr com.apple.quarantine /Applications/MFlixTV.app
+      （只针对于这个 App，不动系统设置）
+  · 用 .command 启动的那份如需同样处理：
+      xattr -dr com.apple.quarantine ~/Downloads/MFlixTV-macOS
+
+三、支持哪些 Mac
+  · Apple 芯片（M1/M2/M3/M4）：跑 runtime/node-arm64 与 ffmpeg-arm64
+  · Intel 芯片：跑 runtime/node-x64 与 ffmpeg-x64
+  同一个包两种架构都在，启动时用 uname -m 自动挑，不用你选。
   系统要求：macOS 11 及以上（Big Sur 起）。
 
-三、它是怎么跑起来的
-  启动脚本会在本机起两个进程，都只监听 127.0.0.1：
-    · 短剧内核   8000 端口
+四、它是怎么跑起来的
+  双击后它会开一个终端窗口，在里面起两个只监听本机的进程：
+    · 短剧内核     8000 端口
     · MFlixTV 主站 8080 端口（Next.js）
-  同一个局域网里的电视、手机访问 http://<这台Mac的IP>:8080 也能用，
-  电视端直接打开就是 10 英尺界面（/tv）。
+  就绪后自动打开浏览器 http://localhost:8080 ，默认密码 MFlixTV。
+  同一个 WiFi 里的手机、平板、电视访问 http://<这台 Mac 的 IP>:8080 也能用，
+  电视上直接就是 10 英尺界面（/tv）。
 
-四、停止 / 重启
-  · 关掉那个终端窗口，或按 Control-C（会同时停掉两个服务）。
-  · 手动停：pkill -f 'next start -p 8080'; pkill -f hongguo/server/src/main.js
+五、怎么停
+  · 关掉那个终端窗口，或按 Control-C：两个服务一起停，端口一起释放。
+  · 手动停（终端窗口丢了的情况）：
+      pkill -f 'next start -p 8080'
+      pkill -f 'hongguo/server/src/main.js'
 
-五、日志与数据
-  · 主站日志：app/server.log
-  · 短剧内核日志：hongguo/hg.log
-  · 片源列表、观看记录都在浏览器本地，换机器不会跟着走。
+六、日志与数据
+  · 启动器日志：~/Library/Logs/MFlixTV-launcher.log
+  · 主站日志：App 内 Resources/payload/app/server.log
+  · 短剧内核日志：Resources/payload/hongguo/hg.log
+  · 片源列表在 Resources/payload/app/.env（改 PASSWORD 也在这里）
+  · 观看记录存在浏览器本地，换浏览器/换机器不会跟着走
 
-六、常见问题
-  · 打开是空白 / 提示必须设置 PASSWORD：说明 app/.env 丢了，重新解压一份。
-  · 8080 被占用：先关掉占用它的程序，或看「已经有一个在跑」的提示。
-  · 播放卡：先在设置里测速，换一条更快的线路。
+七、常见问题
+  · 双击没反应：看 ~/Library/Logs/MFlixTV-launcher.log 最后几行。
+  · 提示必须设置 PASSWORD：app/.env 丢了，重新装一份。
+  · 8080 被占用：先关掉占着它的程序，或它会直接打开已在运行的那一份。
+  · 播放卡：设置里先测速，换一条更快的线路。
+  · 短剧首集要等十几秒：短剧是边取边转码，第一集过后走缓存就快了。
 
 免责声明见 合规与免责.md。

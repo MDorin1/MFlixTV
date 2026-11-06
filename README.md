@@ -4,12 +4,13 @@
 
 装一份，全家一起看：**电脑装一次，同一个 WiFi 里的手机、平板、电视什么都不用装**；**手机扫个码，立刻变成那台电脑的遥控器**。这两件事是它跟「装个播放器」最大的区别，所以放在最前面说。
 
-当前版本 **1.2**：一个 Release 里同时放三个安装包（Windows / macOS / 安卓），三个平台从这一版起**同号**。
+当前版本 **1.2**：一个 Release 里同时放四个安装包（Windows / macOS dmg / macOS zip / 安卓），三个平台从这一版起**同号**。
 
 | 安装包 | 适用 | 大小 |
 | --- | --- | --- |
 | `MFlixTV-Setup-1.2.exe` | Windows 10 / 11，双击安装 | 约 124 MB |
-| `MFlixTV-macOS.zip` | macOS 11+，Intel 与 Apple 芯片同一个包，解压双击即用 | 约 172 MB |
+| `MFlixTV-macOS.dmg` | macOS 11+，**推荐**：拖进「应用程序」即可，Intel 与 Apple 芯片同一个包 | 约 172 MB |
+| `MFlixTV-macOS.zip` | macOS 11+，不想装 App 的解压即用版 | 约 172 MB |
 | `MFlixTV-android-1.2.apk` | 安卓手机 / 平板 / 电视盒子 | 约 3 MB |
 
 <table>
@@ -264,14 +265,18 @@ MFlixTV 不是一个「客户端 + 服务器」的两段式软件，它就是**�
 
 ### macOS
 
-一个包同时支持 Apple 芯片与 Intel：包内 arm64 / x86_64 两套 Node 与 ffmpeg，启动脚本按 `uname -m` 自己挑。
+一个包同时支持 Apple 芯片与 Intel：包内 arm64 / x86_64 两套 Node 与 ffmpeg，启动时按 `uname -m` 自己挑。
 
-1. 打开 [Releases](../../releases) 下载 `MFlixTV-macOS.zip`（macOS 11+）
-2. 解压得到 `MFlixTV-macOS` 文件夹，双击里面的 `启动MFlixTV.command`
-3. 它依次拉起短剧内核（`8000`）与主站（`8080`），就绪后自动打开浏览器；关掉那个终端窗口即退出、端口一起释放
-4. 默认密码 **`MFlixTV`**，地址 `http://localhost:8080`
+**装法（DMG，推荐）**
 
-> 首次运行会被 Gatekeeper 拦（下载来的脚本默认不放行）：在该文件上**右键 → 打开 → 再点「打开」**；若仍被拦，终端执行 `xattr -dr com.apple.quarantine ./MFlixTV-macOS`。未做公证签名，所以每次新解压的包都要走一次。
+1. 打开 [Releases](../../releases) 下载 `MFlixTV-macOS.dmg`（macOS 11+）
+2. 双击挂载，把里面的 **MFlixTV** 拖到旁边的「应用程序」
+3. 推出磁盘映像，在「应用程序」里双击 MFlixTV
+4. 首次会被 Gatekeeper 拦：在 MFlixTV 上**右键 → 打开 → 再点「打开」**；若提示「已损坏」，终端执行 `sudo xattr -dr com.apple.quarantine /Applications/MFlixTV.app`
+5. 它会开一个终端窗口起短剧内核（`8000`）与主站（`8080`），就绪后自动开浏览器；关掉那个窗口即全部停止
+6. 默认密码 **`MFlixTV`**，地址 `http://localhost:8080`
+
+**不想装 App**：下 `MFlixTV-macOS.zip`，解压后双击里面的 `启动MFlixTV.command`，行为与上面一样，只是每次都要先进到那个文件夹。
 
 ### 桌面快捷方式（可选）
 
