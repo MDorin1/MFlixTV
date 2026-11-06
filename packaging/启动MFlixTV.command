@@ -1,28 +1,77 @@
 #!/bin/bash
-# MFlixTV 启动器（macOS）
+# ============================================================
+#  MFlixTV 启动器（macOS，Intel / Apple 芯片通用）
+#  双击运行；会在本机起两个服务：
+#    - 短剧内核   127.0.0.1:8000
+#    - MFlixTV 主站 127.0.0.1:8080
+#  然后打开浏览器。关掉这个终端窗口＝停止服务。
+# ============================================================
 cd "$(dirname "$0")" || exit 1
+ROOT="$PWD"
 
-export PATH="$PWD/runtime/ffmpeg:$PATH"
-NODE="./runtime/node"
-[ -x "$NODE" ] || { echo "找不到 runtime/node"; read -r; exit 1; }
+ARCH="$(uname -m)"
+if [ "$ARCH" = "arm64" ]; then
+  NODE="$ROOT/runtime/node-arm64"
+  FFMPEG="$ROOT/runtime/ffmpeg/ffmpeg-arm64"
+  ARCHNAME="Apple 芯片（arm64）"
+else
+  NODE="$ROOT/runtime/node-x64"
+  FFMPEG="$ROOT/runtime/ffmpeg/ffmpeg-x64"
+  ARCHNAME="Intel（x86_64）"
+fi
 
-# 首次运行：生成 .env
-[ -f app/.env ] || cp app/.env.example app/.env 2>/dev/null
+# 解压后权限可能被清掉，这里补一次（不影响系统安全设置）
+chmod +x "$NODE" "$FFMPEG" 2>/dev/null
+chmod +x "$ROOT/启动MFlixTV.command" 2>/dev/null
+
+if [ ! -x "$NODE" ]; then
+  echo "找不到可执行的 Node 运行时：$NODE"
+  echo "请重新解压完整的压缩包（不要把文件单独拖出来）。"
+  read -r -p "按回车退出…" _
+  exit 1
+fi
+
+mkdir -p "$ROOT/runtime/bin"
+ln -sf "$FFMPEG" "$ROOT/runtime/bin/ffmpeg" 2>/dev/null
+export PATH="$ROOT/runtime/bin:$PATH"
+
+echo "MFlixTV · $ARCHNAME"
+echo "目录：$ROOT"
 
 port_open() { /usr/bin/nc -z 127.0.0.1 "$1" >/dev/null 2>&1; }
 
-# 1) 短剧服务（8000）
-if ! port_open 8000; then
-  echo "[1/2] 启动短剧服务…"
-  PORT=8000 BIND_HOST=127.0.0.1 HG_OPEN_BROWSER=0 HG_CACHE_MAX_FILES=120 \
-    "$NODE" hongguo/server/src/main.js > hongguo/hg.log 2>&1 &
+# 已经有一个在跑就不再起第二个
+if port_open 8080; then
+  echo "MFlixTV 已经在运行，直接打开页面。"
+  open "http://localhost:8080"
+  sleep 2
+  exit 0
 fi
 
-# 2) MFlixTV 主站（8080）
-if ! port_open 8080; then
-  echo "[2/2] 启动 MFlixTV…"
-  "$NODE" app/node_modules/next/dist/bin/next start -p 8080 > app/server.log 2>&1 &
+[ -f "$ROOT/app/.env" ] || cp "$ROOT/app/.env.example" "$ROOT/app/.env" 2>/dev/null
+
+# 1) 短剧内核
+if ! port_open 8000; then
+  echo "[1/2] 启动短剧内核…"
+  PORT=8000 BIND_HOST=127.0.0.1 HG_OPEN_BROWSER=0 HG_CACHE_MAX_FILES=120 \
+    "$NODE" "$ROOT/hongguo/server/src/main.js" > "$ROOT/hongguo/hg.log" 2>&1 &
+  HG_PID=$!
 fi
+
+# 2) 主站
+echo "[2/2] 启动 MFlixTV…"
+"$NODE" "$ROOT/app/node_modules/next/dist/bin/next" start -p 8080 \
+  > "$ROOT/app/server.log" 2>&1 &
+NEXT_PID=$!
+
+cleanup() {
+  echo
+  echo "正在停止…"
+  [ -n "$NEXT_PID" ] && kill "$NEXT_PID" 2>/dev/null
+  [ -n "$HG_PID" ] && kill "$HG_PID" 2>/dev/null
+  exit 0
+}
+trap cleanup INT TERM
 
 for i in $(seq 1 40); do
   port_open 8080 && break
@@ -30,12 +79,13 @@ for i in $(seq 1 40); do
 done
 
 if port_open 8080; then
-  echo "已就绪：http://localhost:8080  （默认密码 MFlixTV）"
+  echo "已启动：http://localhost:8080   默认密码 MFlixTV"
   open "http://localhost:8080"
 else
-  echo "启动超时，日志：app/server.log"
+  echo "启动没成功，看日志：app/server.log"
+  tail -n 20 "$ROOT/app/server.log" 2>/dev/null
 fi
+
 echo
-echo "这个窗口可以直接关掉，服务在后台运行。"
-echo "彻底停止：pkill -f 'next start -p 8080'; pkill -f hongguo/server/src/main.js"
-sleep 3
+echo "这个窗口开着服务就在跑；关掉窗口或按 Control-C 即停止。"
+wait

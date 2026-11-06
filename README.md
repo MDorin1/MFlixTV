@@ -4,11 +4,12 @@
 
 装一份，全家一起看：**电脑装一次，同一个 WiFi 里的手机、平板、电视什么都不用装**；**手机扫个码，立刻变成那台电脑的遥控器**。这两件事是它跟「装个播放器」最大的区别，所以放在最前面说。
 
-当前版本 **1.2**：一个 Release 里同时放两个安装包，桌面与安卓从这一版起**同号**。
+当前版本 **1.2**：一个 Release 里同时放三个安装包（Windows / macOS / 安卓），三个平台从这一版起**同号**。
 
 | 安装包 | 适用 | 大小 |
 | --- | --- | --- |
 | `MFlixTV-Setup-1.2.exe` | Windows 10 / 11，双击安装 | 约 124 MB |
+| `MFlixTV-macOS.zip` | macOS 11+，Intel 与 Apple 芯片同一个包，解压双击即用 | 约 172 MB |
 | `MFlixTV-android-1.2.apk` | 安卓手机 / 平板 / 电视盒子 | 约 3 MB |
 
 <table>
@@ -72,7 +73,7 @@ MFlixTV 不是一个「客户端 + 服务器」的两段式软件，它就是**�
 
 | | 桌面安装版 | 安卓版 | 网页版 |
 | --- | --- | --- | --- |
-| 形态 | Windows 安装包，双击启动 | 一个 APK，手机 / 电视通用 | 浏览器打开，什么都不用装 |
+| 形态 | Windows 安装包 / macOS 解压即用，双击启动 | 一个 APK，手机 / 电视通用 | 浏览器打开，什么都不用装 |
 | 服务跑在 | 这台电脑 | 这台手机 / 电视 | 打开它的那台设备的服务 |
 | 界面 | 桌面界面 | 手机竖屏 / 电视 10 英尺界面自动切换 | 自适应 |
 | 典型用途 | 主力看片、管理与配置 | 沙发上看、手机上看短剧 | 手机、平板顺手打开电脑上那份 |
@@ -263,9 +264,14 @@ MFlixTV 不是一个「客户端 + 服务器」的两段式软件，它就是**�
 
 ### macOS
 
-1. 下载 `MFlixTV-macOS-arm64.zip`（Apple 芯片）或 `x64` 版本
-2. 解压后双击 `启动MFlixTV.command`
-3. 首次可能被 Gatekeeper 拦：右键 → 打开，或执行 `xattr -dr com.apple.quarantine ./MFlixTV-macOS`
+一个包同时支持 Apple 芯片与 Intel：包内 arm64 / x86_64 两套 Node 与 ffmpeg，启动脚本按 `uname -m` 自己挑。
+
+1. 打开 [Releases](../../releases) 下载 `MFlixTV-macOS.zip`（macOS 11+）
+2. 解压得到 `MFlixTV-macOS` 文件夹，双击里面的 `启动MFlixTV.command`
+3. 它依次拉起短剧内核（`8000`）与主站（`8080`），就绪后自动打开浏览器；关掉那个终端窗口即退出、端口一起释放
+4. 默认密码 **`MFlixTV`**，地址 `http://localhost:8080`
+
+> 首次运行会被 Gatekeeper 拦（下载来的脚本默认不放行）：在该文件上**右键 → 打开 → 再点「打开」**；若仍被拦，终端执行 `xattr -dr com.apple.quarantine ./MFlixTV-macOS`。未做公证签名，所以每次新解压的包都要走一次。
 
 ### 桌面快捷方式（可选）
 
@@ -453,9 +459,18 @@ csc /target:winexe /out:stage\MFlixTV.exe /win32icon:packaging\app.ico `
 ISCC.exe packaging\MFlixTV.iss
 ```
 
-### macOS
+### macOS 便携包
 
-发布物是**解压即用的便携目录**（不是 `.app`/`.dmg`：那需要 Apple 开发者签名与公证）。目录结构、运行时来源、`.command` 的换行符坑、压缩命令，都写在 [packaging/README.md](packaging/README.md) 的「macOS 便携包」一节。当前只出 Apple 芯片（arm64）版。
+发布物是**解压即用的便携目录 + 启动脚本**（不是 `.app`/`.dmg`：那需要 Apple 开发者签名与公证）。一条命令出包，**一个包同时支持 Intel 与 Apple 芯片**，启动脚本按 `uname -m` 自己挑运行时：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\build-macos.ps1 `
+    -Stage packaging\stage -Out D:\Build\mac\root -Dist D:\Build\dist\MFlixTV-macOS.zip `
+    -NodeArmDir <darwin-arm64 的 bin 目录> -NodeX64Dir <darwin-x64 的 bin 目录> `
+    -FfmpegArm <arm64 ffmpeg> -FfmpegX64 <x86_64 ffmpeg>
+```
+
+运行时来源、载荷结构、可执行位与换行符的坑，都写在 [packaging/README.md](packaging/README.md) 的「macOS 便携包」一节。
 
 CI（[.github/workflows/build.yml](.github/workflows/build.yml)）只做 `next build` + `.ps1` 语法校验，**不出安装包** —— 安装包要内置 Node 运行时和 ffmpeg，体积上百 MB，放本地打更省事。
 
@@ -468,7 +483,7 @@ CI（[.github/workflows/build.yml](.github/workflows/build.yml)）只做 `next b
 ├── app/                     Next.js 应用（MFlixTV 源码 + 短剧专区 + 桌面对接）
 │   └── src/app/hongguo/     短剧专区页面
 │   └── src/app/api/history/ 观看历史同步接口
-├── packaging/               Windows 启动器(C#)、Inno Setup 脚本、便携目录组装脚本
+├── packaging/               Windows 启动器(C#)、Inno Setup 脚本、便携目录组装脚本、macOS 组装脚本与 zip 打包器
 ├── tools/                   update.ps1（热更新）、bench-sources.ps1（源测速）
 ├── hongguo/                 上游内核补丁说明与补丁脚本
 ├── docs/                    架构、FAQ、截图

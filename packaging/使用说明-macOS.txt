@@ -1,34 +1,42 @@
-MFlixTV for macOS（Apple 芯片）
-=================================
+MFlixTV · macOS 版使用说明
+=====================================
 
-一、怎么启动
-  双击「启动MFlixTV.command」。
-  · 若提示「无法打开，因为来自身份不明的开发者」：右键 → 打开 → 仍要打开
-  · 若提示没有执行权限：打开「终端」，cd 到本目录，执行
-        chmod +x 启动MFlixTV.command
-    然后再次双击；或者直接执行  bash 启动MFlixTV.command
+一、安装（不用安装，解压即用）
+  1. 把 MFlixTV-macOS.zip 解压到「应用程序」以外的任意位置
+     （例如 ~/MFlixTV 或桌面，路径里尽量别有空格）。
+  2. 双击目录里的「启动MFlixTV.command」。
+  3. 首次运行如果提示「无法打开，因为来自身份不明的开发者」：
+       · 右键点「启动MFlixTV.command」→ 打开 → 再点「打开」；
+       · 或者打开「系统设置 → 隐私与安全性」，拉到下面点「仍要打开」；
+       · 命令行办法：xattr -dr com.apple.quarantine ~/MFlixTV
+  4. 浏览器会自动打开 http://localhost:8080
+     默认密码：MFlixTV（在 app/.env 里的 PASSWORD 可改）
 
-  启动后浏览器会自动打开 http://localhost:8080 ，默认密码 MFlixTV
+二、支持哪些 Mac
+  · Apple 芯片（M1/M2/M3/M4）：用 runtime/node-arm64
+  · Intel 芯片：用 runtime/node-x64
+  启动脚本会自己按 uname -m 选，不用你操心。
+  系统要求：macOS 11 及以上（Big Sur 起）。
 
-二、怎么停止
-  终端执行：
-    pkill -f "next start -p 8080"
-    pkill -f "hongguo/server/src/main.js"
+三、它是怎么跑起来的
+  启动脚本会在本机起两个进程，都只监听 127.0.0.1：
+    · 短剧内核   8000 端口
+    · MFlixTV 主站 8080 端口（Next.js）
+  同一个局域网里的电视、手机访问 http://<这台Mac的IP>:8080 也能用，
+  电视端直接打开就是 10 英尺界面（/tv）。
 
-三、关于短剧专区
-  短剧的转码依赖 ffmpeg，本包已内置（runtime/ffmpeg/ffmpeg）。
-  macOS 上的 Safari/Chrome 一般能直接硬解 HEVC，所以默认不转码、首播更快；
-  若某台机器出现「有声音没画面」，改成强制转码即可：
-    HG_TRANSCODE=1 启动 —— 修改 启动MFlixTV.command，在启动短剧那行加 HG_TRANSCODE=1
+四、停止 / 重启
+  · 关掉那个终端窗口，或按 Control-C（会同时停掉两个服务）。
+  · 手动停：pkill -f 'next start -p 8080'; pkill -f hongguo/server/src/main.js
 
-四、改密码
-  编辑 app/.env 里的 PASSWORD=MFlixTV，然后重启。
+五、日志与数据
+  · 主站日志：app/server.log
+  · 短剧内核日志：hongguo/hg.log
+  · 片源列表、观看记录都在浏览器本地，换机器不会跟着走。
 
-五、目录说明
-  app/      MFlixTV 主站（Next.js）
-  hongguo/  短剧专区内核（第三方，MIT）
-  runtime/  node 与 ffmpeg
-  logs/     运行日志（首次启动后生成）
+六、常见问题
+  · 打开是空白 / 提示必须设置 PASSWORD：说明 app/.env 丢了，重新解压一份。
+  · 8080 被占用：先关掉占用它的程序，或看「已经有一个在跑」的提示。
+  · 播放卡：先在设置里测速，换一条更快的线路。
 
-六、说明
-  本软件只做聚合与播放，不存储任何影视内容；资源来自第三方接口，请自行判断合规性。
+免责声明见 合规与免责.md。

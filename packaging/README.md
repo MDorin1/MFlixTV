@@ -76,46 +76,70 @@ cd D:\Build\MFlixTV
 
 ---
 
-## macOS 便携包（arm64）
+## macOS 便携包（Intel + Apple 芯片一个包）
 
-macOS 上不做 `.app`/`.dmg`（那需要签名与公证），发的是**解压即用的目录 + 启动脚本**。
+macOS 上不做 `.app`/`.dmg`（那需要 Apple 开发者签名与公证），发的是**解压即用的目录 + 启动脚本**。
 
 ### 目录结构
 
 ```
-MFlixTV-macOS-arm64/
-├── app/                  Next.js 生产产物（.next + node_modules + public + .env + next.config.mjs）
-├── hongguo/              短剧内核（server/src + server/config + web，已打补丁，无 apikeys.json）
+MFlixTV-macOS/
+├── app/                    Next.js 生产产物（.next + node_modules + public + .env + next.config.mjs）
+├── hongguo/                短剧内核（server/src + server/config + web，已打补丁，无 apikeys.json）
 ├── runtime/
-│   ├── node              node 22 darwin-arm64 可执行文件
-│   └── ffmpeg/ffmpeg     ffmpeg 静态构建（arm64）
-├── 启动MFlixTV.command    启动脚本
-└── 使用说明.txt
+│   ├── node-arm64          node 22 darwin-arm64（Apple 芯片）
+│   ├── node-x64            node 22 darwin-x64（Intel）
+│   └── ffmpeg/
+│       ├── ffmpeg-arm64    ffmpeg 静态构建（arm64）
+│       └── ffmpeg-x64      ffmpeg 静态构建（x86_64）
+├── 启动MFlixTV.command      启动脚本：按 uname -m 选运行时，起 8000 + 8080 再开浏览器
+├── 使用说明.txt
+├── LICENSE / NOTICE.md / LICENSES/ / 合规与免责.md
 ```
 
-### 步骤
-
-1. **准备 macOS 版运行时**（在 Windows 上就能下，不用 Mac）
-   - node：`https://nodejs.org/dist/v22.20.0/node-v22.20.0-darwin-arm64.tar.gz` → 取 `bin/node`
-   - ffmpeg：任一 macOS arm64 静态构建（arm64 原生，别用 x64 的转译版）
-   - 两个文件都要**保留可执行位**：在 macOS 上 `chmod +x runtime/node runtime/ffmpeg/ffmpeg`
-2. **复制 Windows 同名产物**：`app/`、`hongguo/` 的目录结构与 Windows 便携目录一致，直接把 `stage` 里的这两块拷过来，再换成 mac 的 `runtime/`
-3. **放启动脚本与说明**：`packaging/启动MFlixTV.command`、`packaging/使用说明-macOS.txt`（改名成 `使用说明.txt`）
-4. **压 zip**
+### 一条命令出包
 
 ```powershell
-Compress-Archive -Path D:\Build\MFlixTV-mac-arm64\* -DestinationPath D:\Build\dist\MFlixTV-macOS-arm64.zip -CompressionLevel Optimal
+powershell -ExecutionPolicy Bypass -File packaging\build-macos.ps1 `
+    -Stage packaging\stage -Out D:\Build\mac\root -Dist D:\Build\dist\MFlixTV-macOS.zip `
+    -NodeArmDir D:\Build\mac\dl\node-arm -NodeX64Dir D:\Build\mac\dl\node-x64 `
+    -FfmpegArm D:\Build\mac\dl\ffmpeg-arm64 -FfmpegX64 D:\Build\mac\dl\ffmpeg-x64
 ```
 
-> **两个坑**
-> - `.command` 和 `runtime/node` 的可执行位在 Windows 上打的 zip 里会丢，所以 `使用说明.txt` 第一段就是让用户 `chmod +x`，或者右键→打开绕过 Gatekeeper。
-> - `.command` 必须是 **LF** 换行。用 CRLF 保存的话 macOS 会报 `bad interpreter: /bin/bash^M`。仓库里 `.gitattributes` 已强制 `*.command text eol=lf`。
+脚本做的事：清空输出目录 → 从 `stage` 复制 `app/`、`hongguo/` → 剪掉用不上的
+`@next/swc-win32-x64-msvc`、`@img/sharp-win32-x64`（省 170MB）→ 放两套运行时、启动脚本、说明、许可 →
+`python packaging\zip-macos.py` 写带 `external_attr` 的 zip（可执行位 0755、其余 0644）。
+实测载荷 **11,727 个文件 / 548.7 MB**，zip **172.3 MB**。
+
+### 运行时来源（Windows 上直接下，不用 Mac）
+
+| 组件 | 地址 |
+| --- | --- |
+| Node arm64 | `https://nodejs.org/dist/v22.20.0/node-v22.20.0-darwin-arm64.tar.gz`（取 `bin/node`，改名 `node`） |
+| Node x64 | `https://nodejs.org/dist/v22.20.0/node-v22.20.0-darwin-x64.tar.gz` |
+| ffmpeg arm64 | `https://www.osxexperts.net/ffmpeg7arm.zip` |
+| ffmpeg x64 | `https://www.osxexperts.net/ffmpeg71intel.zip` |
+
+> evermeet.cx 已下线（返回 410，`API endpoint removed due to exorbitant abuse`），别再当来源。
+> 下完用 `Get-Content -Encoding Byte ... 0..3` 或 `otool`/`file` 核对架构：Mach-O 的
+> `CPUFAMILY_ARM64` 与 `x86_64` 不能混，arm64 包放进 x64 机器会报 `Bad CPU type`。
+
+### 三个坑
+
+- **可执行位**：`Compress-Archive` 写出的条目 `external_attr` 全是 0，解压后 `.command` 双击没反应、
+  `runtime/node-*` 也起不来。所以必须用 `packaging\zip-macos.py`（`create_system=3` + 0755）。
+- **`.command` 必须是 LF**：CRLF 会让 macOS 报 `bad interpreter: /bin/bash^M`。
+  `.gitattributes` 已强制 `*.command text eol=lf`，`build-macos.ps1` 里还会再转一次。
+- **`.ps1` 要带 UTF-8 BOM**：Windows PowerShell 5.1 读无 BOM 的 `.ps1` 会按 GBK 解，中文注释与字符串直接
+  解析报错（`Unexpected token`）。仓库里的 `.ps1` 全部带 BOM。
 
 ### 关于架构
 
-当前只出 arm64（Apple 芯片）。x64 版把运行时换成 `darwin-x64` 的两个二进制、目录名改成 `MFlixTV-macOS-x64` 即可，`启动MFlixTV.command` 不用改。
+一个包同时出 arm64 与 x86_64，启动脚本 `uname -m` 自动选，不做两个包。真机验证只能在 Mac 上做
+（Windows 只能验结构与二进制架构，不能验运行），发包前建议找一台 M 芯片 + 一台 Intel 各跑一次。
 
 ---
+
 
 ## 发布前验收清单
 
