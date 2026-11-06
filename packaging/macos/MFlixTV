@@ -1,0 +1,51 @@
+#!/bin/bash
+# ============================================================
+#  MFlixTV.app 的入口（由 Finder 双击调用）
+#  真正的服务启动逻辑在 Resources/payload/启动MFlixTV.command 里，
+#  这里只负责：去掉隔离标记、确认载荷目录可写、在终端里把它跑起来。
+# ============================================================
+HERE="$(cd "$(dirname "$0")" && pwd)"
+RES="$HERE/../Resources"
+PAYLOAD="$RES/payload"
+
+LOG="$HOME/Library/Logs/MFlixTV-launcher.log"
+mkdir -p "$(dirname "$LOG")" 2>/dev/null
+exec >>"$LOG" 2>&1
+echo "=== $(date '+%Y-%m-%d %H:%M:%S') launch ==="
+echo "app=$HERE payload=$PAYLOAD"
+
+# 从网上下载的包带 com.apple.quarantine，先在自己这层清掉，
+# 免得终端里再弹一次「未验证的开发者」
+/usr/bin/xattr -dr com.apple.quarantine "$RES" 2>/dev/null
+
+# 已经在跑就只开页面
+if /usr/bin/nc -z 127.0.0.1 8080 >/dev/null 2>&1; then
+  echo "already running, open page"
+  /usr/bin/open "http://localhost:8080"
+  exit 0
+fi
+
+# 载荷要写日志与缓存：装在只读位置（例如直接从 dmg 里跑）就复制一份到用户目录
+if ! ( : > "$PAYLOAD/.writetest" ) 2>/dev/null; then
+  echo "payload read-only, copying to user dir"
+  COPY="$HOME/Library/Application Support/MFlixTV/payload"
+  if [ ! -x "$COPY/启动MFlixTV.command" ]; then
+    /bin/mkdir -p "$(dirname "$COPY")"
+    /usr/bin/ditto "$PAYLOAD" "$COPY" || exit 1
+  fi
+  PAYLOAD="$COPY"
+else
+  /bin/rm -f "$PAYLOAD/.writetest"
+fi
+
+/bin/chmod +x "$PAYLOAD/启动MFlixTV.command" 2>/dev/null
+
+# 开一个终端窗口跑启动脚本：日志看得见，关窗口就等于退出（和 Windows 版托盘一个思路）
+/usr/bin/open -a Terminal "$PAYLOAD/启动MFlixTV.command"
+
+# open 失败（没有终端？）就自己后台起，至少服务能跑起来
+sleep 1
+if ! /usr/bin/nc -z 127.0.0.1 8080 >/dev/null 2>&1; then
+  echo "open -a Terminal failed, fallback to background"
+  /bin/bash "$PAYLOAD/启动MFlixTV.command" > "$HOME/Library/Logs/MFlixTV.log" 2>&1 &
+fi
