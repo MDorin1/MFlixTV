@@ -78,7 +78,28 @@ cd D:\Build\MFlixTV
 
 ## macOS 便携包（Intel + Apple 芯片一个包）
 
-macOS 上不做 `.app`/`.dmg`（那需要 Apple 开发者签名与公证），发的是**解压即用的目录 + 启动脚本**。
+对外发两个文件：
+
+| 文件 | 是什么 | 谁做的 |
+| --- | --- | --- |
+| `MFlixTV-macOS.dmg` | 标准磁盘映像，里面是 `MFlixTV.app` + 指向「应用程序」的软链，拖进去就能用 | **macOS runner**（Windows 做不出 HFS+ 镜像，也没法给 arm64 二进制签名） |
+| `MFlixTV-macOS.zip` | 解压即用的目录 + `启动MFlixTV.command`，不放 App 也能跑 | Windows 先出初版，再由 macOS runner 签名后重打 |
+
+两条路径的关系：Windows 上 `build-macos.ps1` 只负责**组装载荷**（`app/`、`hongguo/`、两套运行时），
+`.dmg` 与「签名版 zip」由 [.github/workflows/macos-dmg.yml](../.github/workflows/macos-dmg.yml)
+在真实的 Mac 上完成——那边才有 `codesign`、`iconutil`、`hdiutil`。
+
+### DMG 是怎么出来的（workflow 做的事）
+
+1. 拉现有 Release 里的 `MFlixTV-macOS.zip` 当载荷（`app/.env` 带默认源列表，不能重新构建成空列表）；
+2. `xattr -cr` 去隔离、补执行位、`lipo -archs` 核对四个二进制的架构；
+3. `codesign --force --sign -` 给 node / ffmpeg 做 **ad-hoc 签名**（Apple 芯片上未签名的可执行文件会被系统直接杀掉，`kill -9`，连日志都没有）；
+4. **真跑一遍** `启动MFlixTV.command`，等 `http://127.0.0.1:8080/` 回 200、首页标题正确、`icons/*.png` 可访问，再把进程收掉；
+5. 组 `MFlixTV.app`：`Info.plist` + `Contents/MacOS/MFlixTV`（拉起载荷的终端）+ `app.icns`（由 `app/public/icons/icon-512.png` 经 `sips`/`iconutil` 生成）+ `Resources/payload`；
+   node_modules 里的符号链接先**实体化**，否则 `codesign` 会报 `invalid destination for symbolic link in bundle`；
+6. 签 bundle（**不加 `--deep`**，同样会顺着软链找目标而报错），`codesign --verify --strict`；
+7. `hdiutil create -fs HFS+ -format UDZO` 出 DMG，`hdiutil verify` 验校验和，再**挂载回来**确认 `.app`、节点二进制、`.next/BUILD_ID` 都在、签名仍然有效；
+8. 顺手用 `ditto -c -k --keepParent` 打一份签名版 zip，两个文件一起 `gh release upload --clobber`。
 
 ### 目录结构
 

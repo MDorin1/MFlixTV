@@ -12,8 +12,9 @@
 
 **macOS 版（新增）**
 
-- 按 Windows 版的样子出了 Mac 包 `MFlixTV-macOS.zip`：**一个包同时支持 Apple 芯片与 Intel**，包内两套 Node 运行时 + 两套 ffmpeg（arm64 / x86_64），`启动MFlixTV.command` 按 `uname -m` 自选，不拆两个包。
-- 不做 `.app` / `.dmg`（需要 Apple 开发者签名与公证），发解压即用的目录 + 启动脚本：双击依次拉起短剧内核 `8000` 与主站 `8080`，就绪后自动开浏览器；关掉终端窗口即全部退出。
+- 按 Windows 版的样子出了 Mac 包，**主推标准 DMG**：`MFlixTV-macOS.dmg` 里是 `MFlixTV.app` + 指向「应用程序」的软链，拖进去就能用；另附 `MFlixTV-macOS.zip`（解压即用的目录 + `启动MFlixTV.command`）给不想装 App 的人。
+- **一个包同时支持 Apple 芯片与 Intel**：包内两套 Node 运行时 + 两套 ffmpeg（arm64 / x86_64），启动时按 `uname -m` 自选，不拆两个包。
+- 在真 Mac（macOS 26 / Apple 芯片）上打包并验证：给 node 与 ffmpeg 做 ad-hoc 签名（未签名的 arm64 二进制会被系统直接杀掉）、跑启动脚本确认 8080 回 200 且短剧内核正常、把 DMG 挂载回来核对内容与签名。Windows 这边没有 `hdiutil`，DMG 只能由 [.github/workflows/macos-dmg.yml](.github/workflows/macos-dmg.yml) 在 macOS runner 上出。
 - 界面、播放、局域网共享、手机遥控、短剧专区与 Windows 版是同一套代码，1.2 的遥控器音量 / 亮度、全屏搜索不再假死、起播提速全部同步带上。
 - 打包链落进仓库：`packaging/build-macos.ps1` 组装载荷、`packaging/zip-macos.py` 写带 Unix 权限位的 zip（`Compress-Archive` 会把可执行位写成 0，解压后 `.command` 打不开）。实测载荷 11,727 个文件 / 548.7 MB，zip 172.3 MB。
 - 首次运行会被 Gatekeeper 拦：右键 → 打开，或 `xattr -dr com.apple.quarantine ./MFlixTV-macOS`。

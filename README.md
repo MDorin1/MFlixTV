@@ -4,13 +4,13 @@
 
 装一份，全家一起看：**电脑装一次，同一个 WiFi 里的手机、平板、电视什么都不用装**；**手机扫个码，立刻变成那台电脑的遥控器**。这两件事是它跟「装个播放器」最大的区别，所以放在最前面说。
 
-当前版本 **1.2**：一个 Release 里同时放四个安装包（Windows / macOS dmg / macOS zip / 安卓），三个平台从这一版起**同号**。
+当前版本 **1.2**：一个 Release 里同时放 Windows 安装包、macOS 的 dmg 与免安装 zip、安卓 APK，三个平台从这一版起**同号**。
 
 | 安装包 | 适用 | 大小 |
 | --- | --- | --- |
 | `MFlixTV-Setup-1.2.exe` | Windows 10 / 11，双击安装 | 约 124 MB |
-| `MFlixTV-macOS.dmg` | macOS 11+，**推荐**：拖进「应用程序」即可，Intel 与 Apple 芯片同一个包 | 约 172 MB |
-| `MFlixTV-macOS.zip` | macOS 11+，不想装 App 的解压即用版 | 约 172 MB |
+| `MFlixTV-macOS.dmg` | macOS 11+，**推荐**：拖进「应用程序」即可，Intel 与 Apple 芯片同一个包 | 约 194 MB |
+| `MFlixTV-macOS.zip` | macOS 11+，不想装 App 的解压即用版 | 约 193 MB |
 | `MFlixTV-android-1.2.apk` | 安卓手机 / 平板 / 电视盒子 | 约 3 MB |
 
 <table>
