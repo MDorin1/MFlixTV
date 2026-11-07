@@ -707,10 +707,16 @@
         rememberSession(S.token, S.url);
         paintCode(S.url || '正在生成…');
         paintFoot();
+        /* 右上角那块要跟着换：换了 token 还挂着旧码，扫码的人就白扫了 */
+        if (CORN.el) { CORN.rotAt = Date.now(); cornPaint(S.url); }
         tick();
         if (S.open) probeStart();
       })
-      .catch(function () { S.busy = false; paintCode('连不上服务'); });
+      .catch(function () {
+        S.busy = false;
+        paintCode('连不上服务');
+        if (CORN.el) cornPaint('连不上服务');
+      });
   }
 
   function tick() {
@@ -732,7 +738,8 @@
           S.token = '';
           S.since = 0;
           rememberSession('');
-          if (S.open) create();
+          /* 面板开着、或右上角那块码挂着，都要立刻补一张，不能空着 */
+          if (S.open || CORN.want) create();
           return;
         }
         // 刚接过会话的头一条回执：队列里的旧指令不再重放，只把序号对齐到当前
@@ -744,7 +751,7 @@
         }
         if (d.now > S.since) S.since = d.now;
         var n = d.ctls == null ? 0 : d.ctls | 0;
-        if (n !== S.peers) { S.peers = n; if (S.open) paintFoot(); }
+        if (n !== S.peers) { S.peers = n; if (S.open) paintFoot(); if (CORN.el) cornTip(); }
         // 有指令就别等下一轮：遥控器上的暂停图标、音量、倍速要立刻对得上
         reportState(list.length > 0);
       })
@@ -853,6 +860,223 @@
     if (S.probe) { clearInterval(S.probe); S.probe = 0; }
   }
 
+  /* ---------------- 右上角常驻二维码 ----------------
+     电视挂在客厅，别人想点一集不用先找遥控器：右上角一直挂着一个小码，拿手机扫一下
+     就是遥控器，和点「遥控」按钮扫出来的是同一个会话（会话跟着页面活，不会因为
+     面板关掉就断）。
+
+     三条约定：
+       1) 尺寸跟着视口宽走（约 6.15vw）：1080p 约 118px、4K 翻倍、720p 收一点，
+          都在「看得清但不挡事」的区间里；整块 pointer-events:none，永远不吃点击。
+       2) 什么时候收起来由页面决定（播放中 / 全屏 / 搜索页），这里只负责画、藏、续命。
+       3) 定时刷新：每 45 秒重画一次（长片放久了 WebView 偶发白块）；
+          连续 12 分钟没人扫码、也没有遥控器连着，就换一张新码——贴在墙上的旧截图
+          不会永远有效；只要有人连着就绝不换，换了等于把人踢下线。 */
+  var CORN_CSS = [
+    '#rcqC{position:fixed;z-index:85;display:none;pointer-events:none;opacity:0;',
+    'transform:translateY(-9px) scale(.97);',
+    'transition:opacity .28s linear,transform .34s cubic-bezier(.22,.61,.36,1)}',
+    '#rcqC.on{display:block}',
+    '#rcqC.in{opacity:1;transform:none}',
+    '#rcqC .rcc-box{background:rgba(9,9,11,.84);border:1px solid rgba(255,255,255,.15);',
+    'box-shadow:0 .55rem 1.5rem rgba(0,0,0,.55);text-align:center}',
+    '#rcqC .rcc-code{background:#fff;margin:0 auto}',
+    '#rcqC .rcc-code svg,#rcqC .rcc-code img{display:block;width:100%;height:100%}',
+    '#rcqC .rcc-code .wait{display:-webkit-flex;display:flex;align-items:center;',
+    'justify-content:center;height:100%;font-size:12px;color:#666;line-height:1.4;padding:0 4px}',
+    '#rcqC .rcc-tip{color:rgba(255,255,255,.72);font-weight:700;letter-spacing:.06em;',
+    'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '#rcqC .rcc-tip b{color:#34d399;font-weight:800}'
+  ].join('');
+
+  var CORN = {
+    el: null, box: null, code: null, tip: null,
+    /* 页面给的「现在能不能显示」：返回 false 就收起（播放中 / 全屏 / 搜索页） */
+    allow: null,
+    /* 给它让位的那一排按钮（顶栏右侧） */
+    reserve: null,
+    /* 页面要不要这块码（corner() 被调用过才是 true） */
+    want: false,
+    /* 此刻屏幕上是不是真的亮着 */
+    on: false,
+    watch: 0, refresh: 0,
+    /* 上一次换码的时刻：只有「没人用」才会翻新 */
+    rotAt: 0
+  };
+
+  /* 换码间隔：12 分钟。扫一下就用完的事，没必要更短 */
+  var CORN_ROT_MS = 12 * 60 * 1000;
+  /* 重画间隔：45 秒 */
+  var CORN_PAINT_MS = 45 * 1000;
+
+  function cornSize() {
+    var w = root.innerWidth || 1920;
+    /* 6.5vw：1080p 约 125px（55 寸电视上约 8cm 见方），沙发到茶几的距离扫得动；
+       4K 的 CSS 宽度通常还是 1920，于是物理像素翻倍，更清楚，不会跟着变得更大 */
+    return Math.max(88, Math.min(300, Math.round(w * 0.065)));
+  }
+
+  /** 窄屏（手机竖屏 / 小窗）不挂这块码：那时顶栏本来就挤，一张码会把按钮全挤掉 */
+  function cornNarrow() {
+    var w = root.innerWidth || 0;
+    return w > 0 && w < 900;
+  }
+
+  function cornLayout() {
+    if (!CORN.el) return;
+    var s = cornSize();
+    var pad = Math.round(s * 0.075);
+    CORN.el.style.top = Math.round(s * 0.12) + 'px';
+    CORN.el.style.right = Math.round(s * 0.12) + 'px';
+    CORN.box.style.padding = pad + 'px';
+    CORN.box.style.borderRadius = Math.round(s * 0.11) + 'px';
+    CORN.code.style.width = s + 'px';
+    CORN.code.style.height = s + 'px';
+    CORN.code.style.borderRadius = Math.round(s * 0.07) + 'px';
+    CORN.code.style.padding = Math.max(3, Math.round(s * 0.032)) + 'px';
+    CORN.tip.style.fontSize = Math.max(10, Math.round(s * 0.112)) + 'px';
+    CORN.tip.style.marginTop = Math.round(s * 0.045) + 'px';
+    /* 顶栏右侧那排按钮整体让出一块：码有多大就让多少，页面缩放到哪都咬得住 */
+    if (CORN.reserve) {
+      var r = CORN.reserve;
+      if (r.nodeType !== 1) { try { r = document.querySelector(String(r)); } catch (e) { r = null; } }
+      if (r && r.style) {
+        r.style.marginRight = cornNarrow() ? ''
+          : Math.round(s * 0.12 + s + pad * 2 + s * 0.3) + 'px';
+      }
+      CORN.reserve = r;
+    }
+  }
+
+  function cornTip() {
+    if (!CORN.tip) return;
+    if (S.peers > 0) CORN.tip.innerHTML = '<b>已连 ' + S.peers + ' 台</b>';
+    else CORN.tip.textContent = '手机扫码遥控';
+  }
+
+  function cornPaint(txt) {
+    if (!CORN.el) return;
+    cornLayout();
+    var t = txt || S.url || '';
+    if (!/^https?:\/\//i.test(t)) {
+      CORN.code.innerHTML = '<div class="wait">' + (t || '生成中…') + '</div>';
+    } else {
+      var svg = '';
+      try { svg = root.MFlixQR ? root.MFlixQR.svg(t, { quiet: 2 }) : ''; } catch (e) { svg = ''; }
+      CORN.code.innerHTML = svg || '<div class="wait">码没画出来</div>';
+    }
+    cornTip();
+  }
+
+  function cornBuild() {
+    if (CORN.el) return CORN.el;
+    if (!byId('rcqC-style')) {
+      var st = document.createElement('style');
+      st.id = 'rcqC-style';
+      st.appendChild(document.createTextNode(CORN_CSS));
+      (document.head || document.documentElement).appendChild(st);
+    }
+    var el = document.createElement('div');
+    el.id = 'rcqC';
+    /* 纯展示、不吃焦点：方向键导航是按选择器找可点元素的，这里一个 button 都不放 */
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML =
+      '<div class="rcc-box">' +
+      '<div class="rcc-code" id="rccCode"><div class="wait">生成中…</div></div>' +
+      '<div class="rcc-tip" id="rccTip">手机扫码遥控</div>' +
+      '</div>';
+    (document.body || document.documentElement).appendChild(el);
+    CORN.el = el;
+    CORN.box = el.firstChild;
+    CORN.code = byId('rccCode');
+    CORN.tip = byId('rccTip');
+    cornLayout();
+    return el;
+  }
+
+  function cornAllowed() {
+    if (!CORN.want) return false;
+    if (cornNarrow()) return false;
+    if (!CORN.allow) return true;
+    try { return CORN.allow() !== false; } catch (e) { return true; }
+  }
+
+  function cornSync() {
+    if (!CORN.el) return;
+    var v = cornAllowed();
+    if (v === CORN.on) return;
+    CORN.on = v;
+    if (v) {
+      CORN.el.className = 'on';
+      /* 先上屏再挂 in：从 display:none 直接跳到终态，过渡动画根本不会跑 */
+      if (CORN.el.offsetWidth >= 0) CORN.el.className = 'on in';
+    } else {
+      CORN.el.className = '';
+    }
+    /* 页面可以拿 html.rcq 这套样式给码让位（电视版头图那张立式海报靠它往左收一格） */
+    try {
+      var de = document.documentElement;
+      if (v) de.className = (de.className + ' rcq').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+      else de.className = de.className.replace(/(^|\s)rcq(?=\s|$)/g, ' ').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+    } catch (e2) {}
+  }
+
+  function cornLoop() {
+    if (CORN.refresh) { clearTimeout(CORN.refresh); CORN.refresh = 0; }
+    var step = function () {
+      var now = Date.now();
+      /* 没人用：换一张新码。有人连着就只重画，不换 token */
+      if (S.token && !S.open && S.peers <= 0 && now - CORN.rotAt > CORN_ROT_MS) {
+        CORN.rotAt = now;
+        create();
+      } else if (S.token) {
+        cornPaint(S.url);
+      }
+      CORN.refresh = setTimeout(step, CORN_PAINT_MS);
+    };
+    CORN.refresh = setTimeout(step, CORN_PAINT_MS);
+  }
+
+  /**
+   * 挂上右上角那块码。
+   * @param {{visible?: function(): boolean, reserve?: string|Element}} opts
+   *   visible() 返回 false 就收起；reserve 是「给它让出位置」的那一排（顶栏右侧）
+   */
+  function corner(opts) {
+    opts = opts || {};
+    if (typeof opts.visible === 'function') CORN.allow = opts.visible;
+    CORN.reserve = opts.reserve || null;
+    CORN.want = true;
+    cornBuild();
+    CORN.rotAt = Date.now();
+    cornPaint(S.url);
+    cornSync();
+    if (CORN.watch) clearInterval(CORN.watch);
+    CORN.watch = setInterval(cornSync, 500);
+    cornLoop();
+    root.addEventListener('resize', function () { cornLayout(); });
+    // 会话：页面一开就把码备好，别人随时能扫。首屏还要拉海报，晚 1.5 秒再领，别抢带宽。
+    if (!S.token) {
+      var saved = recallSession();
+      if (saved.token) {
+        S.token = saved.token;
+        S.url = saved.url;
+        S.since = 0;
+        S.resume = true;
+        tick();
+        cornPaint(S.url);
+      } else {
+        setTimeout(function () { if (!S.token) create(); }, 1500);
+      }
+    }
+    return {
+      show: function () { CORN.want = true; cornSync(); },
+      hide: function () { CORN.want = false; cornSync(); },
+      turn: function () { CORN.rotAt = 0; return create(); },
+      isOn: function () { return CORN.on; }
+    };
+  }
+
   /* ---------------- 面板开关 ---------------- */
 
   function open() {
@@ -944,6 +1168,8 @@
   root.MFlixRC = {
     mount: mount,
     attach: attach,
+    /* 右上角常驻二维码（电视端用；网页版不调就不出现） */
+    corner: corner,
     open: open,
     close: close,
     exec: exec,
