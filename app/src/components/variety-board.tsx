@@ -146,21 +146,23 @@ export function CategoryBoard({
 
   return (
     <section aria-label="分类浏览">
-      {/* 二级筛选：真人剧 / AI剧 / 漫剧 */}
-      <div className="mb-2 flex flex-wrap gap-1.5">
-        {KIND_FILTERS.map((k) => (
-          <button
-            key={k}
-            onClick={() => setKind(k)}
-            className={cn(
-              'rounded-full px-3 py-1 text-[12.5px] transition-colors',
-              k === kind ? 'bg-content font-medium text-page' : 'bg-chip text-muted hover:text-content'
-            )}
-          >
-            {k}
-          </button>
-        ))}
-      </div>
+      {/* 二级筛选：真人剧 / AI剧 / 漫剧 —— 只有短剧那一档分得出来，别的分类上没有意义 */}
+      {cachePrefix === 'short' && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {KIND_FILTERS.map((k) => (
+            <button
+              key={k}
+              onClick={() => setKind(k)}
+              className={cn(
+                'rounded-full px-3 py-1 text-[12.5px] transition-colors',
+                k === kind ? 'bg-content font-medium text-page' : 'bg-chip text-muted hover:text-content'
+              )}
+            >
+              {k}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap gap-1.5">
         {categories.map((c) => (
