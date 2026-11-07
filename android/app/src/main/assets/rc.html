@@ -31,6 +31,15 @@
   .vib{-webkit-flex:none;flex:none;border:0;background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);
     border-radius:8px;padding:6px 10px;font-size:11px}
   .vib:active{background:rgba(255,255,255,.2)}
+  .vib.on{background:rgba(52,211,153,.16);color:rgba(52,211,153,.95)}
+  /* 手指一落下就亮：网络还没回来，先让人知道按到了 */
+  .hist{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;gap:8px;margin:12px 0 2px}
+  .hist button{background:rgba(255,255,255,.08);border-radius:999px;padding:7px 12px;font-size:12px;
+    color:rgba(255,255,255,.78);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hist button:active{background:rgba(255,255,255,.24)}
+  .hit{background:rgba(255,255,255,.26)!important}
+  .b.hit,.mini.hit{background:rgba(255,255,255,.26)!important;transform:scale(.955)}
+  .play.hit{background:#e6e6e6!important;transform:scale(.93)}
 
   .card{margin:0 16px 10px;background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px}
   .trow{display:-webkit-flex;display:flex;-webkit-align-items:flex-start;align-items:flex-start}
@@ -157,6 +166,7 @@
       <b id="who">正在连接…</b>
       <span id="sub">遥控已连接</span>
     </div>
+    <button class="vib" id="wake">常亮 开</button>
     <button class="vib" id="vib">震动 开</button>
   </div>
 
@@ -180,7 +190,7 @@
   </div>
 
   <div class="row">
-    <button class="b b14" data-cmd="seekb" data-arg="10" aria-label="快退 10 秒">
+    <button class="b b14" data-cmd="seekb" data-arg="10" data-hold="1" aria-label="快退 10 秒">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
         <path d="M11 7l-5 5 5 5" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M18 7l-5 5 5 5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -189,7 +199,7 @@
     <button class="play" id="playBtn" aria-label="播放">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="margin-left:3px"><path d="M8 5.5v13l11-6.5z"/></svg>
     </button>
-    <button class="b b14" data-cmd="seekf" data-arg="10" aria-label="快进 10 秒">
+    <button class="b b14" data-cmd="seekf" data-arg="10" data-hold="1" aria-label="快进 10 秒">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
         <path d="M6 7l5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M13 7l5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -271,6 +281,7 @@
           autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
         <button id="ssGo">搜索</button>
       </div>
+      <div class="hist" id="ssHist"></div>
       <p class="sq-note" id="ssNote">对方页面会自己回到首页并搜这个词。</p>
     </div>
   </div>
@@ -282,9 +293,18 @@
     </div>
   </div>
 
+  <!-- 屏幕常亮：局域网 http 拿不到 navigator.wakeLock（不是安全上下文），
+       用「一帧静音视频循环播」这个老办法顶着。2px 大小、透明、不挡手。 -->
+  <video id="awake" muted loop playsinline webkit-playsinline preload="auto" aria-hidden="true"
+    style="position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-1">
+    <source src="data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAH4EU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggE0TbuMU6uEHFO7a1OsggHi7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjMuMTMuMTAwV0GNTGF2ZjYzLjEzLjEwMESJiECPQAAAAAAAFlSua9euAQAAAAAAAE7XgQFzxYg1ydp4q1L2+pyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhDuaygDgkLCBELqBEJqBAlWwhFW5gQFV7oEA7AEAAAAAAAACAAASVMNn/HNzoGPAgGfImkWjh0VOQ09ERVJEh41MYXZmNjMuMTMuMTAwc3PWY8CLY8WINcnaeKtS9vpnyKFFo4dFTkNPREVSRIeUTGF2YzYzLjIzLjEwMCBsaWJ2cHhnyKFFo4hEVVJBVElPTkSHkzAwOjAwOjAxLjAwMDAwMDAwMAAfQ7Z1qOeBAKOjgQAAgBACAJ0BKhAAEAAARwiFhYiZhIgCAgAMDWAA/v+rUIAcU7trkbuPs4EAt4r3gQHxggG18IED" type="video/webm">
+    <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAl9tZGF0AAACRQYF//9B3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjUgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0xIGRlYmxvY2s9MDowOjAgYW5hbHlzZT0wOjAgbWU9ZGlhIHN1Ym1lPTAgcHN5PTEgcHN5X3JkPTEuMDA6MC4wMCBtaXhlZF9yZWY9MCBtZV9yYW5nZT0xNiBjaHJvbWFfbWU9MSB0cmVsbGlzPTAgOHg4ZGN0PTAgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9MCB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0wIHdlaWdodHA9MCBrZXlpbnQ9MjUwIGtleWludF9taW49MSBzY2VuZWN1dD0wIGludHJhX3JlZnJlc2g9MCByYz1jcmYgbWJ0cmVlPTAgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MACAAAAACmWIhDomKAAJAuAAAAMNbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAjd0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAGvbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAQABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABWm1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAARpzdGJsAAAAtnN0c2QAAAAAAAAAAQAAAKZhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2My4yMy4xMDAgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAALGF2Y0MBQsAK/+EAFWdCwAraewEQAAADABAAAAMAIPEiagEABGjOD8gAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAASuAAAAAAAAAAYc3R0cwAAAAAAAAABAAAAAQAAQAAAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAEAAAABAAAAFHN0c3oAAAAAAAACVwAAAAEAAAAUc3RjbwAAAAAAAAABAAAAMAAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjMuMTMuMTAw" type="video/mp4">
+  </video>
+
   <div id="toast"></div>
 
-  <p class="hint">十字键、音量、倍速都能长按连发；确定键点进去，首页、详情页、搜索结果都能用，不只是播放器。
+  <p class="hint">十字键、音量、倍速、上集下集、快退快进都能长按连发；确定键点进去，首页、详情页、搜索结果都能用，不只是播放器。
+    顶层状态条会显示当前往返延迟，超过一秒没送到的指令会直接点亮提示，不用再靠猜。
     这个页面只控制发起方的那一个页面，关掉对方页面后这里会显示「已关闭」。</p>
 
 <script>
@@ -370,12 +390,108 @@
     toastTimer = setTimeout(function () { toast.className = ''; }, 1800);
   }
 
-  function send(cmd, arg, buzz) {
-    if (!T) return;
-    if (vibrate && navigator.vibrate) { try { navigator.vibrate(buzz || 8); } catch (e) {} }
-    fetch('/api/rs/cmd?t=' + encodeURIComponent(T) + '&cmd=' + encodeURIComponent(cmd) +
-      '&arg=' + encodeURIComponent(arg || ''), { cache: 'no-store' }).catch(function () {});
+  /* ---------- 指令队列：先按先到、不丢、有回执 ----------
+     以前每按一下各自 fetch、各开一条连接：手快的时候「右 → 确定」可能反着到，
+     点的就是隔壁那个东西；网络打个嗝又被静默吞掉，按了没反应也看不出问题在哪。
+     现在所有按键走一条串行队列，同一时刻只飞一个请求：
+       · 顺序保证，先按的先到，不会错位；
+       · 绝对值指令（音量/亮度/倍速/进度）自动合并成最后一个，拖滑块不会排出几十条；
+       · 失败只对「重发也不会多做一次」的绝对值指令重排一次，其余如实提示，不闷掉；
+       · 服务端回的指令序号跟着下一次状态轮询回来，1.2 秒还没被对方消费就在顶上点亮。 */
+  var Q = [], qBusy = false;
+  var ABS_CMDS = { volset: 1, brset: 1, rateset: 1, seekto: 1 };
+  var lastCmdId = 0, lastCmdAt = 0, ackedId = 0, stale = false;
+  var dead = false, netBad = false, tickTimer = 0, rtt = 0, hostOk = true;
+
+  function buzz(ms) {
+    if (vibrate && navigator.vibrate) { try { navigator.vibrate(ms || 8); } catch (e) {} }
   }
+
+  function send(cmd, arg, bz) {
+    if (!T) return;
+    buzz(bz);
+    var txt = String(arg == null ? '' : arg);
+    var tail = Q[Q.length - 1];
+    if (tail && tail.cmd === cmd && ABS_CMDS[cmd]) {
+      tail.arg = txt;          // 只留最后一个值：每一格都发等于自己给自己排队
+      qPump();
+      return;
+    }
+    Q.push({ cmd: cmd, arg: txt, tried: 0 });
+    if (Q.length > 32) Q.splice(0, Q.length - 32);
+    qPump();
+  }
+
+  function qFail(it) {
+    Q.shift();
+    // 「调到 62%」这种重发一次也不会多做动作；「确定 / 返回」重发就可能点两下，所以不重发
+    if (ABS_CMDS[it.cmd] && it.tried < 1) {
+      it.tried++;
+      Q.unshift(it);
+      return;
+    }
+    say('这次没发出去 · 再按一下');
+  }
+
+  function qPump() {
+    if (qBusy || !Q.length || !T) return;
+    var it = Q[0];
+    var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    var done = false;
+    qBusy = true;
+    var timer = setTimeout(function () {
+      if (done) return;
+      done = true;
+      try { if (ctl) ctl.abort(); } catch (e) {}
+      qBusy = false;
+      qFail(it);
+      qPump();
+    }, 1500);
+
+    function finish(fn) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      qBusy = false;
+      if (fn) fn();
+      qPump();
+    }
+
+    var opt = { cache: 'no-store' };
+    if (ctl) opt.signal = ctl.signal;
+    fetch('/api/rs/cmd?t=' + encodeURIComponent(T) +
+      '&cmd=' + encodeURIComponent(it.cmd) + '&arg=' + encodeURIComponent(it.arg), opt)
+      .then(function (r) {
+        if (r.status === 404) return { gone: true };
+        return r.ok ? r.json() : null;
+      })
+      .then(function (d) {
+        if (d && d.gone) { finish(function () { Q.length = 0; deadNotice(); }); return; }
+        if (!d || d.error) { finish(function () { qFail(it); }); return; }
+        finish(function () {
+          Q.shift();
+          if (d.id) { lastCmdId = d.id; lastCmdAt = Date.now(); }
+        });
+      })
+      .catch(function () { finish(function () { qFail(it); }); });
+  }
+
+  function markStale() {
+    if (stale) return;
+    stale = true;
+    elSub.textContent = '刚才那下没送达 · 再按一次';
+    elSub.className = 'bad';
+    elDot.className = 'dot off';
+  }
+
+  /* 回执看门狗：发出去 2.5 秒还没被对方消费，才点亮状态条。
+     给足余量——被控那页切到后台时浏览器会压节流，长轮询本来就要慢一拍，
+     这时候弹「没送到」是误报；真丢了（对方那页卡死 / 请求被吞）才会落到这里。 */
+  setInterval(function () {
+    if (!lastCmdId || !hostOk) return;
+    if (ackedId >= lastCmdId) return;
+    if (Date.now() - lastCmdAt > 2500) markStale();
+  }, 600);
 
   /* 本地先算出新值再发绝对值（volset / rateset），两端不会漂 */
   function mark(patch) {
@@ -410,12 +526,23 @@
       if (t1) { clearTimeout(t1); t1 = 0; }
       if (t2) { clearInterval(t2); t2 = 0; }
     }
+    var n = 0;
+    function go() {
+      if (btn.classList) {
+        btn.classList.add('hit');
+        if (btn._ft) clearTimeout(btn._ft);
+        btn._ft = setTimeout(function () { btn.classList.remove('hit'); }, 110);
+      }
+      fire(n++);
+    }
     function start(e) {
       if (e && e.preventDefault) e.preventDefault();
       lastDown = Date.now();
       stop();
-      fire();
-      t1 = setTimeout(function () { t2 = setInterval(fire, 140); }, 420);
+      n = 0;
+      go();
+      // 首重复更早、连发更密：长按方向键要「连着走」，不是「按一下等半秒」
+      t1 = setTimeout(function () { t2 = setInterval(go, 110); }, 300);
     }
     btn.addEventListener('touchstart', start, { passive: false });
     btn.addEventListener('touchend', stop);
@@ -426,7 +553,8 @@
     // 键盘 / 读屏走 click：刚才 pointerdown 已经发过就跳过，别双发
     btn.addEventListener('click', function () {
       if (Date.now() - lastDown < 600) return;
-      fire();
+      n = 0;
+      go();
     });
     btn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
@@ -438,12 +566,40 @@
     return { cur: parseInt(parts[0], 10), list: parts.slice(1) };
   }
 
+  function flash(btn) {
+    if (!btn || !btn.classList) return;
+    btn.classList.add('hit');
+    if (btn._ft) clearTimeout(btn._ft);
+    btn._ft = setTimeout(function () { btn.classList.remove('hit'); }, 110);
+  }
+
+  /* 单次键：手指一落下就发，不等抬起来。手机上 click 是「松手」才触发，
+     方向键连点的手感全差在这一下；读屏 / 键盘仍走 click，靠 lastDown 去重。 */
+  function bindTap(btn, fire) {
+    if (!btn) return;
+    var lastDown = 0;
+    function go(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      lastDown = Date.now();
+      flash(btn);
+      fire();
+    }
+    btn.addEventListener('touchstart', go, { passive: false });
+    btn.addEventListener('mousedown', go);
+    btn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    btn.addEventListener('click', function () {
+      if (Date.now() - lastDown < 600) return;
+      flash(btn);
+      fire();
+    });
+  }
+
   document.querySelectorAll('[data-cmd]').forEach(function (b) {
     var cmd = b.getAttribute('data-cmd'), arg = b.getAttribute('data-arg') || '';
     if (b.hasAttribute('data-hold')) {
       bindRepeat(b, function () { send(cmd, arg, 5); });
     } else {
-      b.addEventListener('click', function () { send(cmd, arg); });
+      bindTap(b, function () { send(cmd, arg); });
     }
   });
 
@@ -458,16 +614,46 @@
   });
 
   /* 暂停 / 播放：本地先翻，等服务端对齐 */
-  playBtn.addEventListener('click', function () {
+  bindTap(playBtn, function () {
     var playing = eff('playing', curState ? !!curState.playing : false);
     mark({ playing: !playing });
     send('toggle');
   });
-  muteBtn.addEventListener('click', function () {
+  bindTap(muteBtn, function () {
     var muted = eff('muted', curState ? !!curState.muted : false);
     mark({ muted: !muted });
     send('mute');
   });
+
+  /* 在「正在播放」那一条上左右一划 = 上/下一集：追剧时比去找按钮快 */
+  (function () {
+    var row = document.querySelector('.trow');
+    if (!row) return;
+    var sx = 0, sy = 0, st = 0, on = false;
+    row.addEventListener('touchstart', function (e) {
+      var t = e.target;
+      if (t && t.closest && t.closest('button,input,select,textarea')) { on = false; return; }
+      var p0 = e.touches && e.touches[0];
+      if (!p0) return;
+      sx = p0.clientX; sy = p0.clientY; st = Date.now(); on = true;
+    }, { passive: true });
+    row.addEventListener('touchend', function (e) {
+      if (!on) return;
+      on = false;
+      var p1 = e.changedTouches && e.changedTouches[0];
+      if (!p1) return;
+      var dx = p1.clientX - sx, dy = p1.clientY - sy;
+      if (Date.now() - st > 900) return;             // 按住不动的不算划
+      if (Math.abs(dx) < 56 || Math.abs(dy) > 46) return;
+      if (dx < 0) {
+        if (eps.list.length && eps.cur >= 0 && eps.cur < eps.list.length - 1) { send('next', '', 12); say('下一集'); }
+        else say(eps.list.length ? '这已经是最后一集' : '对方页面没有分集');
+      } else {
+        if (eps.list.length && eps.cur > 0) { send('prev', '', 12); say('上一集'); }
+        else say(eps.list.length ? '这已经是第一集' : '对方页面没有分集');
+      }
+    }, { passive: true });
+  })();
 
   /* ---------- 竖音量条：按住跟着手指走，松手补发最后一个值 ---------- */
   var volTrack = document.getElementById('volTrack');
@@ -574,7 +760,7 @@
   /* 全屏：被控端在浏览器里，原生全屏必须由「真实用户手势」触发，手机上的按键传过去不算，
      所以被控端走网页全屏（纯 CSS 铺满）。这里不猜结果：发完 1.8 秒拿真实状态比对一次，
      没变化就把原因说出来，而不是留一个按了没反应的按钮。 */
-  fsBtn.addEventListener('click', function () {
+  bindTap(fsBtn, function () {
     var before = curState ? !!curState.fs : false;
     send('fullscreen', '', 10);
     setTimeout(function () {
@@ -583,13 +769,14 @@
     }, 1800);
   });
 
-  prevBtn.addEventListener('click', function () {
-    if (eps.list.length && eps.cur > 0) send('prev');
-    else say(eps.list.length ? '这已经是第一集' : '对方页面没有分集');
+  /* 上集 / 下集：长按连跳（追剧时从第 53 集直接连点到 56 集的手感），到头只提示一次 */
+  bindRepeat(prevBtn, function (n) {
+    if (eps.list.length && eps.cur > 0) send('prev', '', 6);
+    else if (!n) say(eps.list.length ? '这已经是第一集' : '对方页面没有分集');
   });
-  nextBtn.addEventListener('click', function () {
-    if (eps.list.length && eps.cur >= 0 && eps.cur < eps.list.length - 1) send('next');
-    else say(eps.list.length ? '这已经是最后一集' : '对方页面没有分集');
+  bindRepeat(nextBtn, function (n) {
+    if (eps.list.length && eps.cur >= 0 && eps.cur < eps.list.length - 1) send('next', '', 6);
+    else if (!n) say(eps.list.length ? '这已经是最后一集' : '对方页面没有分集');
   });
 
   elSeek.addEventListener('input', function () {
@@ -670,11 +857,11 @@
     }
   });
 
-  epsBtn.addEventListener('click', function () {
+  bindTap(epsBtn, function () {
     if (!eps.list.length) { say('对方页面现在没有分集'); return; }
     fillSheet('eps');
   });
-  linesBtn.addEventListener('click', function () {
+  bindTap(linesBtn, function () {
     if (!lines.list.length) { say('对方页面现在没有可选线路'); return; }
     fillSheet('lines');
   });
@@ -684,7 +871,40 @@
   var ssInput = document.getElementById('ssInput');
   var ssNote = document.getElementById('ssNote');
 
+  /* 搜过的词留在手机上：追同一部剧的下一季、换片名再搜，都不用重打一遍 */
+  var ssHist = document.getElementById('ssHist');
+  var QK = 'mfl:q';
+
+  function histLoad() {
+    try { return JSON.parse(localStorage.getItem(QK) || '[]') || []; } catch (e) { return []; }
+  }
+  function histPush(q2) {
+    var arr = histLoad().filter(function (x) { return x !== q2; });
+    arr.unshift(q2);
+    if (arr.length > 8) arr = arr.slice(0, 8);
+    try { localStorage.setItem(QK, JSON.stringify(arr)); } catch (e) {}
+  }
+  function histPaint() {
+    if (!ssHist) return;
+    var arr = histLoad();
+    ssHist.innerHTML = arr.map(function (x) {
+      return '<button type="button" data-q="' + x.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;').replace(/>/g, '&gt;') + '">' + x.replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</button>';
+    }).join('');
+    ssHist.style.display = arr.length ? '' : 'none';
+  }
+  if (ssHist) {
+    ssHist.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('[data-q]') : null;
+      if (!b) return;
+      ssInput.value = b.getAttribute('data-q') || '';
+      submitSearch();
+    });
+  }
+
   function openSearch() {
+    histPaint();
     ss.className = 'on';
     ss.removeAttribute('aria-hidden');
     // 输入框一直在 DOM 里（只是移出屏幕），这里 focus 能直接顶起手机键盘
@@ -705,13 +925,15 @@
     if (!q2) { try { ssInput.focus(); } catch (e) {} return; }
     sending = true;
     send('search', q2);
+    histPush(q2);
+    histPaint();
     ssNote.textContent = '已让「' + (elWho.textContent || '对方页面') + '」搜索「' + q2 + '」';
     ssInput.value = '';
     closeSearch();
     setTimeout(function () { sending = false; }, 600);
     setTimeout(function () { ssNote.textContent = '对方页面会自己回到首页并搜这个词。'; }, 2400);
   }
-  document.getElementById('btnSearch').addEventListener('click', openSearch);
+  bindTap(document.getElementById('btnSearch'), openSearch);
   document.getElementById('ssClose').addEventListener('click', closeSearch);
   document.getElementById('ssGo').addEventListener('click', submitSearch);
   ssInput.addEventListener('keydown', function (e) {
@@ -815,9 +1037,19 @@
 
     elWho.textContent = d.name ? '正在遥控 ' + d.name : '正在连接…';
     var alive = d.hostAlive !== false;
+    hostOk = alive;
     elDot.className = 'dot' + (alive ? '' : ' off');
-    elSub.textContent = alive ? '遥控已连接' : '对方页面可能已关闭';
+    // 服务端回的指令序号：对方到底把我按的那一下消费掉没有
+    if (typeof d.ack === 'number' && d.ack > ackedId) ackedId = d.ack;
+    if (lastCmdId && ackedId >= lastCmdId) stale = false;
+    var lag = rtt > 0 ? (rtt > 999 ? '慢 ' + (rtt / 1000).toFixed(1) + 's' : rtt + 'ms') : '';
+    elSub.textContent = alive ? ('遥控已连接' + (lag ? ' · ' + lag : '')) : '对方页面可能已关闭';
     elSub.className = alive ? '' : 'bad';
+    if (stale && alive) {
+      elSub.textContent = '刚才那下没送达 · 再按一次';
+      elSub.className = 'bad';
+      elDot.className = 'dot off';
+    }
     elTitle.textContent = st.title || '—';
 
     if (st.sub) { elSubline.style.display = ''; elSubline.textContent = st.sub; }
@@ -889,10 +1121,23 @@
   /* 码失效（对方页面关了 / App 重启过 / 30 分钟没人用）：把话说清楚，
      别让页面卡在「遥控已连接」上，按了没反应还以为是手机的问题 */
   function deadNotice() {
+    dead = true;
     elWho.textContent = '遥控码已失效';
     elSub.textContent = '回到对方页面再点一次「遥控」，扫新出的码';
     elSub.className = 'bad';
     elDot.className = 'dot off';
+  }
+
+  /* 轮询节奏：播放中 500ms（进度条要跟得上画面），首页发呆 900ms；
+     断网退到 1.5 秒、码失效退到 3 秒，别拿失败请求把手机电量打光 */
+  function nextDelay() {
+    if (dead) return 3000;
+    if (netBad) return 1500;
+    return (curState && curState.playing) ? 500 : 900;
+  }
+  function kick() {
+    if (tickTimer) { clearTimeout(tickTimer); tickTimer = 0; }
+    tick();
   }
 
   function tick() {
@@ -901,6 +1146,7 @@
       elSub.textContent = '请让对方重新生成二维码';
       return;
     }
+    var t0 = Date.now();
     fetch('/api/rs/ctl?t=' + encodeURIComponent(T) + '&who=' + encodeURIComponent(ctlId),
       { cache: 'no-store' })
       .then(function (r) {
@@ -910,12 +1156,67 @@
       .then(function (d) {
         /* 老版本服务端回的是 200 + {"error":…}，也照样按失效处理 */
         if (d && d.error) { deadNotice(); return; }
-        if (d) render(d);
+        if (d) {
+          rtt = Date.now() - t0;
+          dead = false;
+          netBad = false;
+          render(d);
+        }
       })
-      .catch(function () {})
-      // 播放中 500ms 一轮，其它页面 900ms：进度条要跟得上画面，首页发呆时没必要那么勤
-      .then(function () { setTimeout(tick, (curState && curState.playing) ? 500 : 900); });
+      .catch(function () {
+        if (dead) return;
+        netBad = true;
+        elSub.textContent = '网络断了，正在重连…';
+        elSub.className = 'bad';
+      })
+      .then(function () {
+        if (tickTimer) clearTimeout(tickTimer);
+        tickTimer = setTimeout(tick, nextDelay());
+      });
   }
+
+  /* ---------- 屏幕常亮 ----------
+     局域网 http 页面拿不到 navigator.wakeLock（不是安全上下文），所以用「一帧静音视频
+     循环播」这个老办法顶着：安卓 Chrome 只要页面上有视频在放，屏幕就不会自己灭。
+     默认开——遥控器拿在手里突然黑屏最烦；顶上那颗「常亮」随时能关。 */
+  var awakeVid = document.getElementById('awake');
+  var wakeBtn = document.getElementById('wake');
+  var keepAwake = true;
+  try { keepAwake = localStorage.getItem('mfl:awake') !== '0'; } catch (e) {}
+
+  function awakeTry() {
+    if (!awakeVid || !keepAwake) return;
+    try {
+      var p = awakeVid.play();
+      if (p && p.catch) p.catch(function () {});
+    } catch (e) {}
+  }
+  function awakeStop() {
+    if (!awakeVid) return;
+    try { awakeVid.pause(); } catch (e) {}
+  }
+  function paintWake() {
+    if (!wakeBtn) return;
+    wakeBtn.textContent = keepAwake ? '常亮 开' : '常亮 关';
+    wakeBtn.className = 'vib' + (keepAwake ? ' on' : '');
+  }
+  if (wakeBtn) {
+    paintWake();
+    bindTap(wakeBtn, function () {
+      keepAwake = !keepAwake;
+      try { localStorage.setItem('mfl:awake', keepAwake ? '1' : '0'); } catch (e) {}
+      if (keepAwake) { awakeTry(); say('遥控期间屏幕不会自动熄'); }
+      else { awakeStop(); say('已关掉常亮，省电'); }
+      paintWake();
+    });
+  }
+  // 切回前台：先把常亮续上（后台会被暂停），再立刻拉一次状态，不等下一轮
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') { awakeTry(); if (T) kick(); }
+    else awakeStop();
+  });
+  awakeTry();
+
   tick();
 })();
 </script>

@@ -32,6 +32,10 @@ object RemoteSession {
         @Volatile var seen = System.currentTimeMillis()
         @Volatile var hostBeat = System.currentTimeMillis()
         var seq = 0L
+        /** 被控页已经消费到哪一条指令（hostPoll 把 since 回传上来）。
+         *  遥控页拿它跟「刚发出去的那条」比：对不上就是这下手没送到，顶上直接点亮，
+         *  而不是让用户对着一个按了没反应的键反复怀疑自己。 */
+        @Volatile var acked = 0L
         val cmds = ArrayDeque<JSONObject>()
         val ctls = ConcurrentHashMap<String, Long>()
         @Volatile var title = ""
@@ -113,6 +117,8 @@ object RemoteSession {
     fun hostPoll(token: String, since: Long): String? {
         val s = get(token) ?: return null
         s.hostBeat = System.currentTimeMillis()
+        // 被控页带着「我执行到第几条」回来：记下来给遥控页当回执用
+        if (since > 0 && since > s.acked) s.acked = since
         val out = JSONArray()
         synchronized(LOCK_TAG) {
             for (c in s.cmds) if (c.optLong("id") > since) out.put(c)
@@ -189,6 +195,9 @@ object RemoteSession {
             .put("hostAlive", now - s.hostBeat < HOST_ALIVE_MS)
             .put("ctls", liveCtls(s))
             .put("cmds", s.seq)
+            // 已被消费到第几条 + 最新那条的序号：遥控页靠这两个数判断「这下手到了没有」
+            .put("ack", s.acked)
+            .put("seq", s.seq)
             .toString()
     }
 
