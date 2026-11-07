@@ -136,6 +136,16 @@ Copy-Item "$HongguoDir\package.json" "$Out\hongguo\package.json" -Force
 Write-Host "==> 打 content_type 补丁"
 & (Join-Path $repo 'hongguo\patch-content-type.ps1') -Target "$Out\hongguo\server\src\service\client.js"
 
+# 下载落盘补丁（1.9）：整集下载改成收到一块就异步落一块，峰值内存从 +215~+291MB 降到 +36MB。
+# 这两个文件是内核里被改动过的完整副本，直接覆盖，避免上游一更新就把省内存的改动冲掉。
+Write-Host "==> 应用下载落盘补丁（流式写盘）"
+foreach ($f in @(@{ src = 'hongguo\patched\http.js'; dst = "$Out\hongguo\server\src\util\http.js" },
+                 @{ src = 'hongguo\patched\stream.js'; dst = "$Out\hongguo\server\src\service\stream.js" })) {
+  $from = Join-Path $repo $f.src
+  if (-not (Test-Path -LiteralPath $from)) { throw "缺少补丁文件：$from" }
+  Copy-Item $from $f.dst -Force
+}
+
 # --- 3) 运行时 ---
 Copy-Item $NodeExe "$Out\runtime\node.exe" -Force
 Copy-Item (Join-Path $FfmpegBin 'ffmpeg.exe') "$Out\runtime\ffmpeg\ffmpeg.exe" -Force

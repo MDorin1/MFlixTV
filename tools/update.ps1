@@ -199,10 +199,27 @@ function Invoke-KernelUpdate {
     Log "已备份旧内核到 $bak"
   }
 
+  # 先留住打过「流式落盘」补丁的两个文件（1.9 起的省内存改动），换完源码再放回去
+  $keepDir = Join-Path $tmp 'keep'
+  New-Item -ItemType Directory -Force -Path $keepDir | Out-Null
+  $keepFiles = @(@{ rel = 'util\http.js'; name = 'http.js' }, @{ rel = 'service\stream.js'; name = 'stream.js' })
+  foreach ($k in $keepFiles) {
+    $p = Join-Path $hgDir ('server\src\' + $k.rel)
+    if (Test-Path $p) { Copy-Item $p (Join-Path $keepDir $k.name) -Force }
+  }
+
   Remove-Item (Join-Path $hgDir 'server\src') -Recurse -Force -ErrorAction SilentlyContinue
   Copy-Item (Join-Path $inner.FullName 'server\src') (Join-Path $hgDir 'server\src') -Recurse -Force
   if (Test-Path $pkgPath) { Copy-Item $pkgPath $curPkg -Force }
   if (Test-Path (Join-Path $inner.FullName 'web')) { Copy-Item (Join-Path $inner.FullName 'web') (Join-Path $hgDir 'web') -Recurse -Force }
+
+  $restored = 0
+  foreach ($k in $keepFiles) {
+    $src = Join-Path $keepDir $k.name
+    $dst = Join-Path $hgDir ('server\src\' + $k.rel)
+    if ((Test-Path $src) -and (Test-Path (Split-Path $dst))) { Copy-Item $src $dst -Force; $restored++ }
+  }
+  if ($restored -gt 0) { Log "已换回流式落盘补丁（$restored 个文件）" } else { Log '没找到旧的流式落盘补丁文件，内核回落到上游原版下载实现' 'WARN' }
   Log '内核文件已替换'
 
   Update-ContentTypePatch
