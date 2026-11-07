@@ -1,6 +1,6 @@
 {
-  "_note": "MFlixTV 远端候选源清单。App 在「一个可用源都没有」时会自动拉这份清单（jsDelivr / GitHub 原始链接 / 镜像轮流试），合并去重后逐个测速——测速不通的不会进源池，本地已有的源也不会被删。源站换域名时，改这里、客户端下次自愈就拿到新的。",
-  "updated": "2026-10-30",
+  "_note": "MFlixTV 远端候选源清单。App 在「一个可用源都没有」时会自动拉这份清单（jsDelivr / GitHub 原始链接 / 镜像轮流试），合并去重后逐个测速——测速不通的不会进源池，本地已有的源也不会被删。源站换域名时，改这里、客户端下次自愈就拿到新的。名称后缀（熟肉/生肉）是字幕标注：熟肉＝带中文字幕，生肉＝无字幕原片。",
+  "updated": "2026-11-07",
   "sources": [
     { "key": "wujin", "name": "无尽", "base": "https://api.wujinapi.me/api.php/provide/vod" },
     { "key": "360zy", "name": "360", "base": "https://360zy.com/api.php/provide/vod" },
@@ -10,7 +10,10 @@
     { "key": "hhzy", "name": "豪华", "base": "https://hhzyapi.com/api.php/provide/vod" },
     { "key": "ffzy", "name": "非凡", "base": "https://api.ffzyapi.com/api.php/provide/vod" },
     { "key": "bfzy", "name": "暴风", "base": "https://bfzyapi.com/api.php/provide/vod" },
-    { "key": "lzi", "name": "量子", "base": "https://cj.lziapi.com/api.php/provide/vod" },
+    { "key": "lzi", "name": "量子·熟肉", "base": "https://cj.lziapi.com/api.php/provide/vod" },
+    { "key": "sony", "name": "索尼·熟肉", "base": "https://suoniapi.com/api.php/provide/vod" },
+    { "key": "tyys", "name": "天涯·熟肉", "base": "https://tyyszy.com/api.php/provide/vod" },
+    { "key": "dytt", "name": "电影天堂·熟肉", "base": "https://caiji.dyttzyapi.com/api.php/provide/vod" },
     { "key": "wolong", "name": "卧龙", "base": "https://wolongzyw.com/api.php/provide/vod" },
     { "key": "rycj", "name": "如意", "base": "https://cj.rycjapi.com/api.php/provide/vod" },
     { "key": "ikun", "name": "iKun", "base": "https://ikunzyapi.com/api.php/provide/vod" }

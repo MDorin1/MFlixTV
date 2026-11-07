@@ -450,7 +450,7 @@ function Invoke-SourceUpdate {
 
   $addedCount = 0
   foreach ($a in $alive) {
-    if ($final.Count -ge 6) { break }
+    if ($final.Count -ge 10) { break }
     $k = Get-SrcKey $a.Url
     if ($seen.ContainsKey($k)) { continue }
     [void]$final.Add(@{ n = $a.Name; u = $a.Url })

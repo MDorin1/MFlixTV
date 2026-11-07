@@ -20,6 +20,8 @@ export interface SearchResultItem {
   year?: string;
   area?: string;
   remarks?: string;
+  /** 源站的上架/更新时间（苹果CMS `vod_time`，形如 `2026-11-07 15:42:27`）。分类浏览按它倒序排 */
+  updatedAt?: string;
   /** 自定义源的 API 地址，详情请求需要 */
   sourceUrl?: string;
   isAdult?: boolean;

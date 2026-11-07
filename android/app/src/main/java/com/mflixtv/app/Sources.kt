@@ -26,10 +26,15 @@ object Sources {
         Src("modu", "魔都", "https://caiji.moduapi.cc/api.php/provide/vod"),
         Src("hhzy", "豪华", "https://hhzyapi.com/api.php/provide/vod"),
         Src("bfzy", "暴风", "https://bfzyapi.com/api.php/provide/vod"),
-        Src("lzi", "量子", "https://cj.lziapi.com/api.php/provide/vod"),
+        Src("lzi", "量子·熟肉", "https://cj.lziapi.com/api.php/provide/vod"),
         Src("wujin", "无尽", "https://api.wujinapi.me/api.php/provide/vod"),
         Src("ffzy", "非凡", "https://api.ffzyapi.com/api.php/provide/vod"),
         Src("zuid", "最大", "https://api.zuidapi.com/api.php/provide/vod"),
+        // 海外向片库：日韩综艺 / 欧美综艺更新最快的一批。
+        // 后缀「熟肉」＝带中文字幕（抽帧实测确认），「生肉」＝无字幕原片。
+        Src("sony", "索尼·熟肉", "https://suoniapi.com/api.php/provide/vod"),
+        Src("tyys", "天涯·熟肉", "https://tyyszy.com/api.php/provide/vod"),
+        Src("dytt", "电影天堂·熟肉", "https://caiji.dyttzyapi.com/api.php/provide/vod"),
         // 下面是备选：有些地区前几个会被拦，多几个能提高命中；自检不通的可以一键删掉
         Src("wolong", "卧龙", "https://wolongzyw.com/api.php/provide/vod"),
         Src("rycj", "如意", "https://cj.rycjapi.com/api.php/provide/vod"),
@@ -42,6 +47,14 @@ object Sources {
     private const val SP = "mflixtv"
     private const val KEY_SOURCES = "sources_json"
     private const val KEY_OFF = "sources_off"
+    private const val KEY_BUILTIN_VER = "sources_builtin_ver"
+
+    /**
+     * 出厂源版本号。每次往 [BUILTIN] 里加源就 +1：
+     * 升级时把新内置源补进用户已存的列表（并刷新同名源的显示名，比如补上「熟肉」标注），
+     * 用户自己加的源与增删顺序都不动。
+     */
+    private const val BUILTIN_VER = 2
 
     @Volatile private var sp: android.content.SharedPreferences? = null
     @Volatile private var current: List<Src>? = null
@@ -52,7 +65,17 @@ object Sources {
         if (sp != null) return
         val p = ctx.applicationContext.getSharedPreferences(SP, Context.MODE_PRIVATE)
         sp = p
-        if (!p.contains(KEY_SOURCES)) p.edit().putString(KEY_SOURCES, toJson(BUILTIN)).apply()
+        if (!p.contains(KEY_SOURCES)) {
+            p.edit().putString(KEY_SOURCES, toJson(BUILTIN)).putInt(KEY_BUILTIN_VER, BUILTIN_VER).apply()
+        } else if (p.getInt(KEY_BUILTIN_VER, 1) < BUILTIN_VER) {
+            // 出厂源升级：补新源、刷新同名源的名字，不动用户自己加的那些
+            val cur = parse(p.getString(KEY_SOURCES, null)).toMutableList()
+            for (b in BUILTIN) {
+                val i = cur.indexOfFirst { it.base == b.base }
+                if (i < 0) cur.add(b) else if (cur[i].name != b.name) cur[i] = cur[i].copy(name = b.name)
+            }
+            p.edit().putString(KEY_SOURCES, toJson(cur)).putInt(KEY_BUILTIN_VER, BUILTIN_VER).apply()
+        }
         current = parse(p.getString(KEY_SOURCES, null))
     }
 

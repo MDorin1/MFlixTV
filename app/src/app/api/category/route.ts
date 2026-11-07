@@ -51,14 +51,35 @@ interface VodItem {
   vod_year?: string;
   vod_area?: string;
   type_name?: string;
+  /** 源站的上架/更新时间（苹果CMS `vod_time`）。只有 ac=detail 才返回 */
+  vod_time?: string;
 }
 
+interface TimedItem {
+  item: SearchResultItem;
+  time: number;
+}
+
+/** `2026-11-07 15:42:27` → 时间戳；解析不了给 0，排到最后 */
+function parseVodTime(raw?: string): number {
+  if (!raw) return 0;
+  const ms = Date.parse(String(raw).replace(' ', 'T'));
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+/**
+ * 拉某个源的某个分类。
+ *
+ * 用 `ac=detail` 而不是 `ac=videolist`：只有 detail 会带 `vod_time`，
+ * 而「国外综艺更新快不快」正是靠这个时间排出来的——没有它就只能按源站 id 排序，
+ * 新上架的节目会被老片压在后面。
+ */
 async function fetchCategory(
   source: { key: string; name: string; url: string },
   typeId: number,
   page: number
-): Promise<SearchResultItem[]> {
-  const url = `${normalizeBase(source.url)}?ac=videolist&t=${typeId}&pg=${page}`;
+): Promise<TimedItem[]> {
+  const url = `${normalizeBase(source.url)}?ac=detail&t=${typeId}&pg=${page}`;
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 MFlixTV' },
     signal: AbortSignal.timeout(15000),
@@ -69,16 +90,20 @@ async function fetchCategory(
   return list
     .filter((v) => v && v.vod_id !== undefined && v.vod_name)
     .map((v) => ({
-      sourceKey: source.key,
-      sourceName: source.name,
-      vodId: String(v.vod_id),
-      name: String(v.vod_name),
-      pic: v.vod_pic || undefined,
-      typeName: v.type_name || undefined,
-      year: v.vod_year || undefined,
-      area: v.vod_area || undefined,
-      remarks: v.vod_remarks || undefined,
-      sourceUrl: source.url,
+      time: parseVodTime(v.vod_time),
+      item: {
+        sourceKey: source.key,
+        sourceName: source.name,
+        vodId: String(v.vod_id),
+        name: String(v.vod_name),
+        pic: v.vod_pic || undefined,
+        typeName: v.type_name || undefined,
+        year: v.vod_year || undefined,
+        area: v.vod_area || undefined,
+        remarks: v.vod_remarks || undefined,
+        updatedAt: v.vod_time || undefined,
+        sourceUrl: source.url,
+      },
     }));
 }
 
@@ -114,6 +139,10 @@ export async function GET(req: Request) {
   );
 
   // 合并：同名同年的算一条，保留各自来源（前端聚合卡片按 name 分组）
-  const items = lists.flat();
+  // 排序按源站更新时间倒序——「海外综艺更新快」的诉求就落在这里，
+  // 刚上架的那期必须排在第一屏，而不是被老片挤到后面。
+  const flat = lists.flat();
+  flat.sort((a, b) => b.time - a.time);
+  const items = flat.map((x) => x.item);
   return NextResponse.json({ items, failures, total: items.length });
 }
