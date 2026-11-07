@@ -51,6 +51,25 @@ export function parseSearchList(
  * 部分源（如量子 lziapi、非凡 ffzy）第一条线路是网页中转页（…/share/xxx，不可播），
  * 真实 m3u8 在后面的线路里，因此优先取包含 m3u8 直链的线路；均无 m3u8 时回退第一条。
  */
+/**
+ * 有些源（光速 guangsuapi 就是）分集给的是 `https://v.gsuus.com/play/<id>` 这种播放页地址，
+ * 真正的清单在 `/index.m3u8`。播放页交给播放器会被当成清单去解析 HTML，直接报错；
+ * 所以路径末段没有扩展名（不是 .m3u8 / .mp4 / …）时补上 /index.m3u8。
+ *
+ * 只改字符串，不动播放链路：补完就是一条正常的 m3u8 直链，起播与预加载跟别的源完全一致。
+ */
+export function normalizeEpisodeUrl(raw: string): string {
+  if (!/^https?:\/\//.test(raw)) return raw;
+  const cut = raw.search(/[?#]/);
+  const path = cut >= 0 ? raw.slice(0, cut) : raw;
+  const tail = cut >= 0 ? raw.slice(cut) : '';
+  // /share/ 是源站的分享页（量子、非凡的第一条线路就是它），补了也不是清单，别动
+  if (path.includes('/share/')) return raw;
+  const seg = path.replace(/\/+$/, '').split('/').pop() || '';
+  if (!seg || seg.includes('.')) return raw;
+  return path.replace(/\/+$/, '') + '/index.m3u8' + tail;
+}
+
 export function extractEpisodesFromPlayUrl(playUrl: string): string[] {
   if (!playUrl) return [];
   const groups = playUrl
@@ -60,7 +79,7 @@ export function extractEpisodesFromPlayUrl(playUrl: string): string[] {
         .split('#')
         .map((ep) => {
           const parts = ep.split('$');
-          return parts.length > 1 ? parts[1] : '';
+          return parts.length > 1 ? normalizeEpisodeUrl(parts[1]) : '';
         })
         .filter((url) => url.startsWith('http://') || url.startsWith('https://'))
     )

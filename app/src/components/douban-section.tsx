@@ -8,7 +8,7 @@ import { useAppStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import type { DoubanItem, DoubanResponse } from '@/lib/types';
 import { DoubanCard } from './video-card';
-import { VarietyBoard, CategoryBoard, SHORT_CATEGORIES } from './variety-board';
+import { VarietyBoard, OverseasBoard, CategoryBoard, SHORT_CATEGORIES } from './variety-board';
 
 const MOVIE_TAGS = ['热门', '最新', '经典', '高分好评', '冷门佳片', '华语', '欧美', '韩国', '日本', '动画'];
 const TV_TAGS = ['热门', '美剧', '英剧', '韩剧', '日剧', '国产剧', '港剧', '日本动画', '综艺', '纪录片'];
@@ -82,54 +82,32 @@ function DoubanView({
   const tags = type === 'movie' ? MOVIE_TAGS : TV_TAGS;
   const items = query.data?.items ?? [];
 
-  const switchType = (t: 'movie' | 'tv') => {
-    if (t === type) return;
-    setType(t);
-    setTag('热门');
+  /** 顶部类型切换：电影 / 剧集 / 综艺 / 短剧 / 海外 */
+  const go = (kind: BrowseKind) => {
+    if (kind === 'movie' || kind === 'tv') {
+      setType(kind);
+      setTag('热门');
+      return;
+    }
+    setType('tv');
+    setTag(kind);
   };
 
-  // 综艺走「源内分类浏览」：豆瓣那份只有海报，真正能播的综艺得按源分类拉
-  if (tag === '短剧') {
+  // 综艺 / 短剧 / 海外都走「源内分类浏览」：豆瓣那份只有海报，
+  // 真正能播的得按采集源的分类去拉，播放链路与剧集完全相同。
+  if (tag === '短剧' || tag === '综艺' || tag === '海外') {
     return (
-      <section aria-label="短剧推荐">
+      <section aria-label={tag + '推荐'}>
         <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg bg-chip p-0.5">
-              <TypeButton active={false} onClick={() => switchType('movie')}>电影</TypeButton>
-              <TypeButton active={false} onClick={() => switchType('tv')}>剧集</TypeButton>
-              <TypeButton active={false} onClick={() => { setType('tv'); setTag('综艺'); }}>综艺</TypeButton>
-              <TypeButton active onClick={() => undefined}>短剧</TypeButton>
-            </div>
-          </div>
+          <TypeSwitch type={type} tag={tag} onGo={go} />
         </div>
-        <CategoryBoard categories={SHORT_CATEGORIES} cachePrefix="short" />
-      </section>
-    );
-  }
-
-  if (tag === '综艺') {
-    // 注意：切到综艺后「电影/剧集」这两个入口必须还在，否则回不去
-    return (
-      <section aria-label="综艺推荐">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg bg-chip p-0.5">
-              <TypeButton active={false} onClick={() => switchType('movie')}>
-                电影
-              </TypeButton>
-              <TypeButton active={false} onClick={() => switchType('tv')}>
-                剧集
-              </TypeButton>
-              <TypeButton active onClick={() => undefined}>
-                综艺
-              </TypeButton>
-              <TypeButton active={false} onClick={() => { setType('tv'); setTag('短剧'); }}>
-                短剧
-              </TypeButton>
-            </div>
-          </div>
-        </div>
-        <VarietyBoard />
+        {tag === '短剧' ? (
+          <CategoryBoard categories={SHORT_CATEGORIES} cachePrefix="short" />
+        ) : tag === '综艺' ? (
+          <VarietyBoard />
+        ) : (
+          <OverseasBoard />
+        )}
       </section>
     );
   }
@@ -137,23 +115,7 @@ function DoubanView({
   return (
     <section aria-label="影视推荐">
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="flex bg-chip rounded-lg p-0.5">
-            <TypeButton active={type === 'movie'} onClick={() => switchType('movie')}>
-              电影
-            </TypeButton>
-            <TypeButton active={type === 'tv'} onClick={() => switchType('tv')}>
-              剧集
-            </TypeButton>
-            {/* 综艺：豆瓣把它挂在 tv 下的「综艺」标签，播放链路与剧集完全相同 */}
-            <TypeButton active={type === 'tv' && tag === '综艺'} onClick={() => { setType('tv'); setTag('综艺'); }}>
-              综艺
-            </TypeButton>
-            <TypeButton active={false} onClick={() => { setType('tv'); setTag('短剧'); }}>
-              短剧
-            </TypeButton>
-          </div>
-        </div>
+        <TypeSwitch type={type} tag={tag} onGo={go} />
       </div>
 
       <div className="flex flex-wrap gap-1.5 mb-4">
@@ -303,7 +265,53 @@ function ChipButton({ active, onClick, children }: { active: boolean; onClick: (
   );
 }
 
-function TypeButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+/** 顶部五个入口：电影 / 剧集 / 综艺 / 短剧 / 海外。入口就这么几个，别再往里加。 */
+type BrowseKind = 'movie' | 'tv' | '综艺' | '短剧' | '海外';
+
+const BROWSE_TABS: { kind: BrowseKind; label: string }[] = [
+  { kind: 'movie', label: '电影' },
+  { kind: 'tv', label: '剧集' },
+  { kind: '综艺', label: '综艺' },
+  { kind: '短剧', label: '短剧' },
+  { kind: '海外', label: '海外' },
+];
+const TYPE_TAGS = ['综艺', '短剧', '海外'];
+
+function TypeSwitch({
+  type,
+  tag,
+  onGo,
+}: {
+  type: 'movie' | 'tv';
+  tag: string;
+  onGo: (kind: BrowseKind) => void;
+}) {
+  const activeOf = (kind: BrowseKind) =>
+    kind === 'movie' || kind === 'tv'
+      ? type === kind && !TYPE_TAGS.includes(tag)
+      : tag === kind;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex rounded-lg bg-chip p-0.5">
+        {BROWSE_TABS.map((t) => (
+          <TypeButton key={t.kind} active={activeOf(t.kind)} onClick={() => onGo(t.kind)}>
+            {t.label}
+          </TypeButton>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TypeButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       className={cn('px-3.5 py-1.5 rounded-md text-sm transition-colors', active ? 'bg-accent text-on-accent' : 'text-muted hover:text-content')}

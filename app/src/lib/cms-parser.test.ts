@@ -6,6 +6,7 @@ import {
   filterRelevantResults,
   isAdultContent,
   isRelevant,
+  normalizeEpisodeUrl,
   normalizeTitle,
   parseDetail,
   parseDetailPageHtml,
@@ -80,6 +81,22 @@ describe('extractEpisodesFromPlayUrl', () => {
 
   it('空输入返回空数组', () => {
     expect(extractEpisodesFromPlayUrl('')).toEqual([]);
+  });
+
+  // 光速（guangsuapi）给的是播放页地址，清单在 /index.m3u8；补完才是一条能播的直链。
+  // 补的是字符串，播放链路一点没动。
+  it('播放页地址补成 index.m3u8（光速类源）', () => {
+    const play = '第1集$https://v.gsuus.com/play/elYp9Lga#第2集$https://v.gsuus.com/play/dyP1Q2ab';
+    expect(extractEpisodesFromPlayUrl(play)).toEqual([
+      'https://v.gsuus.com/play/elYp9Lga/index.m3u8',
+      'https://v.gsuus.com/play/dyP1Q2ab/index.m3u8',
+    ]);
+  });
+
+  it('已有扩展名的地址与分享页保持原样', () => {
+    expect(normalizeEpisodeUrl('https://cdn/a/index.m3u8')).toBe('https://cdn/a/index.m3u8');
+    expect(normalizeEpisodeUrl('https://cdn/a.mp4?x=1')).toBe('https://cdn/a.mp4?x=1');
+    expect(normalizeEpisodeUrl('https://vip.lzcdn2.com/share/abc')).toBe('https://vip.lzcdn2.com/share/abc');
   });
 });
 

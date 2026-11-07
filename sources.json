@@ -16,6 +16,8 @@
     { "key": "dytt", "name": "电影天堂", "base": "https://caiji.dyttzyapi.com/api.php/provide/vod" },
     { "key": "wolong", "name": "卧龙", "base": "https://wolongzyw.com/api.php/provide/vod" },
     { "key": "rycj", "name": "如意", "base": "https://cj.rycjapi.com/api.php/provide/vod" },
-    { "key": "ikun", "name": "iKun", "base": "https://ikunzyapi.com/api.php/provide/vod" }
+    { "key": "ikun", "name": "iKun", "base": "https://ikunzyapi.com/api.php/provide/vod" },
+    { "key": "haiwai", "name": "海外影院", "base": "https://lovedan.net/api.php/provide/vod" },
+    { "key": "gszy", "name": "光速", "base": "https://api.guangsuapi.com/api.php/provide/vod" }
   ]
 }

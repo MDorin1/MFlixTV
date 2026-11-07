@@ -73,7 +73,7 @@ object SourceDetail {
             block.split("#").forEachIndexed { i, seg ->
                 val parts = seg.split("$")
                 val label = parts.getOrNull(0)?.trim().orEmpty()
-                val url = parts.getOrNull(1)?.trim().orEmpty()
+                val url = fixUrl(parts.getOrNull(1)?.trim().orEmpty())
                 if (url.startsWith("http")) {
                     eps.put(JSONObject().put("idx", i).put("label", label.ifBlank { "第" + (i + 1) + "集" }).put("url", url))
                 }
@@ -91,6 +91,25 @@ object SourceDetail {
         val arr = JSONArray()
         groups.forEach { arr.put(it.second) }
         return arr
+    }
+
+    /**
+     * 有些源（光速 guangsuapi 就是）分集给的是 `https://v.gsuus.com/play/<id>` 这种播放页地址，
+     * 真正的清单在 `/index.m3u8`。播放页交给播放器会被当成清单去解析 HTML，直接报错；
+     * 所以路径末段没有扩展名（不是 .m3u8 / .mp4 / …）时补上 /index.m3u8。
+     *
+     * 只改字符串，不动播放链路：补完就是一条正常的 m3u8 直链，起播与预加载跟别的源完全一致。
+     */
+    private fun fixUrl(raw: String): String {
+        if (!raw.startsWith("http")) return raw
+        val cut = raw.indexOfFirst { it == '?' || it == '#' }
+        val path = if (cut >= 0) raw.substring(0, cut) else raw
+        val tail = if (cut >= 0) raw.substring(cut) else ""
+        // /share/ 是源站的分享页（量子、非凡的第一条线路就是它），补了也不是清单，别动
+        if (path.contains("/share/")) return raw
+        val seg = path.trimEnd('/').substringAfterLast('/')
+        if (seg.isBlank() || seg.contains('.')) return raw
+        return path.trimEnd('/') + "/index.m3u8" + tail
     }
 
     /** 越小越优先：真 m3u8 > mp4 > 分享页/其它。 */

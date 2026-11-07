@@ -40,7 +40,12 @@ object Sources {
         Src("wolong", "卧龙", "https://wolongzyw.com/api.php/provide/vod"),
         Src("rycj", "如意", "https://cj.rycjapi.com/api.php/provide/vod"),
         Src("ikun", "iKun", "https://ikunzyapi.com/api.php/provide/vod"),
-        Src("360zy", "360", "https://360zy.com/api.php/provide/vod")
+        Src("360zy", "360", "https://360zy.com/api.php/provide/vod"),
+        // 海外专库：库里专门有「海外剧 / 日韩剧 / 港台剧」这些分类，
+        // 实测是全场更新最快的一批（日韩综艺、海外剧都能到当天深夜），
+        // 国产剧/国内片子也照常齐全，所以直接当常驻源用。
+        Src("haiwai", "海外影院", "https://lovedan.net/api.php/provide/vod"),
+        Src("gszy", "光速", "https://api.guangsuapi.com/api.php/provide/vod")
     )
 
     val UA: String get() = Net.UA
@@ -56,7 +61,7 @@ object Sources {
      * （1.4 里那批「量子·熟肉」就是靠这里改回「量子」的），
      * 用户自己加的源与增删顺序都不动。
      */
-    private const val BUILTIN_VER = 3
+    private const val BUILTIN_VER = 4
 
     @Volatile private var sp: android.content.SharedPreferences? = null
     @Volatile private var current: List<Src>? = null
@@ -401,12 +406,28 @@ object Sources {
         return map
     }
 
-    private fun typeIdFor(src: Src, row: Row): String {
-        if (row.names.isEmpty()) return row.type
-        val map = catMap(src.base)
-        for (want in row.names) map.entries.firstOrNull { it.key == want }?.let { return it.value.toString() }
-        for (want in row.names) map.entries.firstOrNull { it.key.contains(want) }?.let { return it.value.toString() }
-        return row.type
+    /**
+     * 一个源在一行里要取哪几个分类（最多 [max] 个）。
+     *
+     * 为什么不是一个：采集站的顶级分类常常是空壳——量子 lziapi 的「连续剧」只有 3 部、
+     * 「电影片」只有 1 部，真正的片全挂在「国产剧 / 欧美剧 / 动作片」这些叶子分类下。
+     * 只取第一个命中的分类，首页「电影 / 剧集」就会只剩两三张卡，看着像坏了。
+     * 这里按 row.names 里的顺序挑（叶子分类排在前面），取几个分类的结果再合并去重。
+     */
+    private fun typeIdsFor(src: Src, row: Row, max: Int): List<String> {
+        val out = ArrayList<String>()
+        if (row.names.isNotEmpty()) {
+            val map = catMap(src.base)
+            for (want in row.names) {
+                if (out.size >= max) break
+                val hit = map.entries.firstOrNull { it.key == want }
+                    ?: map.entries.firstOrNull { it.key.contains(want) }
+                val id = hit?.value?.toString() ?: continue
+                if (!out.contains(id)) out.add(id)
+            }
+        }
+        if (out.isEmpty() && row.type.isNotBlank()) out.add(row.type)
+        return out
     }
 
     /**
@@ -463,12 +484,31 @@ object Sources {
      */
     private val HOME_ROWS = listOf(
         Row("latest", "最近更新", emptyList(), "", 4),
-        Row("movie", "电影", listOf("电影", "片"), "1", 3),
-        Row("tv", "剧集", listOf("电视剧", "连续剧", "剧集", "国产剧", "欧美剧"), "2", 3),
+        // 分类名按「叶子优先」排：顶级分类（电影片/连续剧/综艺片）多半是空壳，
+        // 真片都在动作片、国产剧、大陆综艺这些子分类下
+        Row("movie", "电影", listOf("电影", "片", "动作片", "剧情片", "喜剧片", "科幻片", "爱情片", "犯罪片", "战争片"), "1", 3),
+        Row("tv", "剧集", listOf("电视剧", "连续剧", "剧集", "国产剧", "欧美剧", "韩剧", "日剧", "港台剧"), "2", 3),
+        // 海外专库行：各源谁有「海外剧 / 日韩剧 / 欧美剧 / 日韩综艺 …」就取谁的这几个分类，
+        // 四源合起来就是一排海外新片。没有这些细分类的源直接跳过，不拿「全站最新」来凑数。
+        Row(
+            "haiwai", "海外热播",
+            listOf("海外剧", "日韩剧", "欧美剧", "韩剧", "日剧", "美剧", "泰剧", "日韩综艺", "欧美综艺", "港台综艺", "海外动漫"),
+            "", 4
+        ),
         Row("short", "短剧", listOf("短剧", "微短剧", "短剧场", "竖屏剧"), "", 3),
-        Row("show", "综艺", listOf("综艺", "真人秀"), "3", 3),
-        Row("anime", "动漫", listOf("动漫", "动画"), "4", 2)
-    )
+        Row("show", "综艺", listOf("综艺", "真人秀", "大陆综艺", "日韩综艺", "欧美综艺"), "3", 3),
+        Row("anime", "动漫", listOf("动漫", "动画", "国产动漫", "日韩动漫"), "4", 2)
+    );
+
+    /** 一行里每个源最多取几个分类（分类的片合起来再截断，够填满一排） */
+    private const val ROW_CATS_PER_SOURCE = 3
+
+    /** 预告片 / 花絮 / 解说这类非正片：采集站会把它们塞进电影分类里 */
+    private fun isFiller(name: String, remarks: String): Boolean {
+        val t = name + " " + remarks
+        return t.contains("预告片") || t.contains("花絮") || t.contains("抢先看") ||
+            t.contains("解说") || t.contains("片花")
+    }
 
     fun homeRows(): List<Row> = HOME_ROWS
 
@@ -477,28 +517,41 @@ object Sources {
         val workers = pick(row).map { src ->
             thread {
                 try {
-                    val t = typeIdFor(src, row)
+                    val ids = typeIdsFor(src, row, ROW_CATS_PER_SOURCE)
                     // 短剧这类新分类不一定在所有源里建了分类，那就退回按关键词搜
-                    val byKeyword = t.isEmpty() && row.key == "short"
-                    val url = if (byKeyword) {
-                        src.base + "?ac=videolist&wd=" + enc("短剧")
+                    val byKeyword = ids.isEmpty() && row.key == "short"
+                    // 有分类名却一个都没命中（海外剧/日韩综艺这种细分类常有的情况）：
+                    // 宁可这一行少一个源，也不要拿「全站最新」的国产片填进去
+                    if (ids.isEmpty() && row.names.isNotEmpty() && !byKeyword) return@thread
+                    val urls = if (byKeyword) {
+                        listOf(src.base + "?ac=videolist&wd=" + enc("短剧"))
+                    } else if (ids.isEmpty()) {
+                        listOf(src.base + "?ac=videolist&pg=1")
                     } else {
-                        val q = StringBuilder(src.base).append("?ac=videolist")
-                        if (t.isNotEmpty()) q.append("&t=").append(t)
-                        q.append("&pg=1")
-                        q.toString()
+                        ids.map { src.base + "?ac=videolist&t=" + it + "&pg=1" }
                     }
-                    val text = get(url, 9000)
-                    val arr = JSONObject(text).optJSONArray("list") ?: return@thread
-                    val limit = minOf(arr.length(), 24)
-                    for (i in 0 until limit) {
-                        val o = arr.optJSONObject(i) ?: continue
-                        if (o.optString("vod_name").isBlank()) continue
-                        if (byKeyword) {
-                            val nm = o.optString("type_name")
-                            if (!nm.contains("短剧") && !o.optString("vod_name").contains("短剧")) continue
+                    // 一个源几个分类合起来最多留 24 条，别让第一个分类把整行占满
+                    val perUrl = maxOf(6, 24 / urls.size)
+                    for (url in urls) {
+                        val text = try {
+                            get(url, 9000)
+                        } catch (_: Exception) {
+                            continue
                         }
-                        items.add(item(src, o))
+                        val arr = JSONObject(text).optJSONArray("list") ?: continue
+                        val limit = minOf(arr.length(), perUrl)
+                        for (i in 0 until limit) {
+                            val o = arr.optJSONObject(i) ?: continue
+                            val nm = o.optString("vod_name").trim()
+                            if (nm.isEmpty()) continue
+                            // 预告片/花絮/解说这类短片会把整排挤满，首页只要正片
+                            if (isFiller(nm, o.optString("vod_remarks"))) continue
+                            if (byKeyword) {
+                                val tn = o.optString("type_name")
+                                if (!tn.contains("短剧") && !nm.contains("短剧")) continue
+                            }
+                            items.add(item(src, o))
+                        }
                     }
                 } catch (_: Exception) {
                 }
