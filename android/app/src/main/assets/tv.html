@@ -605,6 +605,11 @@
   #pbotbar:focus-within #track{height:.44rem}
   #pbScr:hover #played:after,
   #pbotbar:focus-within #played:after{opacity:1}
+  /* 遥控器把焦点停到进度条这一站时要看得见（暂停时左右就是快进/后退） */
+  #pbScr.on{background:linear-gradient(to top,rgba(255,255,255,.12),rgba(255,255,255,0));
+    box-shadow:inset 0 -.14rem 0 rgba(255,255,255,.92)}
+  #pbScr.on #track{height:.44rem}
+  #pbScr.on #played:after{opacity:1}
   .pt{font-size:.72rem;font-weight:600;letter-spacing:.03em;color:rgba(255,255,255,.6);
     font-variant-numeric:tabular-nums;text-shadow:0 .06rem .3rem rgba(0,0,0,.7);white-space:nowrap}
   #pcur{color:rgba(255,255,255,.95)}
@@ -2490,7 +2495,7 @@
   }
   function togglePlay() {
     if (v.paused) { v.play().catch(function () {}); setPlayState(true); flashBig('▶'); }
-    else { v.pause(); setPlayState(false); flashBig('⏸'); rememberPos(); }
+    else { v.pause(); setPlayState(false); flashBig('⏸'); rememberPos(); focusBarOnPause(); }
     bars(true);
   }
   function rememberPos() {
@@ -2848,7 +2853,7 @@
   v.addEventListener('waiting', function () { $('psub').textContent = '缓冲中…'; });
   v.addEventListener('ended', function () { rememberPos(); offerNext(); });
   /* 图标跟着真实状态走：播完、被外部暂停、自动换线路重连，按钮上的三角 / 双竖线不会停在错的那个 */
-  v.addEventListener('play', function () { setPlayState(true); });
+  v.addEventListener('play', function () { setPlayState(true); if (barFocus) leaveBar(); });
   v.addEventListener('pause', function () { setPlayState(false); });
 
   /* ================= 视图 / 返回栈 ================= */
@@ -3262,12 +3267,30 @@
       move(a); return true;
     }
     if (barFocus) {
-      if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); bars(true); return true; }
-      if (a === 'left' || a === 'right' || a === 'up' || a === 'down') { move(a); bars(true); return true; }
-      if (a === 'back') { leaveBar(); return true; }
+      if (a === 'ok') {
+        if (focusEl && focusEl.id === 'pbScr') { togglePlay(); return true; }
+        if (focusEl && focusEl.click) focusEl.click();
+        bars(true);
+        return true;
+      }
+      if (a === 'left' || a === 'right') {
+        /* 停在进度条上：左右还是快进 / 后退（长按同一个方向连按会加速，沿用原来的链式逻辑） */
+        if (focusEl && focusEl.id === 'pbScr') { seekByDirection(a === 'left' ? -1 : 1); return true; }
+        barStep(a);
+        return true;
+      }
+      if (a === 'up' || a === 'down') { barStep(a); return true; }
+      if (a === 'back' || a === 'menu') { leaveBar(); return true; }
       return true;
     }
     if (a === 'ok') { togglePlay(); return true; }
+    /* 暂停状态：方向键先用来选按钮（原生遥控器没有菜单键，这里是主入口），
+       焦点一进条子就能一路走到 选集 / 换线路 / 倍速 / 静音 / 全屏 / 遥控 / 退出。 */
+    if (!extMode() && v.paused && (a === 'left' || a === 'right' || a === 'up' || a === 'down')) {
+      focusBarOnPause();
+      barStep(a);
+      return true;
+    }
     if (a === 'left') { seekByDirection(-1); return true; }
     if (a === 'right') { seekByDirection(1); return true; }
     if (a === 'up') { stepEp(-1); return true; }
@@ -3289,6 +3312,66 @@
     barFocus = false;
     paintFocus(null);
     bars(true);
+  }
+
+  /* 播放页按钮条的顺序导航。
+     电视原生遥控器没有「菜单键」，老人机顶盒那种更是一个多余键都没有，
+     所以暂停以后方向键就直接在按钮条里走（不再靠几何距离猜，那条路在
+     左边三颗 / 右边一列之间经常「按上去没反应」）：
+       左右 = 上一个 / 下一个按钮，上下也走同一条，按哪个方向都能移动。
+     出口有二：按「返回」退出条子，或者播起来自动退出。 */
+  function barList() {
+    var box = $('pbotbar');
+    if (!box) return [];
+    var out = [];
+    /* 进度条也算条子上的一站：停在它上面左右 = 快进 / 后退，确定 = 继续播放。
+       这样暂停以后既能在按钮之间走，也没把「左右快进」这个习惯弄丢。 */
+    var scr = $('pbScr');
+    if (scr) {
+      var sr = scr.getBoundingClientRect();
+      if (sr.width > 1 && sr.height > 1) out.push(scr);
+    }
+    var list = box.querySelectorAll('.pb');
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i], r = e.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      if (getComputedStyle(e).visibility === 'hidden') continue;
+      out.push(e);
+    }
+    return out;
+  }
+  function barStep(dir) {
+    var list = barList();
+    if (!list.length) return;
+    var at = list.indexOf(focusEl);
+    if (at < 0) {
+      var start = list.indexOf($('pbPlay'));
+      paintFocus(list[start >= 0 ? start : 0]);
+      return;
+    }
+    var next = (dir === 'left' || dir === 'up') ? at - 1 : at + 1;
+    /* 到头就停住，不绕回另一头：不然在进度条上按一下「上」会跳到「退出播放」，
+       手一抖就把片子关了。 */
+    if (next < 0) next = 0;
+    if (next >= list.length) next = list.length - 1;
+    paintFocus(list[next]);
+    bars(true);
+  }
+  /* 暂停就把焦点交给播放/暂停那颗按钮，之后方向键在整条按钮里走 */
+  function focusBarOnPause() {
+    if (barFocus) return;
+    if (!inPlayer() || extMode()) return;
+    if ($('eps-sheet').classList.contains('on') || $('spd-sheet').classList.contains('on') ||
+        $('line-sheet').classList.contains('on') || $('nx').classList.contains('on')) return;
+    barFocus = true;
+    bars(true);
+    if (barList().indexOf(focusEl) < 0) paintFocus($('pbPlay'));
+    try {
+      if (!localStorage.getItem('mfl:pausebar')) {
+        localStorage.setItem('mfl:pausebar', '1');
+        toast('方向键选按钮 · 回车执行 · 返回退出');
+      }
+    } catch (e) {}
   }
 
   /** 焦点在「继续观看」卡片上时删掉这一条：菜单键、长按确定（Shield 没有菜单键）都走这里。
