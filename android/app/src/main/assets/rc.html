@@ -1215,6 +1215,10 @@
     if (document.visibilityState === 'visible') { awakeTry(); if (T) kick(); }
     else awakeStop();
   });
+  // 微信 / QQ 这类内置浏览器不允许静音自动播放：「有手势才算数」。
+  // 第一次碰屏幕时再试一次，常亮开关在它们里面也照样管用。
+  document.addEventListener('touchstart', awakeTry, { once: true, passive: true });
+  document.addEventListener('click', awakeTry, { once: true });
   awakeTry();
 
   tick();
