@@ -25,13 +25,25 @@ object KeepAlive {
     @Volatile
     private var lock: PowerManager.WakeLock? = null
 
+    /**
+     * alwaysOn 的内存副本。原来这个开关是**每个 HTTP 请求**都去读一次
+     * SharedPreferences：播放时每秒几十个分片请求，就是每秒几十次
+     * getSharedPreferences + getBoolean，全挤在请求线程上。
+     * 设置里改了才变，缓存起来即可。
+     */
+    @Volatile
+    private var cachedAlways: Boolean? = null
+
     /** 默认开着：这个 App 本身就是「手机当服务器」，宁可多耗一点电也不能掉线。 */
     fun alwaysOn(ctx: Context): Boolean {
-        return try {
+        cachedAlways?.let { return it }
+        val v = try {
             ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ALWAYS, true)
         } catch (_: Throwable) {
             true
         }
+        cachedAlways = v
+        return v
     }
 
     fun setAlwaysOn(ctx: Context, on: Boolean) {
@@ -39,6 +51,7 @@ object KeepAlive {
             ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ALWAYS, on).apply()
         } catch (_: Throwable) {
         }
+        cachedAlways = on
         if (on) hold(ctx) else release()
     }
 

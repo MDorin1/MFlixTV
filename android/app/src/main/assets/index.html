@@ -1732,9 +1732,12 @@
         state.title = d.name || name || '';
         state.pic = d.pic || '';
         state.typeName = d.typeName || '';
+        state.area = d.area || '';
         $('dTitle').textContent = state.title;
         if (d.pic) { $('dHeadBg').style.backgroundImage = 'url("' + d.pic + '")'; $('dPosterImg').src = d.pic; }
         var meta = [d.year, d.area, d.typeName, d.remarks, d.srcName].filter(Boolean).join(' · ');
+        var _tg = subTag(d.area);
+        if (_tg) meta += ' · ' + _tg;
         $('dMeta').textContent = meta;
         $('dMeta').style.whiteSpace = 'pre-line';
         var desc = d.content || '';
@@ -1877,12 +1880,25 @@
     if (last > 0) markEp(last);
   }
 
+  /* 字幕标注：境外内容才标「熟肉」，国产片不标。
+     判断不了（地区字段空着或没见过这个地区）就一律不标，绝不误伤国产剧。 */
+  var CN_AREA = /大陆|内地|中国|国产|香港|台湾|澳门|港台|华语/;
+  var FOREIGN_AREA = /韩国|日本|美国|英国|法国|德国|意大利|西班牙|葡萄牙|俄罗斯|乌克兰|白俄|泰国|印度|澳大利亚|新西兰|加拿大|巴西|墨西哥|阿根廷|智利|秘鲁|哥伦比亚|土耳其|以色列|伊朗|埃及|南非|瑞典|挪威|丹麦|芬兰|荷兰|比利时|奥地利|波兰|捷克|匈牙利|希腊|瑞士|爱尔兰|冰岛|新加坡|马来西亚|越南|菲律宾|印度尼西亚|印尼|柬埔寨|缅甸|老挝|蒙古|哈萨克|欧美|日韩|海外/;
+  function subTag(area) {
+    var a = String(area || '').trim();
+    if (!a) return '';
+    if (CN_AREA.test(a)) return '';
+    return FOREIGN_AREA.test(a) ? '熟肉' : '';
+  }
+
   /** 采集站的线路名多是 modum3u8 / ffm3u8 这种技术标识，统一显示成「线路 N」；跨源的补上源名。 */
   function grpLabel(x, i) {
     var n = (x && x.name) || '';
     var base = (!n || /m3u8|mp4|^[a-z0-9_\-]+$/i.test(n)) ? ('线路 ' + (i + 1)) : n;
     var s = (x && x.srcName) ? String(x.srcName) : '';
-    return s ? (base + ' · ' + s) : base;
+    var out = s ? (base + ' · ' + s) : base;
+    var tg = subTag(state.area);
+    return tg ? (out + ' · ' + tg) : out;
   }
 
   function markEp(i) {

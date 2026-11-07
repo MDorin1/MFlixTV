@@ -336,7 +336,12 @@
   var sheetOpen = '';
   var curState = null;
   var stateAt = 0;
-  var lastWalk = 0;
+  /* 这一帧状态「补过上报延迟」之后的真实位置（秒，带小数） */
+  var basePos = 0;
+  /* 现在显示在进度条上的位置。朝 basePos 平滑追赶，播放中绝不倒着走 */
+  var shownPos = 0;
+  /* 上次设过的进度条上限：dur 每帧都写会把 value 挤到 0，看着就是「进度条不动」 */
+  var seekMax = 0;
   var optim = { playing: null, vol: null, rate: null, muted: null, at: 0 };
   var toastTimer = 0;
 
@@ -345,6 +350,13 @@
     var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
     function p(n) { return (n < 10 ? '0' : '') + n; }
     return h > 0 ? h + ':' + p(m) + ':' + p(ss) : m + ':' + p(ss);
+  }
+
+  /** 把 shownPos 写到进度条和左边的时间上（唯一的出口，别处不要直接改这俩） */
+  function paintPos() {
+    elPos.textContent = fmt(shownPos);
+    var m = Math.max(1, seekMax || 1);
+    elSeek.value = String(Math.min(Math.floor(shownPos), m));
   }
 
   function fmtRate(r) {
@@ -588,12 +600,13 @@
   function endDrag() {
     if (!dragging) return;
     dragging = false;
-    // 从拖动目标继续走：服务端还没执行到新位置的那一秒里进度条别往回跳
-    lastWalk = dragVal;
-    if (curState) curState.pos = Math.round(dragVal);
+    // 松手就地接着走：服务端还没执行到新位置的那半秒里，进度条别往回跳
+    basePos = dragVal;
+    shownPos = dragVal;
     stateAt = Date.now();
+    if (curState) curState.pos = Math.round(dragVal);
     send('seekto', String(Math.round(dragVal)));
-    setTimeout(function () { elPos.textContent = fmt(dragVal); }, 300);
+    paintPos();
   }
   elSeek.addEventListener('change', endDrag);
   elSeek.addEventListener('pointerup', endDrag);
@@ -812,13 +825,28 @@
 
     var dur = st.dur || 0;
     elDur.textContent = fmt(dur);
+
+    /* 服务端告诉我们「这条位置在它那边已经躺了多久」（posAge）。
+       以前直接拿 pos 当「现在」再往后插值——基准本身就已经是 0.5~1.5 秒前的了，
+       所以进度条永远慢一截，还随着上报抖动一晃一晃。
+       把 posAge 加回去，基准才是此刻的真实位置。
+       只认 2.5 秒以内：再久说明上报断了，继续往后推会把进度条送飞。 */
+    var rawPos = (st.posMs != null && st.posMs >= 0) ? (st.posMs / 1000) : (st.pos || 0);
+    var age = st.playing ? Math.min(Math.max(st.posAge || 0, 0), 2500) / 1000 : 0;
+    basePos = rawPos + age;
+    if (dur > 0 && basePos > dur) basePos = dur;
+
     if (!dragging) {
-      elSeek.max = String(Math.max(1, Math.floor(dur)));
-      // 播放中交给下面的插值器（它会保证只往前走）；暂停 / 跳转后立刻对齐
-      if (!st.playing) {
-        lastWalk = st.pos || 0;
-        elPos.textContent = fmt(st.pos || 0);
-        elSeek.value = String(Math.min(st.pos || 0, Math.max(1, Math.floor(dur))));
+      /* dur 每帧都重设会把 value 夹一下；HLS 的 duration 还是边 append 边长的，
+         起播阶段反复改 max，进度条看着就是「钉在 0 不动」 */
+      if (dur > 0 && Math.abs(dur - seekMax) >= 1) {
+        seekMax = Math.floor(dur);
+        elSeek.max = String(Math.max(1, seekMax));
+      }
+      // 暂停、或位置跳得远（拖了进度 / 切了集）：直接对齐，不做渐变
+      if (!st.playing || Math.abs(basePos - shownPos) > 1.5) {
+        shownPos = basePos;
+        paintPos();
       }
     }
 
@@ -834,19 +862,28 @@
     paintEpsButtons();
   }
 
-  /* 播放中就地插值：进度条不再每 0.9 秒跳一下；
-     服务端状态是上一轮的快照，直接当基准会让进度往回跳，所以只允许往前走 */
+  /* 进度条 4Hz 刷新。以前是「服务端快照 + 从收包时刻起算的时间」，
+     而快照本身已经旧了，所以永远慢一截，并且每来一帧就硬跳一下。
+     现在：基准先按 posAge 补成「此刻」，再把显示值朝它平滑追。
+     播放中绝不往回走——宁可原地等半拍，也不能让用户看到进度倒退。 */
   setInterval(function () {
     if (dragging || !curState) return;
-    if (!curState.playing) { lastWalk = curState.pos || 0; return; }
     var dur = curState.dur || 0;
-    if (dur <= 0) return;
-    var p = (curState.pos || 0) + (Date.now() - stateAt) / 1000;
-    if (p < lastWalk && lastWalk - p < 4) p = lastWalk;
-    if (p > dur) p = dur;
-    lastWalk = p;
-    elPos.textContent = fmt(p);
-    elSeek.value = String(Math.floor(p));
+    var target = basePos + (curState.playing ? (Date.now() - stateAt) / 1000 : 0);
+    if (dur > 0 && target > dur) target = dur;
+    var d = target - shownPos;
+    if (!curState.playing) {
+      // 暂停：位置本来就不会自己走，直接贴上去
+      shownPos = target;
+    } else if (d > 2 || d < -1.5) {
+      // 真跳转（拖了进度 / 切了集）：硬对齐，慢慢爬要爬好几秒
+      shownPos = target;
+    } else if (d > 0.05) {
+      // 小偏差：按 40% 收敛，肉眼看不出来，也不会来回抖
+      shownPos += d * 0.4;
+    }
+    // d 在 -1.5~0.05 之间：显示略超前（上报慢了半拍），原地等它自己追上，不倒着走
+    paintPos();
   }, 250);
 
   /* 码失效（对方页面关了 / App 重启过 / 30 分钟没人用）：把话说清楚，
@@ -876,7 +913,8 @@
         if (d) render(d);
       })
       .catch(function () {})
-      .then(function () { setTimeout(tick, 900); });
+      // 播放中 500ms 一轮，其它页面 900ms：进度条要跟得上画面，首页发呆时没必要那么勤
+      .then(function () { setTimeout(tick, (curState && curState.playing) ? 500 : 900); });
   }
   tick();
 })();

@@ -38,6 +38,11 @@ object RemoteSession {
         @Volatile var sub = ""
         @Volatile var playing = false
         @Volatile var pos = 0
+        /** 毫秒精度的播放位置：整秒上报在遥控页上就是一跳一跳，插值再准也追不上 */
+        @Volatile var posMs = 0L
+        /** 这条位置是**什么时候**收到的（服务端时刻）。遥控页把它加回去，
+         *  才不会被「上报间隔」白吃掉一两秒——以前进度条长期慢半拍就是这个原因 */
+        @Volatile var posAt = 0L
         @Volatile var dur = 0
         @Volatile var page = ""
         /** 选集：`当前集|第1集|第2集…`，遥控器上直接点 */
@@ -148,7 +153,13 @@ object RemoteSession {
         if (body.has("title")) s.title = body.optString("title").take(120)
         if (body.has("sub")) s.sub = body.optString("sub").take(60)
         if (body.has("playing")) s.playing = body.optBoolean("playing")
-        if (body.has("pos")) s.pos = body.optInt("pos")
+        if (body.has("pos") || body.has("posms")) {
+            // 毫秒优先；老版本被控页只发整秒 pos，就按秒换算，照样能用
+            val ms = if (body.has("posms")) body.optLong("posms", -1L) else -1L
+            s.posMs = if (ms >= 0) ms.coerceAtLeast(0L) else body.optInt("pos", 0).toLong() * 1000L
+            s.pos = ((s.posMs + 500L) / 1000L).toInt()
+            s.posAt = System.currentTimeMillis()
+        }
         if (body.has("dur")) s.dur = body.optInt("dur")
         if (body.has("page")) s.page = body.optString("page").take(200)
         // 选集别按字数硬砍：长剧（60+ 集）砍掉之后遥控器上就只剩前几十集
@@ -191,22 +202,29 @@ object RemoteSession {
             .toString()
     }
 
-    private fun stateOf(s: Session): JSONObject = JSONObject()
-        .put("title", s.title)
-        .put("sub", s.sub)
-        .put("playing", s.playing)
-        .put("pos", s.pos)
-        .put("dur", s.dur)
-        .put("page", s.page)
-        .put("eps", s.eps)
-        .put("lines", s.lines)
-        .put("vol", s.vol)
-        .put("volSys", s.volSys)
-        .put("bright", s.bright)
-        .put("brDim", s.brDim)
-        .put("rate", s.rate)
-        .put("muted", s.muted)
-        .put("fs", s.fs)
+    private fun stateOf(s: Session): JSONObject {
+        val now = System.currentTimeMillis()
+        return JSONObject()
+            .put("title", s.title)
+            .put("sub", s.sub)
+            .put("playing", s.playing)
+            .put("pos", s.pos)
+            // 毫秒位置 + 「这条位置在服务端躺了多久」。遥控页把 posAge 加回去，
+            // 进度条才不会恒定慢「上报间隔 + 轮询间隔」那一两秒。
+            .put("posMs", s.posMs)
+            .put("posAge", if (s.posAt > 0) (now - s.posAt).coerceIn(0L, 8000L) else 0L)
+            .put("dur", s.dur)
+            .put("page", s.page)
+            .put("eps", s.eps)
+            .put("lines", s.lines)
+            .put("vol", s.vol)
+            .put("volSys", s.volSys)
+            .put("bright", s.bright)
+            .put("brDim", s.brDim)
+            .put("rate", s.rate)
+            .put("muted", s.muted)
+            .put("fs", s.fs)
+    }
 
     private fun liveCtls(s: Session): Int {
         val now = System.currentTimeMillis()

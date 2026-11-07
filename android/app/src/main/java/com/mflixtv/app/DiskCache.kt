@@ -54,14 +54,26 @@ object DiskCache {
         val f = File(d, name(url))
         if (!f.exists()) return null
         return try {
-            val all = f.readBytes()
-            val nl = all.indexOf('\n'.code.toByte())
-            if (nl <= 0 || nl > 64) return null
-            val type = String(all, 0, nl, Charsets.UTF_8)
-            val body = all.copyOfRange(nl + 1, all.size)
-            // 触碰一下 mtime，让「最近看过的」排在后面不被淘汰
-            f.setLastModified(System.currentTimeMillis())
-            body to type
+            // 以前是 readBytes() 读整个文件，再 copyOfRange 复制一份正文：
+            // 一张 2MB 的封面会瞬时吃掉 4MB，首页二十张并发就是 80MB 的垃圾，
+            // 全喂给 GC。改成「先读头拿到类型，再按长度精确申请一次正文」。
+            java.io.RandomAccessFile(f, "r").use { raf ->
+                val len = raf.length()
+                if (len < 2) return null
+                val head = ByteArray(minOf(64L, len).toInt())
+                raf.readFully(head)
+                val nl = head.indexOf('\n'.code.toByte())
+                if (nl <= 0 || nl > 64) return null
+                val type = String(head, 0, nl, Charsets.UTF_8)
+                val bodyLen = (len - nl - 1L).toInt()
+                if (bodyLen <= 0) return null
+                val body = ByteArray(bodyLen)
+                raf.seek(nl + 1L)
+                raf.readFully(body)
+                // 触碰一下 mtime，让「最近看过的」排在后面不被淘汰
+                f.setLastModified(System.currentTimeMillis())
+                body to type
+            }
         } catch (_: Throwable) {
             null
         }

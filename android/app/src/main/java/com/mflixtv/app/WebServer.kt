@@ -41,10 +41,61 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             DiskCache.init(ctx)
         } catch (_: Throwable) {
         }
+        // 有界线程池。NanoHTTPD 默认「每个请求起一条新线程、没有上限」：
+        // 采集站一慢，代理请求就卡在上游 readTimeout 那 25 秒里不走，线程一路堆。
+        // Shield TV 上实测过 99 条线程、Java 堆 231MB/245MB 占满、HeapTaskDaemon 15%、
+        // 1900 万次缺页——CPU 全烧在 GC 和线程切换上，画面就掉帧。
+        // 封顶 48 条（播放时 hls.js 一次最多六七个分片，加上封面并发，48 条绰绰有余），
+        // 多的排队，宁可慢一点也不能把整台机器的 CPU 拖垮。
+        try {
+            val pool = java.util.concurrent.ThreadPoolExecutor(
+                6,
+                48,
+                30L,
+                java.util.concurrent.TimeUnit.SECONDS,
+                java.util.concurrent.LinkedBlockingQueue(96),
+                java.util.concurrent.ThreadFactory { r ->
+                    Thread(r, "mfl-http").apply { isDaemon = true }
+                }
+            )
+            // 队列也满时：由调用线程自己跑，绝不悄悄丢请求（丢了就是「播着播着卡死」）
+            pool.rejectedExecutionHandler =
+                java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy()
+            setAsyncRunner(PoolRunner(pool))
+        } catch (_: Throwable) {
+        }
+    }
+
+    /** NanoHTTPD 的 AsyncRunner：把「每请求一条新线程」换成有界线程池 */
+    private class PoolRunner(
+        private val pool: java.util.concurrent.ThreadPoolExecutor
+    ) : NanoHTTPD.AsyncRunner {
+        override fun closeAll() {
+            try {
+                pool.shutdownNow()
+            } catch (_: Throwable) {
+            }
+        }
+
+        override fun closed(clientHandler: NanoHTTPD.ClientHandler?) {
+        }
+
+        override fun exec(code: NanoHTTPD.ClientHandler?) {
+            if (code == null) return
+            try {
+                pool.execute { code.run() }
+            } catch (_: Throwable) {
+                // 池都拒了就直接在当前线程跑完，宁可慢一点也不能不回包
+                try {
+                    code.run()
+                } catch (_: Throwable) {
+                }
+            }
+        }
     }
 
     companion object {
-        const val VERSION = "android-1.4"
+        const val VERSION = "android-1.5"
     }
 
     /** 跨源线路缓存：name|src|id -> (json, 时间)。同一部片来回看不用重复拉。 */
@@ -67,6 +118,20 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
 
     /** 首页 hero 推荐缓存：like|type -> (json, 时间)。 */
     private val heroCache = ConcurrentHashMap<String, Pair<String, Long>>()
+
+    /**
+     * 写 hero 缓存。以前是直接 put，没有上限：电视版首页轮播一部接一部地换片，
+     * 每换一部就多一条几十 KB 的 JSON，一路涨到堆里——这也是 GC 停不下来的来源之一。
+     * 现在最多留 60 条，超了先扔掉过期的，还超就直接清空重来（反正能重新拉）。
+     */
+    private fun putHero(key: String, body: String) {
+        if (heroCache.size >= 120) heroCache.clear()
+        else if (heroCache.size >= 60) {
+            val cut = System.currentTimeMillis() - 10 * 60 * 1000L
+            heroCache.entries.removeIf { it.value.second < cut }
+        }
+        heroCache[key] = body to System.currentTimeMillis()
+    }
 
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri ?: "/"
@@ -115,7 +180,7 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                         json(hit.first)
                     } else {
                         val body = Sources.hero(name, type)
-                        heroCache[ck] = body to System.currentTimeMillis()
+                        putHero(ck, body)
                         json(body)
                     }
                 }
@@ -293,6 +358,8 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
         p["sub"]?.firstOrNull()?.let { o.put("sub", it) }
         p["playing"]?.firstOrNull()?.let { o.put("playing", it == "1") }
         p["pos"]?.firstOrNull()?.let { o.put("pos", it.toIntOrNull() ?: 0) }
+        // 毫秒位置：整秒上报在遥控页上就是一跳一跳，插值再准也追不上
+        p["posms"]?.firstOrNull()?.let { o.put("posms", it.toLongOrNull() ?: 0L) }
         p["dur"]?.firstOrNull()?.let { o.put("dur", it.toIntOrNull() ?: 0) }
         p["page"]?.firstOrNull()?.let { o.put("page", it) }
         p["eps"]?.firstOrNull()?.let { o.put("eps", it) }
@@ -829,9 +896,9 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             // 不认上游的类型：采集站常把 webp/jpg 标成 octet-stream 甚至 text/plain，
             // 按扩展名兜底照样缓存，否则这些图每次都要重下
             if (imgKey != null && code in 200..299 && (declared == null || declared in 1L..CACHE_IMG_MAX)) {
-                val bytes = stream.readBytes()
+                val bytes = if (declared != null) readExactly(stream, declared.toInt()) else stream.readBytes()
                 stream.close()
-                if (bytes.isNotEmpty()) {
+                if (bytes != null && bytes.isNotEmpty()) {
                     val itype = if (contentType.startsWith("image/")) contentType else mediaType(target, contentType)
                     MediaCache.put(imgKey, bytes, itype, IMG_TTL)
                     DiskCache.put(target, bytes, itype)
@@ -842,12 +909,11 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             // 小分片先整段读完、落一份再发：这一段的读取本来就得读满，
             // 顺序读进内存不会更慢，下一次（拖动/回看/换集回来）就是本地秒出
             if (segKey != null && code in 200..299 && declared != null && declared in 1L..CACHE_SEG_MAX) {
-                val bytes = stream.readBytes()
+                val bytes = readExactly(stream, declared.toInt())
                 stream.close()
-                if (bytes.isNotEmpty()) {
-                    MediaCache.put(segKey, bytes, segType, SEG_TTL)
-                    return segResponse(target, segType, bytes)
-                }
+                if (bytes == null) return json("{\"error\":\"short read\"}")
+                MediaCache.put(segKey, bytes, segType, SEG_TTL)
+                return segResponse(target, segType, bytes)
             }
 
             val resp = if (declared != null && declared > 0) {
@@ -865,6 +931,27 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
             // 真实取流结束：预热的「空闲才预取」靠这个计数判断
             if (media) segBusy.decrementAndGet()
         }
+    }
+
+    /**
+     * 按已知长度一次读满。Kotlin 的 readBytes() 不知道长度，会从 8KB 起反复扩容拷贝，
+     * 一个 4MB 分片路上要多分配十来 MB 的垃圾——播放时每几秒来一段，堆就被这些副本撑爆了。
+     * 长度由上游 Content-Length 给定时，一次申请正好，读不满返回 null（调用方当失败处理）。
+     */
+    private fun readExactly(ins: java.io.InputStream, size: Int): ByteArray? {
+        if (size <= 0) return null
+        val buf = ByteArray(size)
+        var got = 0
+        while (got < size) {
+            val n = try {
+                ins.read(buf, got, size - got)
+            } catch (_: Throwable) {
+                -1
+            }
+            if (n <= 0) break
+            got += n
+        }
+        return if (got == size) buf else null
     }
 
     private fun looksManifest(url: String): Boolean = url.contains("m3u8", true)

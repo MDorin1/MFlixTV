@@ -198,6 +198,8 @@
     text-shadow:0 .3rem 1.8rem rgba(0,0,0,.85)}
   .dt-meta{display:flex;gap:.8rem;align-items:center;font-size:1.32rem;color:#cdcdcd;margin-bottom:.8rem;flex-wrap:wrap}
   .dt-meta .dot{width:.22rem;height:.22rem;border-radius:50%;background:#767676}
+  /* 「熟肉」只在境外内容上出现，给它一点颜色，一眼能认出来 */
+  .dt-meta .su{color:#ff5a5f;font-weight:800;letter-spacing:.02em}
   .dt-desc{font-size:1.35rem;line-height:1.62;color:#bdbdbd;margin:0 0 1.2rem;max-width:52rem;
     display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   .dt-btns{display:flex;gap:.7rem;margin-bottom:2rem}
@@ -1411,6 +1413,8 @@
   var S = {
     heroList: [], heroAt: -1, heroTimer: null, heroCur: null,
     rows: [], title: '', src: '', vodId: '', groups: [], group: 0, eps: [], ep: 0,
+    /* 影片地区（大陆 / 韩国 / 美国…）：只用来决定要不要标「熟肉」，国产片不标 */
+    area: '',
     detailItem: null,
   };
 
@@ -2002,8 +2006,8 @@
     }
     showView('detail');
     $('dtTitle').textContent = it.name || '—';
-    $('dtMeta').innerHTML = [it.typeName, it.year, it.area, it.remarks, it.srcName]
-      .filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('<span class="dot"></span>');
+    S.area = it.area || '';
+    paintMeta(it);
     $('dtDesc').textContent = it.content || '正在取简介…';
     $('dtBg').style.backgroundImage = bgURL(it.pic);
     $('dtLines').innerHTML = '';
@@ -2021,8 +2025,8 @@
         if (d.name) { S.title = d.name; $('dtTitle').textContent = d.name; }
         if (d.content) $('dtDesc').textContent = d.content;
         if (d.pic) $('dtBg').style.backgroundImage = bgURL(d.pic);
-        $('dtMeta').innerHTML = [d.typeName, d.year, d.area, d.remarks, d.srcName]
-          .filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('<span class="dot"></span>');
+        S.area = d.area || S.area || '';
+        paintMeta(d);
         S.groups = d.groups || [];
         S.ep = 0;
         var sp = resumeSpot(S.groups);
@@ -2047,11 +2051,36 @@
 
   /* 采集站的线路名多是 lzm3u8 / ffm3u8 这类技术标识，电视上直接显示很难看：
      技术名统一换成「线路 N」，跨源补上源名（和手机端同一套规则） */
+
+  /* 字幕标注：境外片库基本都带中文字幕，所以给它们标「熟肉」；
+     国产剧当然不需要标。判断不了（地区字段空着或没见过）就一律不标，
+     绝不把国产片打成「熟肉」。 */
+  var CN_AREA = /大陆|内地|中国|国产|香港|台湾|澳门|港台|华语/;
+  var FOREIGN_AREA = /韩国|日本|美国|英国|法国|德国|意大利|西班牙|葡萄牙|俄罗斯|乌克兰|白俄|泰国|印度|澳大利亚|新西兰|加拿大|巴西|墨西哥|阿根廷|智利|秘鲁|哥伦比亚|土耳其|以色列|伊朗|埃及|南非|瑞典|挪威|丹麦|芬兰|荷兰|比利时|奥地利|波兰|捷克|匈牙利|希腊|瑞士|爱尔兰|冰岛|新加坡|马来西亚|越南|菲律宾|印度尼西亚|印尼|柬埔寨|缅甸|老挝|蒙古|哈萨克|欧美|日韩|海外/;
+  function subTag(area) {
+    var a = String(area || '').trim();
+    if (!a) return '';
+    if (CN_AREA.test(a)) return '';
+    return FOREIGN_AREA.test(a) ? '熟肉' : '';
+  }
+
   function grpLabel(g, i) {
     var n = (g && g.name) || '';
     var base = (!n || /m3u8|mp4|^[a-z0-9_\-]+$/i.test(n)) ? ('线路 ' + (i + 1)) : n;
     var s = (g && g.srcName) ? String(g.srcName) : '';
-    return s ? (base + ' · ' + s) : base;
+    var out = s ? (base + ' · ' + s) : base;
+    // 只有境外内容才把「熟肉」挂在源名后面，国产片不标
+    var tg = subTag(S.area);
+    return tg ? (out + ' · ' + tg) : out;
+  }
+
+  /* 详情页那行元信息：类型 · 年份 · 地区 · 备注 · 源名，境外内容末尾再补「熟肉」 */
+  function paintMeta(obj) {
+    var parts = [obj.typeName, obj.year, obj.area, obj.remarks, obj.srcName]
+      .filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; });
+    var tg = subTag(obj.area);
+    if (tg) parts.push('<span class="su">' + tg + '</span>');
+    $('dtMeta').innerHTML = parts.join('<span class="dot"></span>');
   }
   function lineName(g) {
     var gs = S.groups || [];

@@ -16,8 +16,13 @@ object MediaCache {
 
     class Item(val bytes: ByteArray, val type: String, val exp: Long)
 
-    /** 内存上限：电视盒子的内存本来就不宽裕，28MB 够放清单 + 十来个分片 */
-    private const val MAX_BYTES = 28L * 1024 * 1024
+    /**
+     * 内存上限。以前是 28MB，和「每个请求都把 4MB 分片读进 ByteArray」叠在一起，
+     * 电视上 Java 堆能顶到 230MB/245MB，GC 就一直在跑。
+     * 现在收到 14MB：清单 + 三四个分片照样放得下，封面另有 300MB 磁盘缓存兜底，
+     * 播放流畅度不受影响，堆压力小一大截。
+     */
+    private const val MAX_BYTES = 14L * 1024 * 1024
 
     private var used = 0L
     private val map = object : LinkedHashMap<String, Item>(32, 0.75f, true) {

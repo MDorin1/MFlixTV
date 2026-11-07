@@ -26,15 +26,16 @@ object Sources {
         Src("modu", "魔都", "https://caiji.moduapi.cc/api.php/provide/vod"),
         Src("hhzy", "豪华", "https://hhzyapi.com/api.php/provide/vod"),
         Src("bfzy", "暴风", "https://bfzyapi.com/api.php/provide/vod"),
-        Src("lzi", "量子·熟肉", "https://cj.lziapi.com/api.php/provide/vod"),
+        Src("lzi", "量子", "https://cj.lziapi.com/api.php/provide/vod"),
         Src("wujin", "无尽", "https://api.wujinapi.me/api.php/provide/vod"),
         Src("ffzy", "非凡", "https://api.ffzyapi.com/api.php/provide/vod"),
         Src("zuid", "最大", "https://api.zuidapi.com/api.php/provide/vod"),
         // 海外向片库：日韩综艺 / 欧美综艺更新最快的一批。
-        // 后缀「熟肉」＝带中文字幕（抽帧实测确认），「生肉」＝无字幕原片。
-        Src("sony", "索尼·熟肉", "https://suoniapi.com/api.php/provide/vod"),
-        Src("tyys", "天涯·熟肉", "https://tyyszy.com/api.php/provide/vod"),
-        Src("dytt", "电影天堂·熟肉", "https://caiji.dyttzyapi.com/api.php/provide/vod"),
+        // 字幕标注不写进源名了（国产剧也被打上「熟肉」是错的）：
+        // 改成详情页 / 播放页按影片地区判断，只有境外内容才显示「熟肉」。
+        Src("sony", "索尼", "https://suoniapi.com/api.php/provide/vod"),
+        Src("tyys", "天涯", "https://tyyszy.com/api.php/provide/vod"),
+        Src("dytt", "电影天堂", "https://caiji.dyttzyapi.com/api.php/provide/vod"),
         // 下面是备选：有些地区前几个会被拦，多几个能提高命中；自检不通的可以一键删掉
         Src("wolong", "卧龙", "https://wolongzyw.com/api.php/provide/vod"),
         Src("rycj", "如意", "https://cj.rycjapi.com/api.php/provide/vod"),
@@ -50,11 +51,12 @@ object Sources {
     private const val KEY_BUILTIN_VER = "sources_builtin_ver"
 
     /**
-     * 出厂源版本号。每次往 [BUILTIN] 里加源就 +1：
-     * 升级时把新内置源补进用户已存的列表（并刷新同名源的显示名，比如补上「熟肉」标注），
+     * 出厂源版本号。每次往 [BUILTIN] 里加源、或改了源名就 +1：
+     * 升级时把新内置源补进用户已存的列表，并按 base 刷新同名源的显示名
+     * （1.4 里那批「量子·熟肉」就是靠这里改回「量子」的），
      * 用户自己加的源与增删顺序都不动。
      */
-    private const val BUILTIN_VER = 2
+    private const val BUILTIN_VER = 3
 
     @Volatile private var sp: android.content.SharedPreferences? = null
     @Volatile private var current: List<Src>? = null

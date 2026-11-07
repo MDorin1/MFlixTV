@@ -195,6 +195,14 @@
     forceAt: 0,
     /* 状态上报是否还在飞：飞着就不再叠一条，避免断网时请求越堆越多 */
     stateBusy: false,
+    /* 上面那条是什么时候发出去的。万一 fetch 既没回也没报错（连接被掐在半路、
+       服务端线程池排队），stateBusy 会永远卡在 true，之后每一条上报都被丢掉——
+       遥控页的进度条就此冻住不动。记时间，超过 3 秒强制放行一次。 */
+    stateSentAt: 0,
+    /* 上一次**成功发出去**的选集 / 线路列表：没变就不再塞进 URL
+       （一部 60 集的剧，那份列表编码后好几万字符） */
+    sentEps: '',
+    sentLines: '',
     /* 连续失败次数：断网时用来退避 */
     fails: 0,
     /* 刚从 sessionStorage 接手会话：第一条回执只对齐序号，不回放旧指令 */
@@ -308,8 +316,10 @@
   var WAIT_MS = 700;
   /* 两轮之间的间隔：长轮询自己承担了节奏 */
   var POLL_MS = 60;
-  /* 状态上报的间隔：遥控器那边的进度条 / 音量 / 倍速靠它刷新 */
-  var STATE_MS = 700;
+  /* 状态上报的间隔。以前 700ms，再加长轮询本身的节奏，遥控页拿到的位置最多差 1.5 秒，
+     插值再平滑也只是「平滑地慢」。收到 450ms，配合服务端下发的 posAge 补偿，
+     遥控页进度条才真的跟着画面走。 */
+  var STATE_MS = 450;
   /* 连续失败时的退避上限：断网时不打满速空转，恢复后一成功就回到 POLL_MS */
   var FAIL_MAX_MS = 1500;
 
@@ -763,9 +773,15 @@
     }
     // 上一发还没回来：这一轮直接放弃。上报只是锦上添花，
     // 断网时若排队等它，整条指令长轮询会被一起拖死。
-    if (S.stateBusy) return;
+    // 但「没回来」不能是永久状态：超过 3 秒就当它死了，放行这一轮，
+    // 否则一次网络打嗝就能让遥控页的进度条停到用户重开页面为止。
+    if (S.stateBusy) {
+      if (now - S.stateSentAt < 3000) { S.stateAt = 0; return; }
+      S.stateBusy = false;
+    }
     S.stateAt = now;
     S.stateBusy = true;
+    S.stateSentAt = now;
     var h = S.hooks || {};
     var v = pickVideo();
     var name = '';
@@ -781,6 +797,8 @@
       '&sub=' + encodeURIComponent(sb.slice(0, 60)) +
       '&playing=' + (v && !v.paused && !v.ended ? '1' : '0') +
       '&pos=' + (v && isFinite(v.currentTime) ? Math.round(v.currentTime) : 0) +
+      // 毫秒位置。以前只发整秒，小数被掐掉，遥控页怎么插值都差半秒起步
+      '&posms=' + (v && isFinite(v.currentTime) ? Math.round(v.currentTime * 1000) : 0) +
       '&dur=' + (v && isFinite(v.duration) ? Math.round(v.duration) : 0) +
       '&page=' + encodeURIComponent(pg.slice(0, 200)) +
       // 音量 / 亮度：安卓上调的是系统音量与屏幕亮度，浏览器版退成播放器与画面亮度，
@@ -802,10 +820,20 @@
       S.lastEps = L ? packList(L.eps, L.ep, 6000) : '';
       S.lastLines = L ? packList(L.lines, L.ln, 2000) : '';
     }
-    // 空串也要发：离开播放器后遥控器上不能再留着上一部的集数
-    qs += '&eps=' + encodeURIComponent(S.lastEps) + '&lines=' + encodeURIComponent(S.lastLines);
+    /* 选集 / 线路只在**变了**的时候才带上：一部 60 集的剧，这份列表编码后有好几万字符，
+       每 450ms 塞一次纯属浪费，URL 长了还会被某些中间层截断，连进度一起丢。
+       没变就不带，服务端保留上一次的值；离开播放器时 lastEps 变成空串，
+       与 sentEps 不同，照样会发出去把遥控器上残留的集数清掉。 */
+    var needEps = S.lastEps !== S.sentEps;
+    var needLines = S.lastLines !== S.sentLines;
+    var epsNow = S.lastEps, linesNow = S.lastLines;
+    if (needEps) qs += '&eps=' + encodeURIComponent(epsNow);
+    if (needLines) qs += '&lines=' + encodeURIComponent(linesNow);
     fetch('/api/rs/state?' + qs, { cache: 'no-store' }).then(function () {
       S.stateBusy = false;
+      // 只有真的发成功了才记成「已同步」，发失败下一轮自动补
+      if (needEps) S.sentEps = epsNow;
+      if (needLines) S.sentLines = linesNow;
     }, function () {
       S.stateBusy = false;
     });
@@ -885,6 +913,15 @@
     });
     root.addEventListener('pageshow', function () {
       if (S.token && !S.timer) tick();
+    });
+    /* 拖进度条 / 切集 / 暂停 / 换倍速：遥控页必须**立刻**看到，
+       不能等下一次 450ms 的心跳（那半秒里用户会以为没生效，再按一次）。
+       挂在 document 的捕获阶段：切集时页面会重建 <video>，这样不用重新绑定。
+       reportState(true) 自己有 200ms 节流，连点时不会打成洪水。 */
+    ['seeked', 'play', 'pause', 'ratechange', 'ended', 'loadedmetadata'].forEach(function (ev) {
+      document.addEventListener(ev, function () {
+        try { reportState(true); } catch (e) {}
+      }, true);
     });
     // 刷新 / 重新进入这个页面：把上次那个会话码接回来。
     // 不接的话，手机上已经连着的遥控器会在页面一重载之后彻底失灵
