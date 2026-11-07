@@ -26,6 +26,8 @@
   /* ============ MFlixTV 电视版 · 10 英尺界面 ============
      基准 1920×1080：html 字号 = 视口宽 /96（1rem ≈ 20px @1080p），
      720p / 4K 自动等比，不用为分辨率另写一套。
+     2026-11 用户反馈整屏文字偏小（沙发距离看不清）：所有 font-size 统一 ×1.5，
+     但根字号与间距/盒子尺寸不动 —— 只把字放大，版面不会因为整体缩放而少一排卡片。
      交互全部遥控器方向键：.fx 为可聚焦元素，几何导航 + Netflix 式焦点联动。 */
   :root{
     --red:#e50914; --red2:#ff4d57;
@@ -51,17 +53,17 @@
     transition:background .3s linear}
   #nav.solid{background:rgba(8,8,8,.98)}
   #nav.up{background:rgba(8,8,8,.98)}
-  .logo{font-size:1.5rem;font-weight:900;letter-spacing:.04em;color:var(--red);
+  .logo{font-size:2.25rem;font-weight:900;letter-spacing:.04em;color:var(--red);
     text-shadow:0 .1rem 1.5rem rgba(229,9,20,.5);white-space:nowrap;line-height:1}
   #navItems{display:flex;align-items:center;gap:.15rem;flex:1}
-  .nv{font-size:1rem;font-weight:700;color:#b9b9b9;padding:.42rem .95rem;border-radius:.4rem;white-space:nowrap;
+  .nv{font-size:1.5rem;font-weight:700;color:#b9b9b9;padding:.42rem .95rem;border-radius:.4rem;white-space:nowrap;
     letter-spacing:.01em}
   .nv.active{color:#fff}
   .nv.fx.on{background:#fff;color:#111;transform:none;box-shadow:0 0 .9rem rgba(255,255,255,.35)}
   #navr{display:flex;align-items:center;gap:1rem}
-  #clock{font-size:.8rem;color:#8c8c8c;font-variant-numeric:tabular-nums}
+  #clock{font-size:1.2rem;color:#8c8c8c;font-variant-numeric:tabular-nums}
   /* 右上角「手机访问 192.168.x.x:8081」：让局域网地址一眼可见 */
-  #lanip{display:flex;align-items:center;gap:.32rem;font-size:.78rem;color:#8f8f8f;
+  #lanip{display:flex;align-items:center;gap:.32rem;font-size:1.17rem;color:#8f8f8f;
     white-space:nowrap;letter-spacing:.02em;font-variant-numeric:tabular-nums;
     padding:.2rem .6rem;border-radius:999px;background:rgba(255,255,255,.05)}
   #lanip b{color:#ededed;font-weight:800}
@@ -83,18 +85,18 @@
     opacity:0;transition:opacity .45s linear}
   .hero-poster.on{opacity:1}
   .hero-poster img{width:100%;height:100%;object-fit:cover}
-  .hero-tag{display:inline-block;font-size:.68rem;font-weight:900;letter-spacing:.2em;
+  .hero-tag{display:inline-block;font-size:1.02rem;font-weight:900;letter-spacing:.2em;
     color:#fff;background:linear-gradient(135deg,var(--red),var(--red2));
     padding:.22rem .62rem;border-radius:.22rem;margin-bottom:.85rem}
-  #heroTitle{margin:0 0 .65rem;font-size:3rem;line-height:1.04;font-weight:900;letter-spacing:-.015em;
+  #heroTitle{margin:0 0 .65rem;font-size:4.5rem;line-height:1.04;font-weight:900;letter-spacing:-.015em;
     text-shadow:0 .35rem 1.8rem rgba(0,0,0,.9)}
-  .hero-meta{display:flex;align-items:center;gap:.75rem;font-size:.9rem;color:#d5d5d5;margin-bottom:.65rem}
+  .hero-meta{display:flex;align-items:center;gap:.75rem;font-size:1.35rem;color:#d5d5d5;margin-bottom:.65rem}
   .hero-meta .dot{width:.24rem;height:.24rem;border-radius:50%;background:#7b7b7b}
   .hero-meta b{color:var(--red2);font-weight:800}
-  .hero-desc{font-size:.92rem;line-height:1.55;color:#c4c4c4;margin:0 0 1.2rem;
+  .hero-desc{font-size:1.38rem;line-height:1.55;color:#c4c4c4;margin:0 0 1.2rem;
     display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .hero-btns{display:flex;gap:.8rem}
-  .btn{display:flex;align-items:center;gap:.45rem;font-size:.95rem;font-weight:800;
+  .btn{display:flex;align-items:center;gap:.45rem;font-size:1.425rem;font-weight:800;
     padding:.72rem 1.4rem;border-radius:.4rem;background:rgba(80,80,80,.55);color:#fff}
   .btn.primary{background:#fff;color:#111}
   /* 详情页「我的列表」：已加入时高亮，一眼看出当前状态 */
@@ -108,8 +110,8 @@
   #rails{padding:0 0 4rem;position:relative;z-index:4;margin-top:1.1rem}
   .rail{margin:0 0 2rem}
   .rail-h{display:flex;align-items:baseline;gap:.7rem;padding:0 4rem .2rem}
-  .rail-h .t{font-size:1.2rem;font-weight:800;letter-spacing:.005em}
-  .rail-h .s{font-size:.74rem;color:var(--dim2)}
+  .rail-h .t{font-size:1.8rem;font-weight:800;letter-spacing:.005em}
+  .rail-h .s{font-size:1.11rem;color:var(--dim2)}
   /* padding-top 必须留够：焦点卡会 scale(1.16) 再上移 .35rem，纵向约溢出 1.5rem，
      而 overflow-y 必须是 hidden（否则横向滚动时会冒出纵向滚动条），不给足就被切顶。 */
   .strip{display:flex;gap:.75rem;padding:1.7rem 4rem 1.25rem;overflow-x:auto;overflow-y:hidden;
@@ -122,10 +124,10 @@
   /* 片名压在海报底部：浅色封面也必须看得清（硬要求） */
   .card .shade{position:absolute;left:0;right:0;bottom:0;height:56%;
     background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.66) 44%,rgba(0,0,0,.93))}
-  .card .name{position:absolute;left:.45rem;right:.45rem;bottom:.38rem;font-size:.82rem;font-weight:800;
+  .card .name{position:absolute;left:.45rem;right:.45rem;bottom:.38rem;font-size:1.23rem;font-weight:800;
     line-height:1.26;color:#fff;text-shadow:0 .1rem .5rem rgba(0,0,0,.95);
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .card .tag{position:absolute;left:.35rem;top:.35rem;font-size:.58rem;font-weight:900;color:#fff;
+  .card .tag{position:absolute;left:.35rem;top:.35rem;font-size:0.87rem;font-weight:900;color:#fff;
     background:rgba(0,0,0,.66);padding:.12rem .34rem;border-radius:.2rem}
   /* ---- 继续观看 / 我的列表（本机记录行）---- */
   /* 海报最底一条红色进度：一眼看出看到哪了 */
@@ -134,10 +136,10 @@
   .card .prog i{display:block;height:100%;min-width:3px;background:var(--red);
     box-shadow:0 0 0 .04rem rgba(229,9,20,.45)}
   /* 右上角的集标：跟左上角 .tag 对称，不跟片名抢底部 */
-  .card .ep-tag{position:absolute;right:.35rem;top:.35rem;font-size:.56rem;font-weight:900;color:#f2f2f2;
+  .card .ep-tag{position:absolute;right:.35rem;top:.35rem;font-size:0.84rem;font-weight:900;color:#f2f2f2;
     background:rgba(0,0,0,.7);padding:.12rem .34rem;border-radius:.2rem;max-width:70%;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:4}
-  /* 「剩 23 分钟」压在片名上面一行 */  .card .resume{position:absolute;left:.45rem;right:.45rem;bottom:1.58rem;font-size:.58rem;font-weight:700;
+  /* 「剩 23 分钟」压在片名上面一行 */  .card .resume{position:absolute;left:.45rem;right:.45rem;bottom:1.58rem;font-size:0.87rem;font-weight:700;
     color:#c9c9c9;text-shadow:0 .08rem .4rem rgba(0,0,0,.95);z-index:4;letter-spacing:.01em;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* 记录卡片的片名只留一行：两行会跟剩余时长那行挤在一起 */
@@ -152,36 +154,36 @@
   .card.sk .poster{background:linear-gradient(100deg,#141414,#212121,#141414);background-size:220% 100%;
     animation:sk 1.25s linear infinite}
   @keyframes sk{0%{background-position:120% 0}100%{background-position:-40% 0}}
-  .rail-note{padding:.2rem 4rem 1rem;color:var(--dim2);font-size:.82rem}
+  .rail-note{padding:.2rem 4rem 1rem;color:var(--dim2);font-size:1.23rem}
 
   /* ---------- 搜索 ---------- */
   #search{padding:7.6rem 4rem 3rem;gap:3rem}
   #search.view.on{display:flex}      /* 注意：ID 上的 display 会盖掉 .view{display:none}，所以写成 .view.on */
   #search .left{width:34rem;flex:0 0 auto}
   .sc-in{min-height:3rem;border-radius:.4rem;border:1px solid var(--line);background:rgba(255,255,255,.07);
-    font-size:1.05rem;padding:.65rem 1rem;display:flex;align-items:center;letter-spacing:.05em;margin-bottom:1rem}
+    font-size:1.575rem;padding:.65rem 1rem;display:flex;align-items:center;letter-spacing:.05em;margin-bottom:1rem}
   .sc-in .ph{color:#6d6d6d;letter-spacing:0}
   .cur{display:inline-block;width:.11rem;height:1.25rem;background:var(--red2);margin-left:.12rem;
     animation:blk 1s steps(1) infinite}
   @keyframes blk{50%{opacity:0}}
   .kbd{display:grid;grid-template-columns:repeat(6,1fr);gap:.42rem}
-  .key{height:2.35rem;border-radius:.35rem;background:rgba(255,255,255,.08);font-size:.94rem;font-weight:800;
+  .key{height:2.35rem;border-radius:.35rem;background:rgba(255,255,255,.08);font-size:1.41rem;font-weight:800;
     display:flex;align-items:center;justify-content:center}
   .key.fx.on{background:#fff;color:#111;transform:scale(1.04);box-shadow:0 0 0 .1rem #fff}
   .sc-acts{display:flex;gap:.6rem;margin-top:.9rem}
-  .pb{font-size:.86rem;font-weight:800;padding:.5rem 1rem;border-radius:.35rem;background:rgba(255,255,255,.12)}
+  .pb{font-size:1.29rem;font-weight:800;padding:.5rem 1rem;border-radius:.35rem;background:rgba(255,255,255,.12)}
   .pb.primary{background:linear-gradient(135deg,var(--red),var(--red2))}
   .pb.fx.on{background:#fff;color:#111;transform:scale(1.04);box-shadow:0 0 0 .1rem #fff}
   #search .right{flex:1;min-width:0}
-  .sub-h{font-size:.86rem;color:#c9c9c9;font-weight:900;letter-spacing:.12em;margin-bottom:.8rem}
+  .sub-h{font-size:1.29rem;color:#c9c9c9;font-weight:900;letter-spacing:.12em;margin-bottom:.8rem}
   .sres{display:grid;grid-template-columns:repeat(auto-fill,minmax(9.2rem,1fr));gap:1.1rem .9rem;
     margin-top:2.6rem}   /* 焦点卡放大后向上溢出约 52px，标题不能被它盖住 */
   .sres .card{width:100%}
   .hot{display:flex;flex-wrap:wrap;gap:.55rem}
-  .hot .chip{font-size:.85rem;font-weight:700;padding:.42rem .9rem;border-radius:.35rem;background:rgba(255,255,255,.09)}
+  .hot .chip{font-size:1.275rem;font-weight:700;padding:.42rem .9rem;border-radius:.35rem;background:rgba(255,255,255,.09)}
   .hot .chip.fx.on{background:#fff;color:#111;transform:scale(1.05);box-shadow:0 0 0 .1rem #fff}
   .hot.off{display:none}
-  .hintline{color:var(--dim2);font-size:.82rem;margin-top:1rem}
+  .hintline{color:var(--dim2);font-size:1.23rem;margin-top:1rem}
 
   /* ---------- 详情（Netflix 剧集页：满屏大图 + 剧集横排） ---------- */
   #detail{position:relative;min-height:100vh;padding-bottom:3rem}
@@ -192,19 +194,19 @@
     background:linear-gradient(90deg,rgba(0,0,0,.96) 0%,rgba(0,0,0,.8) 42%,rgba(0,0,0,.42)),
       linear-gradient(180deg,rgba(0,0,0,.72),rgba(0,0,0,.25) 42%,#000 94%)}
   .dt-in{position:relative;z-index:2;padding:8.4rem 4rem 0}
-  #dtTitle{margin:0 0 .6rem;font-size:2.7rem;line-height:1.05;font-weight:900;max-width:60rem;
+  #dtTitle{margin:0 0 .6rem;font-size:4.05rem;line-height:1.05;font-weight:900;max-width:60rem;
     text-shadow:0 .3rem 1.8rem rgba(0,0,0,.85)}
-  .dt-meta{display:flex;gap:.8rem;align-items:center;font-size:.88rem;color:#cdcdcd;margin-bottom:.8rem;flex-wrap:wrap}
+  .dt-meta{display:flex;gap:.8rem;align-items:center;font-size:1.32rem;color:#cdcdcd;margin-bottom:.8rem;flex-wrap:wrap}
   .dt-meta .dot{width:.22rem;height:.22rem;border-radius:50%;background:#767676}
-  .dt-desc{font-size:.9rem;line-height:1.62;color:#bdbdbd;margin:0 0 1.2rem;max-width:52rem;
+  .dt-desc{font-size:1.35rem;line-height:1.62;color:#bdbdbd;margin:0 0 1.2rem;max-width:52rem;
     display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   .dt-btns{display:flex;gap:.7rem;margin-bottom:2rem}
   .dt-sec{margin:0 0 1.6rem;position:relative;z-index:2}
   .dt-h{display:flex;align-items:baseline;gap:.7rem;margin-bottom:.8rem;padding:0}
-  .dt-h .t{font-size:1.1rem;font-weight:800}
-  .dt-h .s{font-size:.74rem;color:var(--dim2)}
+  .dt-h .t{font-size:1.65rem;font-weight:800}
+  .dt-h .s{font-size:1.11rem;color:var(--dim2)}
   .chips{display:flex;gap:.5rem;flex-wrap:wrap;max-width:60rem}
-  .chip{font-size:.83rem;font-weight:700;padding:.4rem .9rem;border-radius:.35rem;
+  .chip{font-size:1.245rem;font-weight:700;padding:.4rem .9rem;border-radius:.35rem;
     background:rgba(255,255,255,.1);color:#ddd}
   .chip.on{background:#fff;color:#111}
   .chip.fx.on{transform:scale(1.05);box-shadow:0 0 0 .1rem #fff}
@@ -214,14 +216,14 @@
     background:#141414;box-shadow:0 .5rem 1.4rem rgba(0,0,0,.55)}
   .epc .th{position:relative;width:100%;aspect-ratio:16/9;background:#0f0f0f center/cover no-repeat;
     display:flex;align-items:center;justify-content:center}
-  .epc .th .num{font-size:1.6rem;font-weight:900;color:rgba(255,255,255,.9);
+  .epc .th .num{font-size:2.4rem;font-weight:900;color:rgba(255,255,255,.9);
     text-shadow:0 .2rem 1rem rgba(0,0,0,.9)}
   .epc .th .play{position:absolute;right:.45rem;bottom:.45rem;width:1.7rem;height:1.7rem;border-radius:50%;
     background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.35);display:flex;align-items:center;
-    justify-content:center;font-size:.7rem;color:#fff}
+    justify-content:center;font-size:1.05rem;color:#fff}
   .epc .bb{padding:.5rem .6rem .62rem}
-  .epc .bb .l{font-size:.85rem;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .epc .bb .d{font-size:.7rem;color:#8e8e8e;margin-top:.15rem}
+  .epc .bb .l{font-size:1.275rem;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .epc .bb .d{font-size:1.05rem;color:#8e8e8e;margin-top:.15rem}
   .epc.on{transform:scale(1.08);z-index:6;box-shadow:0 0 0 .11rem #fff,0 0 1.5rem rgba(229,9,20,.45)}
   .epstrip.focusing .epc{opacity:.55}
   .epstrip.focusing .epc.on{opacity:1}
@@ -236,8 +238,8 @@
   video::-webkit-media-controls,video::-webkit-media-controls-timeline{display:none !important}
   #ptopbar{position:absolute;left:0;right:0;top:0;z-index:5;padding:1.6rem 4rem 2.4rem;
     background:linear-gradient(180deg,rgba(0,0,0,.8),rgba(0,0,0,0));transition:opacity .25s linear}
-  #ptitle{font-size:1.15rem;font-weight:900;letter-spacing:.01em}
-  #psub{font-size:.78rem;color:#b9b9b9;margin-top:.25rem}
+  #ptitle{font-size:1.725rem;font-weight:900;letter-spacing:.01em}
+  #psub{font-size:1.17rem;color:#b9b9b9;margin-top:.25rem}
   #pbotbar{position:absolute;left:0;right:0;bottom:0;z-index:5;padding:2.6rem 4rem 1.9rem;
     background:linear-gradient(0deg,rgba(0,0,0,.92),rgba(0,0,0,.3) 62%,rgba(0,0,0,0));transition:opacity .25s linear}
   .hide{opacity:0;pointer-events:none}
@@ -245,7 +247,7 @@
   #played{height:100%;width:0;background:linear-gradient(90deg,var(--red),var(--red2));transition:width .2s linear}
   /* 拖动 / 快进快退时的时间气泡（图1 那种） */
   #tbub{position:absolute;bottom:2.05rem;left:0;transform:translateX(-50%);z-index:8;
-    background:rgba(0,0,0,.88);color:#fff;font-size:.76rem;font-weight:800;letter-spacing:.02em;
+    background:rgba(0,0,0,.88);color:#fff;font-size:1.14rem;font-weight:800;letter-spacing:.02em;
     padding:.2rem .55rem;border-radius:.32rem;font-variant-numeric:tabular-nums;white-space:nowrap;
     opacity:0;transition:opacity .12s linear;pointer-events:none;
     box-shadow:0 0 .6rem rgba(0,0,0,.6)}
@@ -253,58 +255,58 @@
   #track{cursor:pointer}
   /* 进度条的点击/拖动热区比那 2px 高得多，手指和鼠标都好按 */
   #track:after{content:'';position:absolute;left:0;right:0;top:-.75rem;bottom:-.75rem}
-  .ptime{display:flex;justify-content:space-between;font-size:.74rem;color:#cfcfcf;font-variant-numeric:tabular-nums}
+  .ptime{display:flex;justify-content:space-between;font-size:1.11rem;color:#cfcfcf;font-variant-numeric:tabular-nums}
   #pbtns{display:flex;align-items:center;gap:.55rem;margin-top:.9rem;flex-wrap:wrap}
   #eps-sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;background:rgba(6,6,6,.98);
     border-top:1px solid rgba(255,255,255,.1);padding:1.3rem 4rem 1.6rem;display:none}
   #eps-sheet.on{display:block}
-  #eps-sheet .hd{font-size:.74rem;color:var(--dim2);font-weight:900;letter-spacing:.16em;margin-bottom:.7rem}
+  #eps-sheet .hd{font-size:1.11rem;color:var(--dim2);font-weight:900;letter-spacing:.16em;margin-bottom:.7rem}
   #eps-sheet .grid{display:flex;flex-wrap:wrap;gap:.5rem;max-width:none}
   /* 倍速面板：和选集同一套皮，速度值比「点一下轮一个」好用得多 */
   #spd-sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;background:rgba(6,6,6,.98);
     border-top:1px solid rgba(255,255,255,.1);padding:1.3rem 4rem 1.6rem;display:none}
   #spd-sheet.on{display:block}
-  #spd-sheet .hd{font-size:.74rem;color:var(--dim2);font-weight:900;letter-spacing:.16em;margin-bottom:.7rem}
+  #spd-sheet .hd{font-size:1.11rem;color:var(--dim2);font-weight:900;letter-spacing:.16em;margin-bottom:.7rem}
   #spd-sheet .grid{display:flex;flex-wrap:wrap;gap:.5rem;max-width:none}
   #spd-sheet .sp{min-width:5rem;height:2.4rem;padding:0 .75rem;border-radius:.35rem;
-    background:rgba(255,255,255,.1);font-size:.86rem;font-weight:800;color:#e2e2e2;
+    background:rgba(255,255,255,.1);font-size:1.29rem;font-weight:800;color:#e2e2e2;
     display:flex;align-items:center;justify-content:center}
   #spd-sheet .sp.on{background:#fff;color:#111}
   #spd-sheet .sp.fx.on{box-shadow:0 0 0 .1rem #fff,0 0 1rem rgba(229,9,20,.5);transform:none}
   .ep{min-width:5rem;height:2.4rem;padding:0 .75rem;border-radius:.35rem;background:rgba(255,255,255,.1);
-    font-size:.82rem;font-weight:700;color:#e2e2e2;display:flex;align-items:center;justify-content:center}
+    font-size:1.23rem;font-weight:700;color:#e2e2e2;display:flex;align-items:center;justify-content:center}
   .ep.on{background:#fff;color:#111}
   .ep.fx.on{box-shadow:0 0 0 .1rem #fff,0 0 1rem rgba(229,9,20,.5);transform:none}
   #pmsg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9;display:none;
-    text-align:center;font-size:.95rem;color:#ffd9d9;line-height:1.6;max-width:70%}
+    text-align:center;font-size:1.425rem;color:#ffd9d9;line-height:1.6;max-width:70%}
   #pmsg.on{display:block}
   #pbig{position:absolute;left:50%;top:50%;z-index:8;opacity:0;pointer-events:none;
     width:5rem;height:5rem;border-radius:50%;background:rgba(0,0,0,.5);
-    display:flex;align-items:center;justify-content:center;font-size:1.5rem;
+    display:flex;align-items:center;justify-content:center;font-size:2.25rem;
     transform:translate(-50%,-50%) scale(.85);transition:opacity .2s linear,transform .2s var(--ease)}
   #pbig.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
   #pbrand{position:absolute;top:0;right:0;bottom:0;left:0;z-index:4;display:none;align-items:center;justify-content:center;
     flex-direction:column;background:#000}
   #pbrand.on{display:flex}
-  #pbrand .w{font-size:2.5rem;font-weight:900;color:var(--red);letter-spacing:.05em;
+  #pbrand .w{font-size:3.75rem;font-weight:900;color:var(--red);letter-spacing:.05em;
     text-shadow:0 .3rem 2rem rgba(229,9,20,.55)}
   #pbrand .b{width:3.2rem;height:.15rem;background:linear-gradient(90deg,var(--red),var(--red2));
     margin:.75rem 0 .55rem;border-radius:.1rem}
-  #pbrand .s{font-size:.66rem;letter-spacing:.34em;color:#8b8b8b}
+  #pbrand .s{font-size:0.99rem;letter-spacing:.34em;color:#8b8b8b}
   /* 下一集倒计时卡（Netflix 播完自动下一集那种） */
   #nx{position:absolute;right:4rem;bottom:9rem;z-index:8;width:26rem;background:rgba(10,10,10,.96);
     border:1px solid rgba(255,255,255,.14);border-radius:.5rem;padding:1rem 1.1rem;display:none;
     box-shadow:0 1.4rem 3rem rgba(0,0,0,.7)}
   #nx.on{display:block}
-  #nx .h{font-size:.68rem;letter-spacing:.16em;color:var(--dim2);font-weight:900}
-  #nx .t{font-size:1rem;font-weight:800;margin:.3rem 0 .15rem}
-  #nx .s{font-size:.76rem;color:#a9a9a9}
+  #nx .h{font-size:1.02rem;letter-spacing:.16em;color:var(--dim2);font-weight:900}
+  #nx .t{font-size:1.5rem;font-weight:800;margin:.3rem 0 .15rem}
+  #nx .s{font-size:1.14rem;color:#a9a9a9}
   #nx .r{display:flex;align-items:center;gap:.5rem;margin-top:.8rem}
-  #nx .cd{margin-left:auto;font-size:.8rem;color:var(--red2);font-weight:900;font-variant-numeric:tabular-nums}
+  #nx .cd{margin-left:auto;font-size:1.2rem;color:var(--red2);font-weight:900;font-variant-numeric:tabular-nums}
 
   #toast{position:fixed;left:50%;bottom:3.2rem;transform:translateX(-50%) translateY(.8rem);z-index:300;
     background:rgba(18,18,18,.96);border:1px solid rgba(255,255,255,.14);color:#fff;
-    font-size:.86rem;font-weight:700;padding:.62rem 1.2rem;border-radius:.4rem;opacity:0;
+    font-size:1.29rem;font-weight:700;padding:.62rem 1.2rem;border-radius:.4rem;opacity:0;
     transition:opacity .2s linear,transform .2s var(--ease);pointer-events:none;max-width:80vw;text-align:center}
   #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
@@ -312,20 +314,20 @@
   #boot{position:fixed;top:0;right:0;bottom:0;left:0;z-index:400;background:#000;display:flex;align-items:center;
     justify-content:center;flex-direction:column;gap:1rem;transition:opacity .4s linear}
   #boot.off{opacity:0;pointer-events:none}
-  #boot .w{font-size:2.6rem;font-weight:900;color:var(--red);letter-spacing:.05em}
+  #boot .w{font-size:3.9rem;font-weight:900;color:var(--red);letter-spacing:.05em}
   #boot .b{width:2.6rem;height:.14rem;background:linear-gradient(90deg,var(--red),var(--red2));border-radius:.1rem}
-  #boot .s{font-size:.66rem;letter-spacing:.32em;color:#7a7a7a}
+  #boot .s{font-size:0.99rem;letter-spacing:.32em;color:#7a7a7a}
   #boot .line{width:12rem;height:.14rem;background:#181818;border-radius:.1rem;overflow:hidden;margin-top:.4rem}
   #boot .line i{display:block;height:100%;width:36%;background:linear-gradient(90deg,var(--red),var(--red2));
     animation:bt 1.2s ease-in-out infinite}
   @keyframes bt{0%{transform:translateX(-110%)}100%{transform:translateX(330%)}}
 
   /* ---------- 右上角：搜索 / 设置 ---------- */
-  #navr .nv{height:2.2rem;padding:0 .95rem;border-radius:999px;font-size:.92rem;font-weight:800;color:#e2e2e2;
+  #navr .nv{height:2.2rem;padding:0 .95rem;border-radius:999px;font-size:1.38rem;font-weight:800;color:#e2e2e2;
     background:rgba(255,255,255,.07);display:flex;align-items:center}
-  #navr .nv .ic{margin-right:.35rem;font-size:1rem;line-height:1}
+  #navr .nv .ic{margin-right:.35rem;font-size:1.5rem;line-height:1}
   #navr .nv.fx.on{background:rgba(255,255,255,.22);color:#fff;box-shadow:0 0 0 .08rem rgba(255,255,255,.5)}
-  #clock{font-size:.82rem;color:#b4b4b4;font-variant-numeric:tabular-nums;margin-left:.4rem}
+  #clock{font-size:1.23rem;color:#b4b4b4;font-variant-numeric:tabular-nums;margin-left:.4rem}
 
   /* ---------- 设置面板 ---------- */
   #settings{position:fixed;top:0;right:0;bottom:0;left:0;z-index:120;display:none;align-items:center;
@@ -345,13 +347,13 @@
   .pin-dots i.on{background:#fff}
   .pin-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:.55rem}
   .pin-keys .pk{height:2.7rem;border-radius:.5rem;background:rgba(255,255,255,.09);color:#fff;
-    font-size:1.05rem;font-weight:800;display:grid;place-items:center}
+    font-size:1.575rem;font-weight:800;display:grid;place-items:center}
   .pin-keys .pk.fx.on{background:#fff;color:#111}
   .st-box{width:54rem;max-width:86vw;background:rgba(22,22,22,.94);border:1px solid rgba(255,255,255,.12);
     border-radius:1rem;padding:2rem 2.2rem 1.5rem;box-shadow:0 2rem 5rem rgba(0,0,0,.75)}
-  .st-h{font-size:1.2rem;font-weight:900;margin-bottom:1.15rem;letter-spacing:.02em}
+  .st-h{font-size:1.8rem;font-weight:900;margin-bottom:1.15rem;letter-spacing:.02em}
   .st-rows{display:flex;flex-direction:column;gap:.5rem}
-  .st-row{display:flex;justify-content:space-between;align-items:center;font-size:.88rem;color:#bdbdbd;
+  .st-row{display:flex;justify-content:space-between;align-items:center;font-size:1.32rem;color:#bdbdbd;
     padding:.58rem .85rem;background:rgba(255,255,255,.05);border-radius:.55rem}
   .st-row b{color:#fff;font-weight:800;margin-left:1.2rem;text-align:right}
   .st-row.fx.on{background:#fff;color:#111;transform:none;box-shadow:0 0 0 .08rem #fff}
@@ -359,7 +361,7 @@
   /* 一个源都不通时把数值标红，一眼看出来该处理 */
   .st-row.warn b{color:#ff5a5f}
   .st-btns{display:flex;gap:.7rem;margin-top:1.3rem;flex-wrap:wrap}
-  .st-tip{font-size:.7rem;color:#777;margin-top:.85rem;letter-spacing:.1em}
+  .st-tip{font-size:1.05rem;color:#777;margin-top:.85rem;letter-spacing:.1em}
 
   /* ---------- 外部播放器回到 App 的接力卡 ---------- */
   #extcard{position:fixed;left:0;top:0;right:0;bottom:0;z-index:130;display:none;align-items:center;
@@ -367,8 +369,8 @@
   #extcard.on{display:flex}
   #extcard .ec-box{min-width:36rem;max-width:74vw;background:#141414;border-radius:1rem;
     padding:1.7rem 2rem;box-shadow:0 2rem 5rem rgba(0,0,0,.82)}
-  #extcard .ec-h{font-size:1.4rem;font-weight:900;margin-bottom:.55rem;letter-spacing:.01em}
-  #extcard .ec-s{font-size:.92rem;color:#a6a6a6;line-height:1.75;margin-bottom:1.15rem}
+  #extcard .ec-h{font-size:2.1rem;font-weight:900;margin-bottom:.55rem;letter-spacing:.01em}
+  #extcard .ec-s{font-size:1.38rem;color:#a6a6a6;line-height:1.75;margin-bottom:1.15rem}
   #extcard .ec-btns{display:flex;gap:.7rem;flex-wrap:wrap}
 
   /* ---------- 圆润 + 半透明（Netflix TV 的柔和手感） ---------- */
@@ -410,21 +412,21 @@
 
   /* ---- 顶栏：纯文字导航 ---- */
   #nav{padding:1.05rem 4rem 3.6rem;gap:2.1rem}
-  .logo{font-size:1.66rem;letter-spacing:.055em;text-shadow:0 .08rem 1.1rem rgba(229,9,20,.42)}
+  .logo{font-size:2.49rem;letter-spacing:.055em;text-shadow:0 .08rem 1.1rem rgba(229,9,20,.42)}
   #navItems{gap:1.55rem}
   .nv{border-radius:0;padding:.28rem 0;background:none;box-shadow:none;
-    font-size:.98rem;font-weight:600;color:#9a9a9a;letter-spacing:.015em}
+    font-size:1.47rem;font-weight:600;color:#9a9a9a;letter-spacing:.015em}
   .nv.active{color:#e9e9e9;font-weight:700}
   .nv.fx.on{background:none;box-shadow:none;color:#fff;font-weight:800;transform:scale(1.06);
     text-shadow:0 0 1.1rem rgba(255,255,255,.38)}
   /* 右上角：同样纯文字，只是靠右 */
   #navr{gap:1.5rem}
   #navr .nv{height:auto;border-radius:0;background:none;padding:.28rem 0;
-    font-size:.94rem;font-weight:600;color:#9a9a9a}
-  #navr .nv .ic{font-size:1.02rem;opacity:.9}
+    font-size:1.41rem;font-weight:600;color:#9a9a9a}
+  #navr .nv .ic{font-size:1.53rem;opacity:.9}
   #navr .nv.fx.on{background:none;box-shadow:none;color:#fff;transform:scale(1.06);
     text-shadow:0 0 1.1rem rgba(255,255,255,.38)}
-  #clock{font-size:.8rem;color:#787878;margin-left:.2rem}
+  #clock{font-size:1.2rem;color:#787878;margin-left:.2rem}
   /* 滚下去以后顶栏必须压得住内容：Netflix 滚动后是一条实底，不是渐变 */
   #nav.solid,#nav.up{background:linear-gradient(180deg,rgba(0,0,0,.97) 0%,rgba(0,0,0,.97) 56%,rgba(0,0,0,0) 100%)}
   @supports (backdrop-filter: blur(2px)){
@@ -436,11 +438,11 @@
   #hero{height:68vh;min-height:27rem}
   .hb{filter:blur(24px) saturate(1.22) brightness(.68) contrast(1.04)}
   .hero-in{bottom:3.7rem;max-width:48%}
-  #heroTitle{font-size:3.35rem;letter-spacing:-.02em;margin-bottom:.55rem}
-  .hero-meta{font-size:.88rem;color:#cfcfcf}
-  .hero-desc{font-size:.95rem;color:#c9c9c9}
+  #heroTitle{font-size:5.025rem;letter-spacing:-.02em;margin-bottom:.55rem}
+  .hero-meta{font-size:1.32rem;color:#cfcfcf}
+  .hero-desc{font-size:1.425rem;color:#c9c9c9}
   .hero-poster{bottom:3.9rem;border-radius:.35rem}
-  .btn{border-radius:.28rem;font-size:.92rem;padding:.68rem 1.5rem}
+  .btn{border-radius:.28rem;font-size:1.38rem;padding:.68rem 1.5rem}
   .btn.primary{background:#fff;color:#000}
   .btn:not(.primary){background:rgba(109,109,110,.62)}
   .btn.fx.on{transform:scale(1.05);box-shadow:0 0 0 .09rem #fff}
@@ -451,21 +453,21 @@
   #rails{padding-bottom:3rem}
   .rail{margin-bottom:2.9rem}
   .rail-h{padding-bottom:.2rem}
-  .rail-h .t{font-size:1.32rem;font-weight:800;letter-spacing:-.005em}
-  .rail-h .s{font-size:.72rem;color:#767676}
+  .rail-h .t{font-size:1.98rem;font-weight:800;letter-spacing:-.005em}
+  .rail-h .s{font-size:1.08rem;color:#767676}
   .strip{gap:.8rem;padding:1.85rem 4rem 1.35rem}
   .card{width:9.7rem}
   .card .poster{border-radius:.28rem;box-shadow:0 .4rem 1rem rgba(0,0,0,.5)}
   .card .shade{height:58%}
-  .card .name{font-size:.84rem;bottom:.34rem}
+  .card .name{font-size:1.26rem;bottom:.34rem}
   .card.on{transform:scale(1.13) translateY(-.3rem);
     box-shadow:0 0 0 .12rem #fff,0 1.3rem 2.5rem rgba(0,0,0,.86)}
   .strip.focusing .card{opacity:.48}
 
   /* ---- 详情页 / 剧集卡 ---- */
   .dt-in{padding-top:8.8rem}
-  #dtTitle{font-size:3rem}
-  .dt-h .t{font-size:1.22rem;font-weight:800;letter-spacing:-.005em}
+  #dtTitle{font-size:4.5rem}
+  .dt-h .t{font-size:1.83rem;font-weight:800;letter-spacing:-.005em}
   .epstrip{gap:.85rem}
   .epc{border-radius:.3rem}
   .epc.on{transform:scale(1.06);box-shadow:0 0 0 .12rem #fff,0 1.1rem 2rem rgba(0,0,0,.8)}
@@ -579,8 +581,8 @@
     background:linear-gradient(180deg,rgba(0,0,0,.74),rgba(0,0,0,.34) 52%,rgba(0,0,0,0));
     transition:opacity .3s var(--ease)}
   #ptitle{font-family:-apple-system,"SF Pro Display","PingFang SC","HarmonyOS Sans SC","MiSans",sans-serif;
-    font-size:1.82rem;font-weight:600;letter-spacing:-.008em;line-height:1.22}
-  #psub{font-size:.9rem;color:rgba(255,255,255,.6);margin-top:.46rem;font-weight:500;letter-spacing:.012em}
+    font-size:2.73rem;font-weight:600;letter-spacing:-.008em;line-height:1.22}
+  #psub{font-size:1.35rem;color:rgba(255,255,255,.6);margin-top:.46rem;font-weight:500;letter-spacing:.012em}
 
   /* --- 底部控制：苹果播放器式布局（1.2 改） ---
      一条贴底的进度线 + 左下角「上一集 / 播放 / 下一集」+ 右下角竖排一列图标。
@@ -610,11 +612,11 @@
     box-shadow:inset 0 -.14rem 0 rgba(255,255,255,.92)}
   #pbScr.on #track{height:.44rem}
   #pbScr.on #played:after{opacity:1}
-  .pt{font-size:.72rem;font-weight:600;letter-spacing:.03em;color:rgba(255,255,255,.6);
+  .pt{font-size:1.08rem;font-weight:600;letter-spacing:.03em;color:rgba(255,255,255,.6);
     font-variant-numeric:tabular-nums;text-shadow:0 .06rem .3rem rgba(0,0,0,.7);white-space:nowrap}
   #pcur{color:rgba(255,255,255,.95)}
   #tbub{bottom:2.2rem;border-radius:999px;background:rgba(22,22,24,.82);border:1px solid rgba(255,255,255,.14);
-    padding:.26rem .75rem;font-size:.76rem;font-weight:600;letter-spacing:.02em;
+    padding:.26rem .75rem;font-size:1.14rem;font-weight:600;letter-spacing:.02em;
     -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:0 .6rem 1.6rem rgba(0,0,0,.55)}
 
   /* 左下角：上一集 / 播放（白圆大键）/ 下一集 */
@@ -627,7 +629,7 @@
     align-items:flex-end;gap:.44rem;pointer-events:auto}
 
   /* 按钮底色是深色玻璃，不是白色半透明：亮画面（雪景、白字海报）上也看得见 */
-  .pb{height:2.8rem;min-width:2.8rem;padding:0 .9rem;border-radius:999px;font-size:.82rem;
+  .pb{height:2.8rem;min-width:2.8rem;padding:0 .9rem;border-radius:999px;font-size:1.23rem;
     font-weight:600;letter-spacing:.01em;background:rgba(18,18,20,.55);color:#fff;
     border:1px solid rgba(255,255,255,.16);display:inline-flex;align-items:center;justify-content:center;
     gap:.4rem;box-sizing:border-box;position:relative;
@@ -650,7 +652,7 @@
   #pbL .pb:not(.play).fx.on,#pbL .pb:not(.play):hover{background:#fff;color:#08080a;border-color:transparent;
     box-shadow:0 0 0 .09rem rgba(255,255,255,.95),0 1rem 2.4rem rgba(0,0,0,.5)}
   #pbR .pb .lb{position:absolute;right:calc(100% + .62rem);top:50%;transform:translate(.35rem,-50%);
-    white-space:nowrap;font-size:.74rem;font-weight:600;letter-spacing:.02em;color:#fff;
+    white-space:nowrap;font-size:1.11rem;font-weight:600;letter-spacing:.02em;color:#fff;
     padding:.28rem .6rem;border-radius:.5rem;background:rgba(18,18,20,.82);
     border:1px solid rgba(255,255,255,.12);opacity:0;pointer-events:none;
     transition:opacity .14s linear,transform .14s var(--ease)}
@@ -683,10 +685,10 @@
       -webkit-backdrop-filter:blur(40px) saturate(1.7);backdrop-filter:blur(40px) saturate(1.7)}
   }
   html.lite #eps-sheet,html.lite #spd-sheet{background:rgba(18,18,20,.94)}
-  #eps-sheet .hd,#spd-sheet .hd{font-size:.72rem;letter-spacing:.14em;color:rgba(255,255,255,.45);
+  #eps-sheet .hd,#spd-sheet .hd{font-size:1.08rem;letter-spacing:.14em;color:rgba(255,255,255,.45);
     font-weight:600;margin-bottom:.9rem}
   .ep,#spd-sheet .sp{height:2.6rem;border-radius:999px;background:rgba(255,255,255,.12);
-    font-size:.87rem;font-weight:600;color:#f2f2f4;border:1px solid rgba(255,255,255,.07)}
+    font-size:1.305rem;font-weight:600;color:#f2f2f4;border:1px solid rgba(255,255,255,.07)}
   /* 「正在看 / 当前倍速」用一枚细白环表示，焦点才是白底 —— 两者不再长得一样 */
   .ep.on,#spd-sheet .sp.on{background:rgba(255,255,255,.16);color:#fff;
     box-shadow:inset 0 0 0 1px rgba(255,255,255,.72)}
@@ -699,21 +701,21 @@
   @supports (backdrop-filter: blur(2px)){
     #nx{-webkit-backdrop-filter:blur(38px) saturate(1.7);backdrop-filter:blur(38px) saturate(1.7)}
   }
-  #nx .h{font-size:.7rem;letter-spacing:.14em;color:rgba(255,255,255,.45);font-weight:600}
-  #nx .t{font-size:1.15rem;font-weight:600;margin:.38rem 0 .2rem}
-  #nx .s{font-size:.8rem;color:rgba(255,255,255,.58)}
+  #nx .h{font-size:1.05rem;letter-spacing:.14em;color:rgba(255,255,255,.45);font-weight:600}
+  #nx .t{font-size:1.725rem;font-weight:600;margin:.38rem 0 .2rem}
+  #nx .s{font-size:1.2rem;color:rgba(255,255,255,.58)}
   #nx .r{gap:.6rem;margin-top:1rem}
-  #nx .cd{font-size:.82rem;color:rgba(255,255,255,.6);font-weight:600}
+  #nx .cd{font-size:1.23rem;color:rgba(255,255,255,.6);font-weight:600}
 
   /* --- 提示条 --- */
-  #pmsg{font-size:1rem;color:#fff;line-height:1.6;max-width:64%;padding:1.1rem 1.6rem;border-radius:1.1rem;
+  #pmsg{font-size:1.5rem;color:#fff;line-height:1.6;max-width:64%;padding:1.1rem 1.6rem;border-radius:1.1rem;
     background:rgba(24,24,26,.72);border:1px solid rgba(255,255,255,.1);
     -webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);
     box-shadow:0 1.4rem 3.4rem rgba(0,0,0,.55)}
   html.lite #pmsg{background:rgba(16,16,18,.92)}
 
   /* ============ 全局「圆润」一层：按钮 / 胶囊 / 卡片 ============ */
-  .btn{border-radius:999px;font-size:.94rem;font-weight:600;padding:.72rem 1.7rem;letter-spacing:.01em;
+  .btn{border-radius:999px;font-size:1.41rem;font-weight:600;padding:.72rem 1.7rem;letter-spacing:.01em;
     border:1px solid rgba(255,255,255,.09)}
   .btn.primary{background:#fff;color:#08080a;border-color:#fff}
   .btn:not(.primary){background:rgba(255,255,255,.14);color:#fff}
@@ -744,7 +746,7 @@
   #eps-sheet .hd,#spd-sheet .hd,#line-sheet .hd{
     display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.7rem}
   #eps-sheet .hd span,#spd-sheet .hd span,#line-sheet .hd span{
-    font-size:.74rem;color:rgba(255,255,255,.45);font-weight:900;letter-spacing:.14em}
+    font-size:1.11rem;color:rgba(255,255,255,.45);font-weight:900;letter-spacing:.14em}
   /* 面板右上角那个 ×：.pb 的尺寸是加权选择器给的，这里必须用 id 选择器压过它，
      否则 × 会被撑成播放条上那种大按钮、或者干脆被压成 0 宽点不到。 */
   #eps-sheet .xh,#spd-sheet .xh,#line-sheet .xh{
@@ -766,12 +768,12 @@
   html.lite #line-sheet{background:rgba(18,18,20,.94)}
   #line-sheet .grid{display:flex;flex-wrap:wrap;gap:.5rem}
   #line-sheet .ln{min-width:9rem;height:2.6rem;padding:0 1.1rem;border-radius:999px;
-    background:rgba(255,255,255,.12);color:#e8e8e8;font-size:.86rem;font-weight:600;
+    background:rgba(255,255,255,.12);color:#e8e8e8;font-size:1.29rem;font-weight:600;
     display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
     border:1px solid rgba(255,255,255,.09);cursor:pointer}
   #line-sheet .ln.on{background:#fff;color:#08080a}
   #line-sheet .ln.fx.on{transform:scale(1.05);box-shadow:0 0 0 .09rem #fff,0 1rem 2rem rgba(0,0,0,.5)}
-  #line-sheet .ln i{font-style:normal;font-size:.76rem;color:rgba(255,255,255,.5)}
+  #line-sheet .ln i{font-style:normal;font-size:1.14rem;color:rgba(255,255,255,.5)}
   #line-sheet .ln.on i{color:rgba(0,0,0,.55)}
 
   /* ============ 电脑上打开电视版：整套播放控件按桌面尺寸收一遍 ============
@@ -3293,8 +3295,10 @@
     }
     if (a === 'left') { seekByDirection(-1); return true; }
     if (a === 'right') { seekByDirection(1); return true; }
-    if (a === 'up') { stepEp(-1); return true; }
-    if (a === 'down') { stepEp(1); return true; }
+    /* 播放中上下不再切集：拿着遥控器往沙发上一靠，上下最容易误触，
+       一跳就断剧情。切集只留两条明路——暂停后进按钮条选「上一集 / 下一集」，
+       或者手机遥控页上的切集键。这两个键在播放中一律吞掉，不做任何事。 */
+    if (a === 'up' || a === 'down') { return true; }
     if (a === 'back') { closePlayer(); return true; }
     if (a === 'menu') { enterBar(); return true; }
     return true;
