@@ -1137,7 +1137,7 @@
   function searchCardHTML(it) {
     var pic = it.pic && it.pic.indexOf('http') === 0 ? it.pic : '';
     var sub = [];
-    if (it.year) sub.push(it.year);
+    if (it.yearLabel || it.year) sub.push(it.yearLabel || it.year);
     if (it.typeName) sub.push(it.typeName);
     else if (it.remarks) sub.push(badgeText(it.remarks));
     return '<button class="card flat" data-src="' + esc(it.src) + '" data-id="' + esc(it.vodId) +
@@ -1236,7 +1236,7 @@
     }
     setHeroBg(it.pic);
     $('heroTitle').textContent = it.name || '';
-    $('heroMeta').textContent = [it.year, it.typeName, it.remarks, it.srcName].filter(Boolean).join(' · ');
+    $('heroMeta').textContent = [it.yearLabel || it.year, it.typeName, it.remarks, it.srcName].filter(Boolean).join(' · ');
     var cast = String(it.actor || '').split(/[,，\/、|]/)
       .map(function (s) { return s.trim(); })
       .filter(function (s) { return s && s.length < 12; }).slice(0, 3);
@@ -1506,7 +1506,7 @@
   /* ---- 整周页 ---- */
   function calItemHTML(it) {
     var pic = it.pic && it.pic.indexOf('http') === 0 ? it.pic : '';
-    var mt = [it.typeName, it.area, it.year].filter(Boolean).join(' · ');
+    var mt = [it.typeName, it.area, it.yearLabel || it.year].filter(Boolean).join(' · ');
     var ep = it.episode ? '<span class="ep">第' + it.episode + '集</span>' : '';
     var src = it.srcName || it.src || '';
     return '<button class="citem" data-src="' + esc(it.src) + '" data-id="' + esc(it.vodId) +
@@ -1747,7 +1747,7 @@
         state.area = d.area || '';
         $('dTitle').textContent = state.title;
         if (d.pic) { $('dHeadBg').style.backgroundImage = 'url("' + d.pic + '")'; $('dPosterImg').src = d.pic; }
-        var meta = [d.year, d.area, d.typeName, d.remarks, d.srcName].filter(Boolean).join(' · ');
+        var meta = [d.yearLabel || d.year, d.area, d.typeName, d.remarks, d.srcName, d.freshLabel].filter(Boolean).join(' · ');
         var _tg = subTag(d.area);
         if (_tg) meta += ' · ' + _tg;
         $('dMeta').textContent = meta;

@@ -453,8 +453,11 @@ object Sources {
         }
         workers.forEach { it.join(10000) }
 
+        /* 排序按「新旧年份」而不是 vod_year：连载综艺的 vod_year 是首播年，
+           拿它排会把今天还在更新的节目压到十年前那一档（口径同电脑端 recencyYear）。 */
         val sorted = out.sortedWith(
-            compareByDescending<JSONObject> { it.optString("year").toIntOrNull() ?: 0 }
+            compareByDescending<JSONObject> { it.optInt("recencyYear", it.optString("year").toIntOrNull() ?: 0) }
+                .thenByDescending { it.optString("latestDate") }
                 .thenByDescending { it.optString("remarks").contains("更新") }
         )
         val root = JSONObject()
@@ -466,10 +469,23 @@ object Sources {
     }
 
     fun item(src: Src, o: JSONObject): JSONObject = JSONObject().apply {
+        val rawRemarks = o.optString("vod_remarks")
+        /* 内容新鲜度（和电脑端同一套口径，见 Freshness）：
+           latestDate 是备注里的最新一期日期，yearLabel 跨年时写「2016起」，
+           freshLabel 是详情页那一行「最新一集 … · 源 N 个月前更新」。
+           以前这些只在 Next.js 里算，安卓端一条都没有，电视上永远是老样子。 */
+        val latest = Freshness.latestEpisodeDate(rawRemarks)
         put("name", o.optString("vod_name"))
         put("pic", o.optString("vod_pic"))
         put("year", o.optString("vod_year"))
-        put("remarks", o.optString("vod_remarks"))
+        put("remarks", Freshness.formatRemarks(rawRemarks) ?: rawRemarks)
+        put("latestDate", latest ?: "")
+        put("yearLabel", Freshness.yearLabel(o.optString("vod_year"), latest))
+        put("recencyYear", Freshness.recencyYear(o.optString("vod_year"), latest))
+        put(
+            "freshLabel",
+            if (latest == null) "" else Freshness.freshnessLabel(Freshness.Latest(latest, "remarks"))
+        )
         put("typeName", o.optString("type_name"))
         put("actor", o.optString("vod_actor"))
         put("vodId", o.optString("vod_id"))
@@ -606,7 +622,9 @@ object Sources {
                 pool.sortWith(
                     compareByDescending<JSONObject> {
                         if (wantType.isNotBlank() && it.optString("typeName").contains(wantType)) 1 else 0
-                    }.thenByDescending { it.optString("year").toIntOrNull() ?: 0 }
+                    }.thenByDescending {
+                        it.optInt("recencyYear", it.optString("year").toIntOrNull() ?: 0)
+                    }
                 )
                 for (o in pool) {
                     if (push(o)) break

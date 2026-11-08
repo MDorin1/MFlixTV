@@ -33,10 +33,21 @@ object SourceDetail {
             }
             val v = list.getJSONObject(0)
             val src = Sources.byKey(srcKey) ?: Sources.byBase(base)
+            /* 备注 / 年份 / 最新一期都按电脑端那套口径算（见 Freshness）：
+               连载节目跨年时 yearLabel 是「2016起」，freshLabel 是详情页那一行
+               「最新一集 2025-10-20 · 源 12 个月前更新」。以前这里只回原始 vod_remarks，
+               电视上的详情页因此永远只有一个「更新至1285集」。 */
+            val rawRemarks = v.optString("vod_remarks")
+            val latest = Freshness.latestEpisodeDate(rawRemarks)
             out.put("name", v.optString("vod_name"))
             out.put("pic", v.optString("vod_pic"))
-            out.put("remarks", v.optString("vod_remarks"))
+            out.put("remarks", Freshness.formatRemarks(rawRemarks) ?: rawRemarks)
+            out.put("rawRemarks", rawRemarks)
+            out.put("latestDate", latest ?: "")
             out.put("year", v.optString("vod_year"))
+            out.put("yearLabel", Freshness.yearLabel(v.optString("vod_year"), latest))
+            out.put("recencyYear", Freshness.recencyYear(v.optString("vod_year"), latest))
+            out.put("freshLabel", Freshness.episodeLine(rawRemarks))
             out.put("area", v.optString("vod_area"))
             out.put("typeName", v.optString("vod_class").ifBlank { v.optString("type_name") })
             out.put("actor", v.optString("vod_actor"))

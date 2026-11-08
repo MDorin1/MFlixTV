@@ -27,7 +27,13 @@ object SourceHealth {
         val items: Int,
         val fails: Int,
         val ts: Long,
-        val err: String
+        val err: String,
+        /** 最新一期的内容日期（备注里取，口径同电脑端） */
+        val latestDate: String = "",
+        /** 这个日期从哪来：`remarks`（内容日期）/ `vod_time`（上架时间）/ 空 */
+        val dateSource: String = "",
+        /** 归档源：只有内容日期早于 ARCHIVE_DAYS 天才算，上架时间不判 */
+        val archived: Boolean = false
     )
 
     private const val K_JSON = "health_json"
@@ -80,7 +86,8 @@ object SourceHealth {
                 if (base.isBlank()) continue
                 m[base] = H(
                     base, o.optString("name"), o.optBoolean("ok"), o.optInt("ms"),
-                    o.optInt("items"), o.optInt("fails"), o.optLong("ts"), o.optString("err")
+                    o.optInt("items"), o.optInt("fails"), o.optLong("ts"), o.optString("err"),
+                    o.optString("latestDate"), o.optString("dateSource"), o.optBoolean("archived")
                 )
             }
             map = m
@@ -96,6 +103,8 @@ object SourceHealth {
                 JSONObject().put("base", it.base).put("name", it.name).put("ok", it.ok)
                     .put("ms", it.ms).put("items", it.items).put("fails", it.fails)
                     .put("ts", it.ts).put("err", it.err)
+                    .put("latestDate", it.latestDate).put("dateSource", it.dateSource)
+                    .put("archived", it.archived)
             )
         }
         p.edit().putString(K_JSON, arr.toString()).putLong(K_TS, lastProbeAt).apply()
@@ -112,12 +121,16 @@ object SourceHealth {
                 var ok = false
                 var items = 0
                 var err = ""
+                var latest: Freshness.Latest? = null
                 try {
                     val txt = Sources.get(s.base + "?ac=videolist&pg=1", timeoutMs)
                     val o = JSONObject(txt)
                     val arr = o.optJSONArray("list")
                     items = arr?.length() ?: 0
                     ok = arr != null
+                    /* 顺手算这条源「最新采到哪一天」：接口活着不等于内容在更，
+                       判定口径与电脑端 source-freshness 完全一致（归档只认备注日期） */
+                    latest = Freshness.latestInRaw(arr)
                     if (!ok) err = "返回不是列表（可能被拦截或换了接口）"
                 } catch (e: Exception) {
                     err = Net.shortErr(e)
@@ -128,7 +141,9 @@ object SourceHealth {
                     H(
                         s.base, s.name, ok, if (ok) ms else 0, items,
                         if (ok) 0 else oldFails + 1,
-                        System.currentTimeMillis(), err
+                        System.currentTimeMillis(), err,
+                        latest?.date ?: "", latest?.source ?: "",
+                        Freshness.isArchived(latest)
                     )
                 )
             }
@@ -157,6 +172,18 @@ object SourceHealth {
                         .put("ok", it.ok).put("ms", it.ms).put("items", it.items)
                         .put("fails", it.fails).put("err", it.err)
                         .put("off", src != null && Sources.isOff(src.key))
+                        /* 内容新鲜度：latestDate 是内容日期，dateSource 说清是备注还是上架时间，
+                           archived 只按备注日期判（上架时间永远判不旧） */
+                        .put("latestDate", it.latestDate)
+                        .put("dateSource", it.dateSource)
+                        .put("archived", it.archived)
+                        .put(
+                            "freshLabel",
+                            Freshness.freshnessLabel(
+                                if (it.latestDate.isBlank()) null
+                                else Freshness.Latest(it.latestDate, it.dateSource.ifBlank { "remarks" })
+                            )
+                        )
                 )
             }
         val okList = map.values.filter { it.ok }
@@ -168,6 +195,11 @@ object SourceHealth {
             .put("fastest", if (fastest == null) "—" else fastest.name + " " + fastest.ms + "ms")
             .put("checkedAt", lastProbeAt)
             .put("offCount", Sources.offKeys().size)
+            .put("archivedCount", map.values.count { it.archived })
+            .put("dated", JSONObject()
+                .put("remarks", map.values.count { it.dateSource == "remarks" })
+                .put("vodTime", map.values.count { it.dateSource == "vod_time" })
+                .put("none", map.values.count { it.dateSource.isBlank() }))
             .put("stale", System.currentTimeMillis() - lastProbeAt > TTL)
     }
 

@@ -55,6 +55,35 @@
 
 ---
 
+## 二·五、双端实现约定（1.19 起）
+
+这套东西有两份实现：**电脑端**（Next.js，`app/src/lib/*`）和**安卓端**（Kotlin，`android/app/src/main/java/com/mflixtv/app/*`，电视界面跑的也是它）。两边各自实现一套规则，改动只落一边，用户就会看到两套数字。
+
+**硬规则：凡属于下面四类，两边都要落，落一边算没做。**
+
+1. **判定逻辑** —— 什么算完结、什么算「最新一集」、什么算归档源、日期从哪个字段取
+2. **显示文案** —— `2016起`、`最新一集 2025-10-20 · 源 12 个月前更新`、`上架时间 …`、`全34集 / 更新至N集`
+3. **排序规则** —— 按 `recencyYear` 排，不是按 `vod_year`；同日期的再看最新一期
+4. **阈值常量** —— 归档 90 天、琥珀色门槛 30 天
+
+**对照表（同一条规则的两个落点）**
+
+| 规则 | 电脑端 | 安卓端 |
+| --- | --- | --- |
+| 备注归一（全N集/更新至N集/更新至日期/已完结） | `app/src/lib/remarks.ts` `formatRemarks()` | `Freshness.kt` `formatRemarks()` |
+| 从备注取最新一期日期 | `remarks.ts` `latestEpisodeDate()` | `Freshness.kt` `latestEpisodeDate()` |
+| 排序年份（跨年节目以最新一期为准） | `remarks.ts` `recencyYear()` | `Freshness.kt` `recencyYear()` |
+| 一条源的最新内容日期 + `dateSource` | `source-freshness.ts` `latestInRaw()` | `Freshness.kt` `latestInRaw()` |
+| 归档判定（**只认 remarks**） | `source-freshness.ts` `isArchivedSource()` | `Freshness.kt` `isArchived()` |
+| 体检那格文案 | `source-freshness.ts` `freshnessLabel()` | `Freshness.kt` `freshnessLabel()` |
+| 卡片年份 / 详情页那行 | `video-card.tsx` / 详情页 | `tv.html` `paintMeta()` / `paintHero()` |
+
+改完两件事都要做：电脑端 `npm run test`（`remarks.test.ts` 有断言），安卓端 `gradle -p android assembleRelease` 能编过、电视界面用 `D:\Build\_tvtest\` 那套 mock 看一眼实际渲染。
+
+**历史教训**：1.12 的「2016起 + 按最新一期排序」和 1.15 的「dateSource + 归档闸」只落在 Next.js，安卓端（含电视）一个月里一条都没有——用户在电视上看到的还是老排序。
+
+---
+
 ## 三、当前实现对照
 
 | 规则 | 安卓电视（tv.html） | PC / macOS（Next.js） | 状态 |

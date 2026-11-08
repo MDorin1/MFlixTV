@@ -203,6 +203,9 @@
   .dt-meta .dot{width:.22rem;height:.22rem;border-radius:50%;background:#767676}
   /* 「熟肉」只在境外内容上出现，给它一点颜色，一眼能认出来 */
   .dt-meta .su{color:#ff5a5f;font-weight:800;letter-spacing:.02em}
+  /* 「最新一集 2025-10-20 · 源 12 个月前更新」：超一个月转琥珀色，和红标签不抢眼 */
+  .dt-meta .fresh{color:#c9c9c9}
+  .dt-meta .fresh.old{color:#e8b23a}
   .dt-desc{font-size:1.35rem;line-height:1.62;color:#bdbdbd;margin:0 0 1.2rem;max-width:52rem;
     display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   .dt-btns{display:flex;gap:.7rem;margin-bottom:2rem}
@@ -1935,7 +1938,7 @@
     $('heroTitle').textContent = it.name || '';
     var m = [];
     if (it.typeName) m.push('<span>' + esc(it.typeName) + '</span>');
-    if (it.year) m.push('<span>' + esc(it.year) + '</span>');
+    if (it.yearLabel || it.year) m.push('<span>' + esc(it.yearLabel || it.year) + '</span>');
     if (it.area) m.push('<span>' + esc(it.area) + '</span>');
     if (it.remarks) m.push('<b>' + esc(it.remarks) + '</b>');
     $('heroMeta').innerHTML = m.join('<span class="dot"></span>');
@@ -2389,12 +2392,21 @@
     return tg ? (out + ' · ' + tg) : out;
   }
 
-  /* 详情页那行元信息：类型 · 年份 · 地区 · 备注 · 源名，境外内容末尾再补「熟肉」 */
+  /* 详情页那行元信息：类型 · 年份 · 地区 · 备注 · 源名，境外内容末尾再补「熟肉」。
+     年份优先用服务端算好的 yearLabel：连载节目跨年时是「2016起」，
+     只用 vod_year 会让人以为这部停在十年前（口径同电脑端）。 */
   function paintMeta(obj) {
-    var parts = [obj.typeName, obj.year, obj.area, obj.remarks, obj.srcName]
+    var yl = obj.yearLabel || obj.year;
+    var parts = [obj.typeName, yl, obj.area, obj.remarks, obj.srcName]
       .filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; });
     var tg = subTag(obj.area);
     if (tg) parts.push('<span class="su">' + tg + '</span>');
+    /* 最新一期那一行单独起一行：超过一个月的转琥珀色，一眼分出「内容旧」还是「没有」 */
+    var fresh = obj.freshLabel || '';
+    if (fresh) {
+      var old = /源 \d+ 个月前更新/.test(fresh);
+      parts.push('<span class="fresh' + (old ? ' old' : '') + '">' + esc(fresh) + '</span>');
+    }
     $('dtMeta').innerHTML = parts.join('<span class="dot"></span>');
   }
   function lineName(g) {
@@ -3363,7 +3375,8 @@
     if (!d) { b.textContent = '读取失败'; return; }
     var ok = Number(d.ok) || 0, total = Number(d.total) || 0;
     if (!total) { b.textContent = '—'; return; }
-    b.textContent = ok + '/' + total + (d.fastest && d.fastest !== '—' ? ' · 最快 ' + d.fastest : '');
+    b.textContent = ok + '/' + total + (d.fastest && d.fastest !== '—' ? ' · 最快 ' + d.fastest : '') +
+      (Number(d.archivedCount) > 0 ? ' · 归档 ' + d.archivedCount : '');
     var row = $('stHealth');
     if (row) row.classList.toggle('warn', ok === 0);
   }
