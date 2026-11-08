@@ -265,6 +265,14 @@ class WebServer(context: Context, port: Int = 8080) : NanoHTTPD(port) {
                 uri == "/api/proxy" -> proxy(session)
                 // 外部播放器用的整条线路播放列表（连播不断，切集不用回 App）
                 uri == "/api/list.m3u" -> playlist(p)
+                // 弹幕：剧名 + 集数 -> 公共弹幕库里这一集的条目（官方季优先，投稿兜底）
+                uri == "/api/danmaku" -> json(
+                    Danmaku.fetch(
+                        p["title"]?.firstOrNull().orEmpty(),
+                        p["episode"]?.firstOrNull()?.toIntOrNull() ?: 0,
+                        p["clip"]?.firstOrNull()?.toIntOrNull() ?: 0
+                    )
+                )
                 uri == "/" || uri == "/index.html" -> indexFor(session, p)
                 // 电视版（10 英尺界面，遥控器导航）：盒子上 8080/tv 也能直接用浏览器开
                 uri == "/tv" || uri == "/tv.html" -> asset("tv.html", "text/html; charset=utf-8")

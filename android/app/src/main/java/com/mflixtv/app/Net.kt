@@ -99,7 +99,7 @@ object Net {
     private val anyHost = HostnameVerifier { _, _ -> true }
 
     /** 建一个已配好超时、UA、Referer、证书宽容（和可选代理）的连接。 */
-    fun open(raw: String, timeoutMs: Int, referer: String? = null): HttpURLConnection {
+    fun open(raw: String, timeoutMs: Int, referer: String? = null, ua: String? = null): HttpURLConnection {
         val target = if (raw.startsWith("http")) raw else "https://" + raw
         val u = URL(target)
         val p = currentProxy()
@@ -107,7 +107,7 @@ object Net {
         conn.connectTimeout = timeoutMs
         conn.readTimeout = timeoutMs
         conn.instanceFollowRedirects = true
-        conn.setRequestProperty("User-Agent", UA)
+        conn.setRequestProperty("User-Agent", ua ?: UA)
         conn.setRequestProperty("Accept", "*/*")
         conn.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9")
         conn.setRequestProperty("Referer", referer ?: (u.protocol + "://" + u.host + "/"))
@@ -121,12 +121,20 @@ object Net {
         return conn
     }
 
-    fun getText(url: String, timeoutMs: Int = 7000, referer: String? = null): String {
-        val conn = open(url, timeoutMs, referer)
+    fun getText(url: String, timeoutMs: Int = 7000, referer: String? = null, ua: String? = null): String {
+        val conn = open(url, timeoutMs, referer, ua)
         try {
             val code = conn.responseCode
             if (code !in 200..299) throw java.io.IOException("HTTP $code")
-            val stream = conn.inputStream ?: throw java.io.IOException("empty body")
+            val raw = conn.inputStream ?: throw java.io.IOException("empty body")
+            // 有些站（弹幕库就是）不理会 Accept-Encoding，照样压；Java 的 HttpURLConnection
+            // 不会替你解压，按文本读出来就是一串乱码，这里按 Content-Encoding 自己解。
+            val enc = conn.contentEncoding.orEmpty()
+            val stream: java.io.InputStream = when {
+                enc.contains("gzip", ignoreCase = true) -> java.util.zip.GZIPInputStream(raw)
+                enc.contains("deflate", ignoreCase = true) -> inflate(raw)
+                else -> raw
+            }
             return stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         } finally {
             try {
@@ -134,6 +142,17 @@ object Net {
             } catch (_: Throwable) {
             }
         }
+    }
+
+    /** deflate 有两种：zlib 包裹（0x78 开头）和裸 deflate。看头两个字节判断。 */
+    private fun inflate(raw: java.io.InputStream): java.io.InputStream {
+        val pb = java.io.PushbackInputStream(raw, 2)
+        val a = pb.read()
+        val b = pb.read()
+        if (b >= 0) pb.unread(b)
+        if (a >= 0) pb.unread(a)
+        val zlib = a == 0x78 && (b == 0x01 || b == 0x5E || b == 0x9C || b == 0xDA)
+        return java.util.zip.InflaterInputStream(pb, java.util.zip.Inflater(!zlib))
     }
 
     /** 给人看的短错误：类名 + 前 70 字，够定位是哪类问题。 */
