@@ -165,8 +165,8 @@ function aggregateOutcomes(outcomes: SourceSearchOutcome[], wd: string, filterAd
   // 部分源站做分词/OR 模糊搜索（搜「摔跤吧！爸爸」返回一堆「爸爸XXX」），按关键词过滤
   list = filterRelevantResults(list, wd);
 
-  // 三段排序（双端统一，见 docs/dual-impl.md 第 2 项）：
-  // 1) 标题精确度：归一后完全相等 > 前缀匹配 > 包含匹配 > 其他；
+  // 排序四键（双端统一，见 docs/dual-impl.md 第 2 项，实现在 lib/search-sort.ts）：
+  // 1) 标题精确度：归一后与关键词完全相同置顶，其余一律平等（两档，不分前缀/包含）；
   //    老片（「小明星大跟班」vod_year=2016）靠这一档不会被一堆无关新片压到后面
   // 2) 同档按 recencyYear 降序：连载综艺用最新一期的年份，不是首播年
   // 3) 再同按原始标题、源名，保证同一输入两次结果一致

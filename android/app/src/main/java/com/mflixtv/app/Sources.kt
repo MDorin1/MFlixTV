@@ -453,17 +453,20 @@ object Sources {
         }
         workers.forEach { it.join(10000) }
 
-        /* 排序三段（双端统一，见 docs/dual-impl.md 第 2 项）：
-           ① 标题精确度：归一后完全相等 > 前缀 > 包含 > 其他
+        /* 排序四键（双端统一，见 docs/dual-impl.md 第 2 项）：
+           ① 标题精确度：归一后与关键词完全相同置顶，其余一律平等（只有两档，
+              不是「前缀 > 包含」三档——差别在电视上看不出来，两端各写一遍更易走样）
               老片「小明星大跟班」vod_year=2016，只按年份排会被无关新片压到后面
            ② 同档按 recencyYear 倒序：连载综艺用最新一期那一年的年份，不是首播年
-           ③ 再同按片名，保证同一关键词两次结果顺序一致 */
+           ③ 再同按最新一期日期倒序
+           ④ 再同按片名、源名，保证同一关键词两次结果顺序一致 */
         val sorted = out.sortedWith(
             compareBy<JSONObject> { Freshness.titleRank(it.optString("name"), wd) }
                 .thenByDescending { it.optInt("recencyYear", it.optString("year").toIntOrNull() ?: 0) }
                 .thenByDescending { it.optString("latestDate") }
                 .thenByDescending { it.optString("remarks").contains("更新") }
                 .thenBy { it.optString("name") }
+                .thenBy { it.optString("srcName") }
         )
         val root = JSONObject()
         val arr = JSONArray()

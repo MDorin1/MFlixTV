@@ -35,6 +35,10 @@
     --accent:#e50914; --accent-2:#ff4d57;
     --red:var(--accent); --red2:var(--accent-2);
     --bg:#000; --ink:#fff; --dim:#a8a8a8; --dim2:#6f6f6f;
+    /* 语义名与 MFlixMusic 对齐：音乐端只用 --ink/--ink-2/--ink-3，
+       这边历史写法是 --ink/--dim/--dim2。加别名而不是改名，零视觉变化，
+       以后两端照着同一套名字改，不会再一边改 --dim 一边改 --ink-2。 */
+    --ink-2:var(--dim); --ink-3:var(--dim2);
     --card:#161616; --line:rgba(255,255,255,.13);
     /* 动效与圆角：两个产品同一套数值（见 docs/brand-tokens.md 第二节）。
        圆角用 rem 而不是 px：本页 html 根字号是 vw 派生的，写 px 会让圆角在

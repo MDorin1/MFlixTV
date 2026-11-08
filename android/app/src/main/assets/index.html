@@ -9,6 +9,9 @@
 <style>
   :root{
     --bg:#000; --fg:#fff; --dim:#a8a8a8; --line:#1c1c1c; --accent:#e50914; --accent-2:#ff4d57;
+    /* 语义名与 MFlixMusic 对齐：--ink/--ink-2/--ink-3。
+       本页历史写法是 --fg/--dim，加别名不改旧引用，零视觉变化。 */
+    --ink:var(--fg); --ink-2:var(--dim); --ink-3:#6f6f6f;
     /* 与 MFlixMusic 同一套数值（见 docs/brand-tokens.md）：动效、时长、四档圆角。
        手机端本来就是 px，直接照 px 写；正圆仍用 50%，不进 --r-full。 */
     --ease:cubic-bezier(0.22, 1, 0.36, 1);
