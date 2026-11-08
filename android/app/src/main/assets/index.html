@@ -263,6 +263,9 @@
   #player{position:fixed;top:0;right:0;bottom:0;left:0;z-index:80;background:#000;display:none}
   #player.on{display:block}
   #video{width:100%;height:100%;background:#000;display:block;object-fit:contain}
+  /* 弹幕画布：压在画面上、在控制条之下，不吃点击（跟电视版同一个做法） */
+  #dmCanvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:2;display:none}
+  #dmCanvas.on{display:block}
   /* WebView 自带的「白色方框 + 播放三角」一律藏掉，中间统一换 MFlixTV 字标 */
   video::-webkit-media-controls-start-playback-button{display:none !important;-webkit-appearance:none;-webkit-tap-highlight-color:transparent}
   video::-webkit-media-controls-play-button,video::-webkit-media-controls-overlay-play-button,
@@ -302,7 +305,15 @@
   #ptime{display:flex;justify-content:space-between;font-size:11px;color:#c9c9c9;margin-top:-2px}
   #pbtns{display:flex;align-items:center;gap:10px;margin-top:10px}
   #pbtns button{background:rgba(255,255,255,.12);border:0;color:#fff;font-size:13px;font-weight:700;
-    padding:9px 15px;border-radius:999px;transition:transform .13s,background .18s}
+    padding:9px 15px;border-radius:999px;transition:transform .13s,background .18s;
+    white-space:nowrap;flex:0 0 auto}
+  /* 手机屏幕窄，按钮多了容易把「下一集」挤成两行：小号屏收一点内边距和字号 */
+  @media (max-width:420px){
+    #pbtns{gap:8px}
+    #pbtns button{padding:9px 12px;font-size:12.5px}
+  }
+  /* 弹幕关掉时按钮变暗，一眼看得出状态（不靠文字占两行） */
+  #pbtns #pDm.off{opacity:.42}
   #pbtns button:active{transform:scale(.94);background:rgba(255,255,255,.24)}
   #pPlay{font-size:17px !important;width:44px;height:44px;padding:0 !important;border-radius:50% !important;
     background:rgba(255,255,255,.2) !important;display:flex;align-items:center;justify-content:center}
@@ -679,7 +690,7 @@
 </div>
 
 <div id="player">
-  <video id="video" playsinline webkit-playsinline preload="metadata"></video>  <div id="pbrand">
+  <video id="video" playsinline webkit-playsinline preload="metadata"></video>  <canvas id="dmCanvas"></canvas>  <div id="pbrand">
     <div class="word">MFlixTV</div>
     <div class="bar"></div>
     <div class="sub">PLEASE ENJOY</div>
@@ -701,6 +712,7 @@
         <button id="pRate">1.0×</button>
         <button id="pEps">选集</button>
         <button id="pSrc">线路</button>
+        <button id="pDm" title="弹幕开关">弹幕</button>
         <button id="pNext" style="margin-left:auto">下一集 ›</button>
       </div>
       <!-- 电脑端右下角那四个键：设置 / 画中画 / 网页全屏 / 全屏 -->
@@ -1982,6 +1994,8 @@
     if (rr) { try { v.playbackRate = rr; } catch (e) {} }
     var rl = $('pRate'); if (rl) rl.textContent = rateText(rr || 1);
     attach(e.url, 'mfl:t:' + state.title + '|' + (e.label || i));
+    /* 换集就把这一集的弹幕重新挂上；关着不发请求，同一集不会重复发 */
+    try { dmLoad(state.title, i + 1); dmStart(); } catch (err) {}
     showCtl();
   }
 
@@ -2159,6 +2173,7 @@
 
   function closePlayer() {
     $('player').classList.remove('on');
+    try { dmStop(); } catch (e) {}   /* 关掉播放器就别再占着 rAF，手机上省电 */
     $('psheet').classList.remove('on');
     // 网页全屏是播放器内部状态，退出播放器时一并还原
     $('player').classList.remove('webwide');
@@ -2712,7 +2727,25 @@
         '<div class="row"><span>从头重新播放</span><button class="lnk" data-set="restart">从头播放</button></div>' +
         '<div class="row"><span>复制当前播放地址</span><button class="lnk" data-set="copy">复制</button></div>' +
         '<div class="row"><span>画面铺满窗口</span><button class="lnk" data-set="web">' +
-          ($('player').classList.contains('webwide') ? '关掉' : '开') + '</button></div>';
+          ($('player').classList.contains('webwide') ? '关掉' : '开') + '</button></div>' +
+        '<div class="set-h">弹幕</div>' +
+        '<div class="row"><span>显示弹幕</span><button class="sw' + (DM.on ? ' on' : '') +
+          '" data-set="dm"><i></i></button></div>' +
+        '<div class="set-h">字号</div><div class="chips">' +
+          [[0, '小'], [1, '中'], [2, '大']].map(function (o) {
+            return '<button class="it' + (DM.size === o[0] ? ' on' : '') + '" data-set="dmsize" data-n="' +
+              o[0] + '">' + o[1] + '</button>';
+          }).join('') + '</div>' +
+        '<div class="set-h">不透明度</div><div class="chips">' +
+          [[30, '淡'], [60, '中'], [90, '亮']].map(function (o) {
+            return '<button class="it' + (DM.op === o[0] ? ' on' : '') + '" data-set="dmop" data-n="' +
+              o[0] + '">' + o[1] + '</button>';
+          }).join('') + '</div>' +
+        '<div class="set-h">显示区域</div><div class="chips">' +
+          [['all', '全屏'], ['top', '上半'], ['bot', '下半']].map(function (o) {
+            return '<button class="it' + (DM.area === o[0] ? ' on' : '') + '" data-set="dmarea" data-a="' +
+              o[0] + '">' + o[1] + '</button>';
+          }).join('') + '</div>';
     } else if (kind === 'eps') {
       b.innerHTML = state.eps.map(function (e, i) {
         return '<button class="it' + (i === state.ep ? ' on' : '') + '" data-k="ep" data-i="' + i + '">' +
@@ -2752,6 +2785,22 @@
   /** 播放设置面板里的各项：倍速 / 自动连播 / 从头播放 / 复制地址 / 画面铺满 */
   function setOpt(el) {
     var k = el.dataset.set;
+    if (k === 'dm') {
+      dmToggle();
+      el.classList.toggle('on', DM.on);
+      try { sheetOpen('播放设置', 'set'); } catch (e) {}
+      return;
+    }
+    if (k === 'dmsize' || k === 'dmop' || k === 'dmarea') {
+      if (k === 'dmsize') { DM.size = parseInt(el.dataset.n, 10) || 0; ls('mfl:dm:size', DM.size); }
+      else if (k === 'dmop') { DM.op = parseInt(el.dataset.n, 10) || 60; ls('mfl:dm:op', DM.op); }
+      else { DM.area = el.dataset.a || 'all'; ls('mfl:dm:area', DM.area); }
+      /* 改了字号/透明度/区域，正在飞的弹幕位置会错位，直接清屏重来 */
+      DM.act.length = 0; DM.laneFree = []; DM.topFree = []; DM.botFree = [];
+      dmClear(); dmSeek(v.currentTime || 0);
+      try { sheetOpen('播放设置', 'set'); } catch (e) {}
+      return;
+    }
     if (k === 'rate') {
       var r = parseFloat(el.dataset.r) || 1;
       toast('倍速 ' + setRate(r));
@@ -2805,6 +2854,7 @@
     }
     if (k === 'web') {
       $('pmWeb').click();
+      DM.dirty = true;   /* 铺满 / 复原会改画面比例，弹幕内容区要重算 */
       el.textContent = $('player').classList.contains('webwide') ? '关掉' : '开';
     }
   }
@@ -3548,6 +3598,239 @@
     // 播放器里也放一个入口：正在看片时不用退出来才能出码
     MFlixRC.attach($('pRc'));
   } catch (e) {}
+
+  /* ================= 弹幕（公共弹幕库） =================
+     跟电视版（tv.html）同一套取数与打分，取数走 App 内置服务 /api/danmaku，
+     跨域 / Referer / UA 都在 Kotlin 那边处理，这里只管画。
+     手机版多一层：竖屏看横片会上下留黑边，弹幕只铺在画面内容区里，不飘到黑边。 */
+  var DM = {
+    on: true, items: [], cur: 0, act: [], raf: 0, rafOn: false, lastT: -1, tok: 0,
+    recent: {}, sec: -1, secN: 0, src: '', key: '',
+    size: 1, op: 60, area: 'all', laneFree: [], topFree: [], botFree: [], fixAt: undefined,
+    dirty: true, fitTick: 0
+  };
+  (function () {
+    var s = ls('mfl:dm'); DM.on = s === null ? true : s === '1';
+    var sz = parseInt(ls('mfl:dm:size'), 10);
+    if (sz === 0 || sz === 1 || sz === 2) DM.size = sz;
+    var op = parseInt(ls('mfl:dm:op'), 10);
+    if (op >= 20 && op <= 100) DM.op = op;
+    var ar = ls('mfl:dm:area');
+    if (ar === 'all' || ar === 'top' || ar === 'bot') DM.area = ar;
+  })();
+  function dmStore(on) { ls('mfl:dm', on ? '1' : '0'); }
+
+  function dmPaint() {
+    var b = $('pDm');
+    if (b) { b.textContent = '弹幕'; b.classList.toggle('off', !DM.on); b.title = DM.on ? '弹幕：开' : '弹幕：关'; }
+    var c = $('dmCanvas');
+    if (c) c.classList.toggle('on', DM.on);
+  }
+
+  /** 画布尺寸 + 画面内容区（object-fit contain 时的黑边不算画面） */
+  function dmFit(c) {
+    var p = $('player');
+    if (!c || !p) return;
+    var r = p.getBoundingClientRect();
+    var d = Math.min(2, window.devicePixelRatio || 1);
+    var w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+    if (w < 2 || h < 2) return;              /* 播放器还没显示，下一帧再算 */
+    if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) {
+      c.width = Math.round(w * d); c.height = Math.round(h * d);
+      c._ctx = null;
+    }
+    if (!c._ctx) { try { c._ctx = c.getContext('2d'); } catch (e) { return; } }
+    if (!c._ctx) return;
+    c._ctx.setTransform(d, 0, 0, d, 0, 0);   /* 用 CSS 像素坐标系画，字号不随 dpr 飘 */
+    c._w = w; c._h = h;
+    var vw = v.videoWidth || 0, vh = v.videoHeight || 0;
+    var cover = p.classList.contains('webwide');
+    if (vw > 0 && vh > 0) {
+      var s = cover ? Math.max(w / vw, h / vh) : Math.min(w / vw, h / vh);
+      var cw = Math.min(w, vw * s), chh = Math.min(h, vh * s);
+      c._cx = (w - cw) / 2; c._cy = (h - chh) / 2; c._cw = cw; c._ch = chh;
+    } else { c._cx = 0; c._cy = 0; c._cw = w; c._ch = h; }
+    DM.dirty = false;
+  }
+
+  function dmClear() {
+    var c = $('dmCanvas');
+    if (!c || !c._ctx) return;
+    c._ctx.clearRect(0, 0, c._w || c.width || 1, c._h || c.height || 1);
+  }
+
+  /* 二分定位：跳集 / 拖动之后从新位置接着放，不补放旧区间的弹幕 */
+  function dmSeek(t) {
+    var lo = 0, hi = DM.items.length;
+    while (lo < hi) { var mid = (lo + hi) >> 1; if (DM.items[mid][0] < t) lo = mid + 1; else hi = mid; }
+    DM.cur = lo; DM.laneFree = []; DM.topFree = []; DM.botFree = []; DM.fixAt = undefined;
+  }
+
+  function dmLoad(title, ep) {
+    var key = (title || '') + '|' + (ep | 0);
+    /* 同一集不重复取（换线路、重试起播都会走到这儿） */
+    if (key === DM.key && DM.items.length) return;
+    DM.key = key;
+    var tok = ++DM.tok;
+    DM.items = []; DM.cur = 0; DM.act = []; DM.lastT = -1; DM.recent = {}; DM.sec = -1; DM.secN = 0; DM.src = '';
+    DM.laneFree = []; DM.topFree = []; DM.botFree = []; DM.fixAt = undefined;
+    dmClear();
+    if (!DM.on || !title) return;
+    fetch('/api/danmaku?title=' + encodeURIComponent(title) + '&episode=' + (ep || 1))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (tok !== DM.tok) return;
+        if (!d || !d.ok) { DM.key = ''; toast(d && d.msg ? d.msg : '这一集没有弹幕'); return; }
+        DM.items = d.items || []; DM.src = d.source || '';
+        DM.act = []; DM.lastT = -1;
+        dmSeek(v.currentTime || 0);
+        toast('弹幕 ' + DM.items.length + ' 条 · ' + DM.src);
+      })
+      .catch(function () { if (tok === DM.tok) { DM.key = ''; toast('弹幕取不到（检查网络或代理）'); } });
+  }
+
+  function dmToggle() {
+    DM.on = !DM.on;
+    dmStore(DM.on);
+    dmPaint();
+    if (!DM.on) { DM.tok++; DM.items = []; DM.act = []; dmClear(); dmStop(); return; }
+    DM.key = '';
+    dmLoad(state.title, (state.ep | 0) + 1);
+    dmStart();
+  }
+
+  function dmStart() {
+    if (DM.rafOn) return;
+    dmPaint();
+    dmFit($('dmCanvas'));
+    DM.rafOn = true;
+    DM.raf = requestAnimationFrame(dmFrame);
+  }
+  function dmStop() {
+    DM.rafOn = false;
+    if (DM.raf) { try { cancelAnimationFrame(DM.raf); } catch (e) {} }
+    DM.raf = 0; DM.act = []; dmClear();
+  }
+
+  function dmSpawn(it, t, W, H, base, lh, top, bot, lanes) {
+    var c = $('dmCanvas');
+    var g = c && c._ctx;
+    if (!g) return;
+    var mode = it[1], size = it[2] || 1, color = it[3] || '#ffffff', text = String(it[4] == null ? '' : it[4]);
+    if (!text) return;
+    var fs = Math.round(base * size * (DM.size === 0 ? 0.86 : (DM.size === 2 ? 1.3 : 1)));
+    if (fs < 11) fs = 11;
+    g.font = '700 ' + fs + 'px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif';
+    var tw = g.measureText(text).width;
+    if (mode === 4 || mode === 5) {
+      if (t - (DM.fixAt === undefined ? -9 : DM.fixAt) < 0.4) return;
+      DM.fixAt = t;
+      var arr = mode === 5 ? DM.topFree : DM.botFree;
+      var lane = -1;
+      for (var i = 0; i < 3; i++) { if ((arr[i] || 0) <= t) { lane = i; break; } }
+      if (lane < 0) return;
+      arr[lane] = t + 3;
+      DM.act.push({
+        born: t, y: mode === 5 ? (top + lane * lh) : (bot - lane * lh - fs),
+        w: tw, sp: 0, life: 4.5, font: fs, text: text, color: color
+      });
+      return;
+    }
+    var lane2 = -1;
+    /* 在所有空着的泳道里随机挑一条：总是挑第一条的话，屏幕窄的时候整屏只有一行弹幕 */
+    var cand = [];
+    for (var j = 0; j < lanes; j++) { if ((DM.laneFree[j] || 0) <= t) cand.push(j); }
+    if (cand.length) lane2 = cand[(Math.random() * cand.length) | 0];
+    if (lane2 < 0) return;               /* 泳道满了就丢，不叠在一起糊成一块 */
+    var sp = (W + tw) / 9;
+    DM.laneFree[lane2] = t + Math.max(0.5, (tw + 40) / sp);
+    DM.act.push({ born: t, y: top + lane2 * lh, w: tw, sp: sp, life: 0, font: fs, text: text, color: color });
+  }
+
+  function dmFrame() {
+    if (!DM.rafOn) return;
+    DM.raf = requestAnimationFrame(dmFrame);
+    var c = $('dmCanvas');
+    if (!c) return;
+    if (!$('player').classList.contains('on')) { dmStop(); return; }
+    if (!DM.on) return;
+    /* 几何不用每帧都算：getBoundingClientRect 每帧都调会逼着浏览器重排。
+       尺寸真变了由 resize / orientationchange / loadedmetadata 打 dirty 标记。 */
+    if (!c._w || DM.dirty || (++DM.fitTick % 15) === 0) dmFit(c);
+    var g = c._ctx;
+    if (!g) return;
+    var W = c._cw || 1, H = c._ch || 1, OX = c._cx || 0, OY = c._cy || 0;
+    var t = v.currentTime || 0;
+    var base = Math.max(13, Math.min(28, W / 42));
+    var lh = Math.round(base) + 10;
+    var top = OY + Math.round(H * 0.05), bot = OY + Math.round(H * 0.84);
+    if (DM.area === 'top') bot = OY + Math.round(H * 0.54);
+    else if (DM.area === 'bot') top = OY + Math.round(H * 0.46);
+    var lanes = Math.floor((bot - top) / lh);
+    if (lanes < 1) lanes = 1;
+    if (lanes > 18) lanes = 18;
+
+    if (DM.lastT < 0 || Math.abs(t - DM.lastT) > 1.5) {
+      DM.act.length = 0; DM.recent = {}; DM.sec = -1; DM.secN = 0; dmSeek(t);
+    }
+    DM.lastT = t;
+
+    var perSec = Math.max(6, lanes * 2);
+    var sec = Math.floor(t);
+    if (sec !== DM.sec) { DM.sec = sec; DM.secN = 0; }
+
+    var budget = 40;
+    while (DM.cur < DM.items.length && DM.items[DM.cur][0] <= t && budget-- > 0 && DM.secN < perSec) {
+      var it = DM.items[DM.cur++];
+      if (t - it[0] >= 3) continue;
+      var k = it[4];
+      if (DM.recent[k] !== undefined && t - DM.recent[k] < 8) continue;   /* 同一句 8 秒内只放一条 */
+      DM.recent[k] = t;
+      if (DM.act.length > 400) DM.recent = {};
+      dmSpawn(it, t, W, H, base, lh, top, bot, lanes);
+      DM.secN++;
+    }
+
+    g.clearRect(0, 0, c._w || W, c._h || H);
+    g.textBaseline = 'top';
+    for (var i = DM.act.length - 1; i >= 0; i--) {
+      var e = DM.act[i], x;
+      if (e.sp > 0) {
+        var el = t - e.born;
+        x = OX + W - e.sp * el;
+        if (x + e.w < OX || el < 0) { DM.act.splice(i, 1); continue; }
+      } else {
+        var el2 = t - e.born;
+        if (el2 > e.life || el2 < 0) { DM.act.splice(i, 1); continue; }
+        x = OX + (W - e.w) / 2;
+      }
+      var fade = e.sp > 0 ? 1 : Math.min(1, Math.max(0, (e.life - (t - e.born)) / 0.6));
+      g.globalAlpha = Math.max(0, Math.min(1, (DM.op / 100) * fade));
+      g.font = '700 ' + e.font + 'px "PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif';
+      g.lineWidth = Math.max(2, e.font / 9);
+      g.strokeStyle = 'rgba(0,0,0,.82)';
+      g.strokeText(e.text, x, e.y);
+      g.fillStyle = e.color;
+      g.fillText(e.text, x, e.y);
+    }
+    g.globalAlpha = 1;
+  }
+
+  (function bindDm() {
+    var b = $('pDm');
+    if (b) b.addEventListener('click', function (e) {
+      e.stopPropagation();
+      dmToggle();
+      try { showCtl(); } catch (err) {}
+    });
+    dmPaint();
+    /* 视频尺寸出来 / 转屏 之后重算一次内容区，第一帧不歪 */
+    var refit = function () { DM.dirty = true; try { dmFit($('dmCanvas')); } catch (e) {} };
+    v.addEventListener('loadedmetadata', refit);
+    v.addEventListener('resize', refit);
+    window.addEventListener('orientationchange', function () { setTimeout(refit, 320); });
+    window.addEventListener('resize', function () { setTimeout(refit, 160); });
+  })();
 
   try { bindRemote(); } catch (e) {}
   try { bindSourceIO(); } catch (e) {}
