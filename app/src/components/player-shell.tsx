@@ -791,6 +791,10 @@ export function PlayerShell({
     const playerEl = containerRef.current?.querySelector('.art-video-player') as HTMLElement | null;
     let lcsLayer: HTMLElement | null = null;
     if (playerEl) {
+      // 给遥控端（lib/remote-engine.ts）一个明确的「点播播放器在场」标记：
+      // 播放器里 ←/→ 归进度条、↑/↓ 归音量 / 控制条，不再拿去做焦点导航。
+      // 直播播放器不打这个标记（直播没有进度可跳，方向键该继续走焦点）。
+      playerEl.setAttribute('data-mfl-player', '1');
       const host = document.createElement('div');
       host.setAttribute('data-lcs-overlay', '');
       host.style.cssText = 'position:absolute;inset:0;z-index:105;pointer-events:none;';
@@ -1379,11 +1383,13 @@ export function PlayerShell({
         return;
       }
       switch (e.key) {
+        // ← / → 固定 ±10 秒：和 J/L 同一档，也跟「双击左右半屏 ±10 秒」一致。
+        // 遥控端（remote-engine）在播放器里不再拿 ←/→ 挪焦点，所以这里就是唯一语义。
         case 'ArrowLeft':
-          if (current.currentTime > 5) { current.currentTime -= 5; showHint('快退 5s'); e.preventDefault(); }
+          if (current.currentTime > 10) { current.currentTime -= 10; showHint('快退 10s'); e.preventDefault(); }
           break;
         case 'ArrowRight':
-          if (current.duration - current.currentTime > 5) { current.currentTime += 5; showHint('快进 5s'); e.preventDefault(); }
+          if (current.duration - current.currentTime > 10) { current.currentTime += 10; showHint('快进 10s'); e.preventDefault(); }
           break;
         case 'ArrowUp':
           // 静音状态下按音量键要先解除静音，否则调了没声音还以为音量键坏了
@@ -1781,7 +1787,7 @@ export function PlayerShell({
               {[
                 ['空格 / K', '播放 / 暂停'],
                 ['J / L', '快退 / 快进 10 秒'],
-                ['← / →', '快退 / 快进 5 秒'],
+                ['← / →', '快退 / 快进 10 秒（遥控器同此键）'],
                 ['↑ / ↓', '音量'],
                 ['M', '静音'],
                 ['D', '弹幕开 / 关'],

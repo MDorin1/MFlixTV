@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { setHandlers, start } from '@/lib/remote-engine';
+import { seedFocus, setHandlers, start } from '@/lib/remote-engine';
 
 /**
  * 让「扫码当遥控器」的接收端在全站任意路由都醒着，自己不渲染任何东西。
@@ -24,6 +24,8 @@ export function RemoteBoot() {
       home: () => router.push('/'),
       search: (q: string) => router.push(`/?s=${encodeURIComponent(q)}`),
     });
+    // 先把焦点钉到主操作（首页是「播放」）：不钉的话，遥控器刚打开按确认是没有反应的
+    return seedFocus();
   }, [router]);
   return null;
 }

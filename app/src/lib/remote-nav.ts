@@ -41,6 +41,11 @@ export interface NavHandle {
   clear: () => void;
   current: () => HTMLElement | null;
   hasFocus: () => boolean;
+  /**
+   * 直接把焦点钉到某个选择器的第一个可见元素（首屏用）。
+   * `fallback === false` 时找不到就返回 false，不退回「最近的一格」。
+   */
+  focusFirst: (sel?: string, opts?: { fallback?: boolean }) => boolean;
 }
 
 const DEFAULT_SELECTOR =
@@ -336,6 +341,35 @@ export function installNav(cfg: NavOptions = {}): NavHandle {
     return false;
   };
 
+  /**
+   * 把焦点钉到指定元素（首屏「播放」按钮就靠它）。
+   *
+   * 为什么需要：没有焦点时 `move()` 只能靠 `firstIn()` 按几何位置临时挑一格，
+   * 而 `ok()` 在没有焦点时什么都不做 —— 于是「刚打开 App 就按确认」等于按了个空键。
+   * 首页头图是异步取回来的，「播放」按钮出现得比页面挂载晚，所以这里按选择器找，
+   * 找不到时由调用方决定要不要退回最近的一格。
+   */
+  const focusFirst = (sel?: string, opts: { fallback?: boolean } = {}): boolean => {
+    if (typeof document === 'undefined') return false;
+    if (sel) {
+      const host = scopeEl() || document.body || document.documentElement;
+      let nodes: HTMLElement[] = [];
+      try {
+        nodes = Array.from(host.querySelectorAll<HTMLElement>(sel));
+      } catch {
+        nodes = [];
+      }
+      for (const el of nodes) {
+        if (el === cur) return true;
+        if (cfg.skip && cfg.skip(el)) continue;
+        if (!visible(el)) continue;
+        return focusEl(el);
+      }
+    }
+    if (opts.fallback === false) return false;
+    return focusEl(firstIn('down'));
+  };
+
   const ok = (): boolean => {
     if (!cur || !document.documentElement.contains(cur)) return false;
     try {
@@ -362,7 +396,7 @@ export function installNav(cfg: NavOptions = {}): NavHandle {
   document.addEventListener('mousedown', onPointer, true);
   document.addEventListener('touchstart', onPointer, true);
 
-  return { move, ok, clear, current: () => cur, hasFocus: () => !!cur };
+  return { move, ok, clear, current: () => cur, hasFocus: () => !!cur, focusFirst };
 }
 
 /**

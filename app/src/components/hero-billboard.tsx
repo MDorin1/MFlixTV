@@ -71,6 +71,7 @@ export function HeroBillboard() {
             <div className="mt-4 flex flex-wrap items-center gap-2.5">
               <Link
                 href={`/title/${hero.id}`}
+                data-rc-first="1"
                 className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-2.5 text-[15px] font-bold text-black transition hover:bg-white/85"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>

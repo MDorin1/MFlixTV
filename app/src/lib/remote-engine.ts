@@ -1,6 +1,7 @@
 'use client';
 
 import { installNav, topLayer, type NavDir, type NavHandle } from '@/lib/remote-nav';
+import { arrowRoute } from '@/lib/player-keys';
 import { canNativeFullscreen, setNativeFullscreen, armRealFullscreen } from '@/lib/native-fullscreen';
 
 /**
@@ -105,6 +106,39 @@ const S = {
 let nav: NavHandle | null = null;
 /** 二维码面板是不是开着：开着时十字键不许去动背后那层页面 */
 let panelOpen = false;
+
+/* ------------------------------------------------------------------ 播放器在场判定 */
+
+/**
+ * 点播播放器在不在页面上。
+ *
+ * `player-shell` 会在 ArtPlayer 根节点（`.art-video-player`）上打 `data-mfl-player`，
+ * 直播播放器不打 —— 直播没有进度可跳，方向键该继续归焦点导航。
+ */
+function playerRoot(): HTMLElement | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    return document.querySelector<HTMLElement>('[data-mfl-player]');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 控制条亮着吗。
+ *
+ * ArtPlayer 控制条收起来时只是把父层 `.art-bottom` 的 opacity 设成 0，
+ * 里面的按钮本身仍是「可见」的（opacity 1、offsetParent 非空），所以不能靠按钮判断。
+ * 根节点上的 `art-control-show` 才是它自己认的「控制条现在亮着」。
+ */
+function playerBarShown(root: HTMLElement | null): boolean {
+  if (!root) return false;
+  const el = root.classList.contains('art-video-player')
+    ? root
+    : root.querySelector<HTMLElement>('.art-video-player');
+  return !!el && el.classList.contains('art-control-show');
+}
+
 let handlers: Handlers = {
   back: () => window.history.back(),
   home: () => window.location.assign('/'),
@@ -460,7 +494,29 @@ export function exec(cmd: string, arg: string) {
     case 'left':
     case 'right': {
       if (panelOpen) return;
-      if (nav?.move(cmd as NavDir)) return;
+      /* —— 播放器里方向键归播放器 ——
+         以前这里无条件先走 nav.move()，而 ArtPlayer 的按钮在控制条收起时
+         依然通过 visible()（父层 opacity:0 不算元素自己不可见），
+         于是同一台电视上「按右键」有时跳进度、有时挪按钮，手感是随机的。
+
+         现在的规则（审核单要求的那套）：
+         ← / → 固定 ±10 秒快退快进，任何情况都不挪焦点；
+         ↑ / ↓ 只在控制条亮着时挑按钮（此时才有按钮可挑），收起时就是音量。 */
+      const dir = cmd as NavDir;
+      const root = playerRoot();
+      const route = arrowRoute({ inPlayer: !!root, barShown: playerBarShown(root), dir });
+      if (route !== 'page') {
+        if (route === 'seek') {
+          fireKey(dir === 'left' ? 'ArrowLeft' : 'ArrowRight', dir === 'left' ? 'ArrowLeft' : 'ArrowRight', dir === 'left' ? 37 : 39);
+          return;
+        }
+        if (route === 'bar' && nav?.move(dir)) return;
+        // 控制条刚收起来：顺手把还停在按钮上的焦点清掉，免得下一次「确认」按到看不见的按钮
+        if (nav?.current()?.closest?.('[data-mfl-player]')) nav?.clear();
+        fireKey(dir === 'up' ? 'ArrowUp' : 'ArrowDown', dir === 'up' ? 'ArrowUp' : 'ArrowDown', dir === 'up' ? 38 : 40);
+        return;
+      }
+      if (nav?.move(dir)) return;
       const map: Record<string, [string, number]> = {
         up: ['ArrowUp', 38],
         down: ['ArrowDown', 40],
@@ -710,6 +766,89 @@ async function tick() {
     ? Math.min(FAIL_MAX_MS, POLL_MS * Math.pow(2, Math.min(5, S.fails)))
     : (S.token ? POLL_MS : 1000);
   S.timer = window.setTimeout(tick, delay);
+}
+
+/**
+ * 首屏焦点：页面挂载完就把遥控焦点钉到主操作（`[data-rc-first]`，首页是「播放」）。
+ *
+ * 为什么必须抢：没有焦点时 `ok()` 直接返回 false，遥控器「刚打开就按确认」等于没按。
+ *
+ * 难点是「头图是接口回来的」：按钮出现得比页面挂载晚，可能晚到一两秒。
+ * 所以三手一起上 —— 固定几个时间点各试一次、再挂一个 MutationObserver 盯着 DOM 一出现就钉、
+ * 最后（`times` 最后一拍）如果头图压根没渲染（接口挂了）才退回「最近的一格」，
+ * 保证第一下方向键也有东西可按。
+ *
+ * 已经被人为挪去别处的焦点不抢回来；只重钉「我们自己钉上去的那一格」。
+ */
+export function seedFocus(times: number[] = [0, 300, 900, 1800, 3000]) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return () => {};
+  const timers: number[] = [];
+  /** 当前这一格是不是我们自己钉的：是就允许重钉，不是就是用户自己挪的，不抢 */
+  let pinned: HTMLElement | null = null;
+  let done = false;
+  let obs: MutationObserver | null = null;
+  let lastRun = 0;
+
+  const userMoved = (): boolean => {
+    const cur = nav?.current() ?? null;
+    return !!cur && cur !== pinned;
+  };
+
+  const pin = (heroOnly: boolean) => {
+    if (done || panelOpen || userMoved()) return;
+    if (nav?.focusFirst('[data-rc-first]', { fallback: false })) {
+      pinned = nav?.current() ?? null;
+      done = true;
+      obs?.disconnect();
+      obs = null;
+      return;
+    }
+    if (!heroOnly && !nav?.hasFocus()) {
+      // 头图还没出现：先给页面最近的一格（最后一拍才做这件事）
+      nav?.focusFirst(undefined, { fallback: true });
+      pinned = nav?.current() ?? null;
+    }
+  };
+
+  times.forEach((t, i) => {
+    const last = i === times.length - 1;
+    if (t <= 0) {
+      // 第一拍放在下一帧：挂载这一轮 DOM 还没提交，量出来的坐标全是 0
+      const raf = typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame(() => pin(true))
+        : window.setTimeout(() => pin(true), 0);
+      timers.push(raf as unknown as number);
+      return;
+    }
+    timers.push(window.setTimeout(() => pin(!last), t));
+  });
+
+  // 头图可能比上面几拍都晚：盯着 DOM，`[data-rc-first]` 一出现就钉上（节流到 150ms 一次）
+  try {
+    obs = new MutationObserver(() => {
+      if (done) return;
+      const now = Date.now();
+      if (now - lastRun < 150) return;
+      lastRun = now;
+      pin(true);
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+  } catch {
+    obs = null;
+  }
+
+  return () => {
+    obs?.disconnect();
+    obs = null;
+    for (const id of timers) {
+      try {
+        window.clearTimeout(id);
+        if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id);
+      } catch {
+        /* ignore */
+      }
+    }
+  };
 }
 
 /** 页面一挂载就调用；重复调用无副作用，会话一直跑着 */
