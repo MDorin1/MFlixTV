@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { SearchResultItem, SourceConfig } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
 import { qualityKey } from '@/lib/quality';
-import { compactRemarks, inferGroupRemarks } from '@/lib/remarks';
+import { compactRemarks, inferGroupRemarks, latestEpisodeDate } from '@/lib/remarks';
 import { cn } from '@/lib/utils';
 import { SmartImage } from './smart-image';
 import { QualityBadge } from './quality-badge';
@@ -20,10 +20,17 @@ export interface AggregatedGroup {
   typeName?: string;
   pic?: string;
   remarks?: string;
+  /** 组内最新一期的播出日期（YYYY-MM-DD）：综艺按日期更，vod_year 只写首播年 */
+  latestDate?: string;
   items: SearchResultItem[];
 }
 
 function buildGroup(name: string, year: string | undefined, items: SearchResultItem[]): AggregatedGroup {
+  let latestDate: string | undefined;
+  for (const it of items) {
+    const d = latestEpisodeDate(it.remarks);
+    if (d && (!latestDate || d > latestDate)) latestDate = d;
+  }
   return {
     key: `${name}|${year ?? ''}|${items.map((i) => `${i.sourceKey}_${i.vodId}`).join(',')}`,
     name,
@@ -33,6 +40,7 @@ function buildGroup(name: string, year: string | undefined, items: SearchResultI
     // 同一部剧各源文案详略不同（「全34集」/「完结」/「更新至34集」），推到统一结论，
     // 否则同一部剧的来源列表会看起来状态各异
     remarks: inferGroupRemarks(items.map((i) => i.remarks)),
+    latestDate,
     items,
   };
 }
@@ -162,7 +170,12 @@ export function AggregatedCard({
       ? remarksList[0]
       : undefined;
 
-  const metaLine = [group.year, group.typeName].filter(Boolean).join(' · ');
+  // 连载综艺的 vod_year 是首播年（小明星大跟班永远是 2016），只写年份会把人骗走：
+  // 标成「2016」的片其实是今天还在更的节目。最新一期跨到别的年份时写「2016起」。
+  const latestYear = group.latestDate?.slice(0, 4);
+  const yearLabel =
+    group.year && latestYear && latestYear !== group.year ? `${group.year}起` : group.year;
+  const metaLine = [yearLabel, group.typeName].filter(Boolean).join(' · ');
 
   return (
     <div ref={inViewRef} className="group/poster relative select-none">

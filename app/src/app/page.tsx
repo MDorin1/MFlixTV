@@ -15,6 +15,7 @@ import { HotSearchChips } from '@/components/hot-chips';
 import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { useAppStore, resolveSource, isInDisabledSubscription, isSourceDisabled } from '@/lib/store';
 import { api } from '@/lib/client-api';
+import { recencyYear } from '@/lib/remarks';
 import type { SearchResultItem, SourceSearchOutcome } from '@/lib/types';
 import { SearchHistoryDropdown, useSearchHistory } from '@/components/search-history';
 import { cn, formatDisableTtl, validateSourceUrl } from '@/lib/utils';
@@ -185,11 +186,14 @@ function HomeContent() {
   // 跨源同名聚合：同名影片合并为一张卡片，展开后可选择具体来源
   // 排序：新的在前。搜「某某大赛」时，最新一季应该排第一，其次才是旧季；
   // 没有年份的排最后（按名称兜底），避免它们插在年份序列中间。
+  // 例外：连载综艺的 vod_year 是首播年（「小明星大跟班」永远是 2016），
+  // 只按年份排会被当成十年前的老片压到最底——用最新一期的播出年份参与排序。
   const groups = useMemo(() => {
     const g = aggregateResults(list);
+    const effectiveYear = (x: (typeof g)[number]) => recencyYear(x.year, x.latestDate);
     return [...g].sort((a, b) => {
-      const ya = Number(a.year) || 0;
-      const yb = Number(b.year) || 0;
+      const ya = effectiveYear(a);
+      const yb = effectiveYear(b);
       if (ya !== yb) return yb - ya;
       return a.name.localeCompare(b.name, 'zh-CN');
     });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compactRemarks, formatRemarks, inferGroupRemarks } from './remarks';
+import { compactRemarks, formatRemarks, inferGroupRemarks, latestEpisodeDate, recencyYear } from './remarks';
 
 describe('compactRemarks', () => {
   it('集数进度压成「N 集」：选源行里前缀没有信息量', () => {
@@ -72,6 +72,69 @@ describe('formatRemarks', () => {
 
   it('首尾空白不影响判定', () => {
     expect(formatRemarks(' 全34集 ')).toBe('全34集');
+  });
+});
+
+describe('latestEpisodeDate', () => {
+  // 「小明星大跟班」在各源的实际取值：首播年写死 2016，进度只有日期
+  it('取出综艺期号里的播出日期', () => {
+    expect(latestEpisodeDate('更新至20251020期')).toBe('2025-10-20');
+    expect(latestEpisodeDate('更新至第20250224期')).toBe('2025-02-24');
+    expect(latestEpisodeDate('更新20251016')).toBe('2025-10-16');
+    expect(latestEpisodeDate('更新至 2025-10-21')).toBe('2025-10-21');
+    expect(latestEpisodeDate('更新至2025.10.20')).toBe('2025-10-20');
+  });
+
+  it('区间写法取最晚的那一期', () => {
+    expect(latestEpisodeDate('20240101-20251020')).toBe('2025-10-20');
+  });
+
+  it('纯年份、集数、无日期都不算期号', () => {
+    expect(latestEpisodeDate('2026')).toBeUndefined();
+    expect(latestEpisodeDate('全34集')).toBeUndefined();
+    expect(latestEpisodeDate('已完结')).toBeUndefined();
+    expect(latestEpisodeDate(undefined)).toBeUndefined();
+  });
+
+  it('非法日历不算：20251340 不是日期', () => {
+    expect(latestEpisodeDate('更新至20251340期')).toBeUndefined();
+  });
+});
+
+describe('formatRemarks：综艺期号', () => {
+  it('日期期号统一成「更新至 YYYY-MM-DD」', () => {
+    expect(formatRemarks('更新至20251020期')).toBe('更新至 2025-10-20');
+    expect(formatRemarks('更新至第20250224期')).toBe('更新至 2025-02-24');
+  });
+
+  it('幂等：归一后再跑一次不变', () => {
+    const once = formatRemarks('更新至20251020期');
+    expect(formatRemarks(once)).toBe(once);
+  });
+
+  it('有集数时仍按集数走，不被日期抢走', () => {
+    expect(formatRemarks('更新至12集')).toBe('更新至12集');
+  });
+});
+
+describe('recencyYear：连载综艺按最新一期算新旧', () => {
+  it('普通影片仍用年份', () => {
+    expect(recencyYear('2024')).toBe(2024);
+    expect(recencyYear(undefined)).toBe(0);
+  });
+
+  it('首播 2016、最新一期 2025 的综艺，排序用 2025', () => {
+    // 小明星大跟班：vod_year=2016，remarks=更新至20251020期
+    expect(recencyYear('2016', '2025-10-20')).toBe(2025);
+  });
+
+  it('最新一期没有跨年时仍取较大的那个', () => {
+    expect(recencyYear('2025', '2025-03-01')).toBe(2025);
+    expect(recencyYear('2016', '2016-05-01')).toBe(2016);
+  });
+
+  it('年份缺失但有日期时用日期年份', () => {
+    expect(recencyYear(undefined, '2025-02-24')).toBe(2025);
   });
 });
 

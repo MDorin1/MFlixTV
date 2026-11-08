@@ -11,6 +11,15 @@
 
 /** 集数：「全34集」「第34集」「更新至12集」「共24集」都能取出数字 */
 const EPISODE_COUNT = /(\d+)\s*集/;
+/**
+ * 期号日期：「更新至20251020期」「第20250224期」这类写法没有「集」字。
+ *
+ * 综艺、新闻、长播节目普遍按播出日期标进度，采集源各写各的：
+ * 20251020 / 2025-10-20 / 2025.10.20 三种都出现过。
+ * 单独拎出来是因为它同时决定「这部还在更新吗」和「它该排在多新」——
+ * 小明星大跟班的 vod_year 固定写 2016（首播年），只按年份排会被当成十年前的旧片。
+ */
+const EPISODE_DATE = /(20\d{2})[-./]?(\d{2})[-./]?(\d{2})/;
 /** 完结的明确表述。「剧终」而不单是「终」——否则「终极版」会被误判成已完结 */
 const FINISHED_WORD = /完结|大结局|全集|剧终/;
 /** 前置全称：「全34集」「共24集」 */
@@ -24,6 +33,28 @@ function isFinished(text: string): boolean {
 
 function episodeCount(text: string): number {
   return Number(EPISODE_COUNT.exec(text)?.[1] ?? 0);
+}
+
+/**
+ * 从备注里取出「最新一期」的播出日期，返回 `YYYY-MM-DD`。
+ *
+ * 只认能落到合法日历的 8 位日期：`2026` 这种纯年份、`第12集` 这种集数都不匹配，
+ * 免得把「2026」「终极版」之类误认成期号。取文中**最晚**的一个日期，
+ * 兼容「20240101-20251020」这种区间写法。
+ */
+export function latestEpisodeDate(raw?: string): string | undefined {
+  const text = raw?.trim();
+  if (!text) return undefined;
+  let best: string | undefined;
+  for (const m of text.matchAll(new RegExp(EPISODE_DATE.source, 'g'))) {
+    const [, y, mo, d] = m;
+    const mi = Number(mo);
+    const di = Number(d);
+    if (mi < 1 || mi > 12 || di < 1 || di > 31) continue;
+    const iso = `${y}-${mo}-${d}`;
+    if (!best || iso > best) best = iso;
+  }
+  return best;
 }
 
 /**
@@ -42,9 +73,29 @@ export function formatRemarks(raw?: string): string | undefined {
   const finished = isFinished(text);
   const count = episodeCount(text);
   if (count > 0) return finished ? `全${count}集` : `更新至${count}集`;
+  // 综艺/长播节目按播出日期标进度：统一成「更新至 2025-10-20」，比原始的
+  // 「更新至20251020期」好读，也让「这部到底还更不更新」一眼可见
+  const date = latestEpisodeDate(text);
+  if (date) return `更新至 ${date}`;
   // 没有集数时，只有「完结」类表述能归一，别的保持原样
   if (finished) return '已完结';
   return text;
+}
+
+/**
+ * 搜索结果排序用的「新旧年份」。
+ *
+ * 一般影片取 vod_year；连载综艺/新闻的 vod_year 是首播年（「小明星大跟班」永远 2016），
+ * 用它排序会把今天还在更新的节目压到十年前那一档。所以最新一期跨了年份时，
+ * 以最新一期的年份为准。
+ */
+export function recencyYear(year?: string, latestDate?: string): number {
+  const latestYear = Number(latestDate?.slice(0, 4));
+  if (latestYear > 0) {
+    const base = Number(year);
+    return base > latestYear ? base : latestYear;
+  }
+  return Number(year) || 0;
 }
 
 /**
