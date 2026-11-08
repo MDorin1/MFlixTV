@@ -31,9 +31,9 @@
      交互全部遥控器方向键：.fx 为可聚焦元素，几何导航 + Netflix 式焦点联动。 */
   :root{
     /* 主色：与 MFlixMusic 用同一组变量名（--accent/--accent-2），值各自不同。
-       影视端是红黑。--red/--red2 只为兼容旧引用保留，新代码一律写 --accent。 */
+       影视端是红黑。1.27 起只保留这一套名字：旧的那组红色变量与其使用点
+       已全部改写成 accent，改色时不会再出现「改了旧名、漏了新名」的岔子。 */
     --accent:#e50914; --accent-2:#ff4d57;
-    --red:var(--accent); --red2:var(--accent-2);
     --bg:#000; --ink:#fff; --dim:#a8a8a8; --dim2:#6f6f6f;
     /* 语义名与 MFlixMusic 对齐：音乐端只用 --ink/--ink-2/--ink-3，
        这边历史写法是 --ink/--dim/--dim2。加别名而不是改名，零视觉变化，
@@ -66,7 +66,7 @@
     transition:background .3s linear}
   #nav.solid{background:rgba(8,8,8,.98)}
   #nav.up{background:rgba(8,8,8,.98)}
-  .logo{font-size:2.25rem;font-weight:900;letter-spacing:.04em;color:var(--red);
+  .logo{font-size:2.25rem;font-weight:900;letter-spacing:.04em;color:var(--accent);
     text-shadow:0 .1rem 1.5rem rgba(229,9,20,.5);white-space:nowrap;line-height:1}
   #navItems{display:flex;align-items:center;gap:.15rem;flex:1}
   .nv{font-size:1.5rem;font-weight:700;color:#b9b9b9;padding:.42rem .95rem;border-radius:var(--r-sm);white-space:nowrap;
@@ -102,13 +102,13 @@
   .hero-poster.on{opacity:1}
   .hero-poster img{width:100%;height:100%;object-fit:cover}
   .hero-tag{display:inline-block;font-size:1.02rem;font-weight:900;letter-spacing:.2em;
-    color:#fff;background:linear-gradient(135deg,var(--red),var(--red2));
+    color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-2));
     padding:.22rem .62rem;border-radius:var(--r-sm);margin-bottom:.85rem}
   #heroTitle{margin:0 0 .65rem;font-size:4.5rem;line-height:1.04;font-weight:900;letter-spacing:-.015em;
     text-shadow:0 .35rem 1.8rem rgba(0,0,0,.9)}
   .hero-meta{display:flex;align-items:center;gap:.75rem;font-size:1.35rem;color:#d5d5d5;margin-bottom:.65rem}
   .hero-meta .dot{width:.24rem;height:.24rem;border-radius:50%;background:#7b7b7b}
-  .hero-meta b{color:var(--red2);font-weight:800}
+  .hero-meta b{color:var(--accent-2);font-weight:800}
   .hero-desc{font-size:1.38rem;line-height:1.55;color:#c4c4c4;margin:0 0 1.2rem;
     display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .hero-btns{display:flex;gap:.8rem}
@@ -120,7 +120,7 @@
   .btn.fx.on{transform:scale(1.06);box-shadow:0 0 0 .1rem #fff,0 0 1.4rem rgba(229,9,20,.5)}
   .hero-dots{position:absolute;left:4rem;bottom:1.15rem;z-index:4;display:flex;gap:.36rem}
   .hero-dots i{width:1.25rem;height:.18rem;border-radius:var(--r-sm);background:rgba(255,255,255,.22)}
-  .hero-dots i.on{background:var(--red2)}
+  .hero-dots i.on{background:var(--accent-2)}
 
   /* ---------- 片单横排 ---------- */
   #rails{padding:0 0 4rem;position:relative;z-index:4;margin-top:1.1rem}
@@ -149,7 +149,7 @@
   /* 海报最底一条红色进度：一眼看出看到哪了 */
   .card .prog{position:absolute;left:0;right:0;bottom:0;height:.19rem;min-height:2.5px;
     background:rgba(255,255,255,.24);z-index:4}
-  .card .prog i{display:block;height:100%;min-width:3px;background:var(--red);
+  .card .prog i{display:block;height:100%;min-width:3px;background:var(--accent);
     box-shadow:0 0 0 .04rem rgba(229,9,20,.45)}
   /* 右上角的集标：跟左上角 .tag 对称，不跟片名抢底部 */
   .card .ep-tag{position:absolute;right:.35rem;top:.35rem;font-size:0.84rem;font-weight:900;color:#f2f2f2;
@@ -179,7 +179,7 @@
   .sc-in{min-height:3rem;border-radius:var(--r-sm);border:1px solid var(--line);background:rgba(255,255,255,.07);
     font-size:1.575rem;padding:.65rem 1rem;display:flex;align-items:center;letter-spacing:.05em;margin-bottom:1rem}
   .sc-in .ph{color:#6d6d6d;letter-spacing:0}
-  .cur{display:inline-block;width:.11rem;height:1.25rem;background:var(--red2);margin-left:.12rem;
+  .cur{display:inline-block;width:.11rem;height:1.25rem;background:var(--accent-2);margin-left:.12rem;
     animation:blk 1s steps(1) infinite}
   @keyframes blk{50%{opacity:0}}
   .kbd{display:grid;grid-template-columns:repeat(6,1fr);gap:.42rem}
@@ -188,7 +188,7 @@
   .key.fx.on{background:#fff;color:#111;transform:scale(1.04);box-shadow:0 0 0 .1rem #fff}
   .sc-acts{display:flex;gap:.6rem;margin-top:.9rem}
   .pb{font-size:1.29rem;font-weight:800;padding:.5rem 1rem;border-radius:var(--r-sm);background:rgba(255,255,255,.12)}
-  .pb.primary{background:linear-gradient(135deg,var(--red),var(--red2))}
+  .pb.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2))}
   .pb.fx.on{background:#fff;color:#111;transform:scale(1.04);box-shadow:0 0 0 .1rem #fff}
   #search .right{flex:1;min-width:0}
   .sub-h{font-size:1.29rem;color:#c9c9c9;font-weight:900;letter-spacing:.12em;margin-bottom:.8rem}
@@ -284,7 +284,7 @@
     background:linear-gradient(0deg,rgba(0,0,0,.92),rgba(0,0,0,.3) 62%,rgba(0,0,0,0));transition:opacity .25s linear}
   .hide{opacity:0;pointer-events:none}
   #track{height:.2rem;background:rgba(255,255,255,.26);border-radius:var(--r-sm);overflow:hidden;margin-bottom:.55rem}
-  #played{height:100%;width:0;background:linear-gradient(90deg,var(--red),var(--red2));transition:width .2s linear}
+  #played{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .2s linear}
   /* 拖动 / 快进快退时的时间气泡（图1 那种） */
   #tbub{position:absolute;bottom:2.05rem;left:0;transform:translateX(-50%);z-index:8;
     background:rgba(0,0,0,.88);color:#fff;font-size:1.14rem;font-weight:800;letter-spacing:.02em;
@@ -328,9 +328,9 @@
   #pbrand{position:absolute;top:0;right:0;bottom:0;left:0;z-index:4;display:none;align-items:center;justify-content:center;
     flex-direction:column;background:#000}
   #pbrand.on{display:flex}
-  #pbrand .w{font-size:3.75rem;font-weight:900;color:var(--red);letter-spacing:.05em;
+  #pbrand .w{font-size:3.75rem;font-weight:900;color:var(--accent);letter-spacing:.05em;
     text-shadow:0 .3rem 2rem rgba(229,9,20,.55)}
-  #pbrand .b{width:3.2rem;height:.15rem;background:linear-gradient(90deg,var(--red),var(--red2));
+  #pbrand .b{width:3.2rem;height:.15rem;background:linear-gradient(90deg,var(--accent),var(--accent-2));
     margin:.75rem 0 .55rem;border-radius:var(--r-sm)}
   #pbrand .s{font-size:0.99rem;letter-spacing:.34em;color:#8b8b8b}
   /* 下一集倒计时卡（Netflix 播完自动下一集那种） */
@@ -342,7 +342,7 @@
   #nx .t{font-size:1.5rem;font-weight:800;margin:.3rem 0 .15rem}
   #nx .s{font-size:1.14rem;color:#a9a9a9}
   #nx .r{display:flex;align-items:center;gap:.5rem;margin-top:.8rem}
-  #nx .cd{margin-left:auto;font-size:1.2rem;color:var(--red2);font-weight:900;font-variant-numeric:tabular-nums}
+  #nx .cd{margin-left:auto;font-size:1.2rem;color:var(--accent-2);font-weight:900;font-variant-numeric:tabular-nums}
 
   #toast{position:fixed;left:50%;bottom:3.2rem;transform:translateX(-50%) translateY(.8rem);z-index:300;
     background:rgba(18,18,18,.96);border:1px solid rgba(255,255,255,.14);color:#fff;
@@ -354,11 +354,11 @@
   #boot{position:fixed;top:0;right:0;bottom:0;left:0;z-index:400;background:#000;display:flex;align-items:center;
     justify-content:center;flex-direction:column;gap:1rem;transition:opacity .4s linear}
   #boot.off{opacity:0;pointer-events:none}
-  #boot .w{font-size:3.9rem;font-weight:900;color:var(--red);letter-spacing:.05em}
-  #boot .b{width:2.6rem;height:.14rem;background:linear-gradient(90deg,var(--red),var(--red2));border-radius:var(--r-sm)}
+  #boot .w{font-size:3.9rem;font-weight:900;color:var(--accent);letter-spacing:.05em}
+  #boot .b{width:2.6rem;height:.14rem;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:var(--r-sm)}
   #boot .s{font-size:0.99rem;letter-spacing:.32em;color:#7a7a7a}
   #boot .line{width:12rem;height:.14rem;background:#181818;border-radius:var(--r-sm);overflow:hidden;margin-top:.4rem}
-  #boot .line i{display:block;height:100%;width:36%;background:linear-gradient(90deg,var(--red),var(--red2));
+  #boot .line i{display:block;height:100%;width:36%;background:linear-gradient(90deg,var(--accent),var(--accent-2));
     animation:bt 1.2s ease-in-out infinite}
   @keyframes bt{0%{transform:translateX(-110%)}100%{transform:translateX(330%)}}
 
