@@ -100,6 +100,33 @@ object Freshness {
         return year?.trim().orEmpty()
     }
 
+    /**
+     * 归一化标题/关键词：只留字母与数字（去掉空白、标点、符号），转小写。
+     * 和电脑端 `cms-parser.ts` 的 `normalizeTitle` 同一口径，
+     * 用于跨标点差异匹配（源站存「摔跤吧!爸爸」而用户搜「摔跤吧！爸爸」）。
+     */
+    fun normalizeTitle(s: String?): String =
+        (s ?: "").lowercase().filter { it.isLetterOrDigit() }
+
+    /**
+     * 搜索结果的「标题精确度」分级，越小越靠前（口径同电脑端 `/api/search`）：
+     * 0 归一后完全相等 / 1 前缀匹配 / 2 包含匹配 / 3 其他。
+     *
+     * 老片「小明星大跟班」（vod_year=2016）靠这一档才不会被一堆无关新片压到后面
+     * —— 以前只按年份倒序，精确命中也排在 2024/2025 的模糊结果之后。
+     */
+    fun titleRank(name: String?, wd: String): Int {
+        val n = normalizeTitle(name)
+        val w = normalizeTitle(wd)
+        if (n.isEmpty() || w.isEmpty()) return 3
+        return when {
+            n == w -> 0
+            n.startsWith(w) -> 1
+            n.contains(w) -> 2
+            else -> 3
+        }
+    }
+
     /** 一条源「最新内容日期」：备注里的最晚日期优先，一条都没有才退回上架时间 */
     fun latestInRaw(arr: JSONArray?): Latest? {
         if (arr == null) return null

@@ -453,12 +453,17 @@ object Sources {
         }
         workers.forEach { it.join(10000) }
 
-        /* 排序按「新旧年份」而不是 vod_year：连载综艺的 vod_year 是首播年，
-           拿它排会把今天还在更新的节目压到十年前那一档（口径同电脑端 recencyYear）。 */
+        /* 排序三段（双端统一，见 docs/dual-impl.md 第 2 项）：
+           ① 标题精确度：归一后完全相等 > 前缀 > 包含 > 其他
+              老片「小明星大跟班」vod_year=2016，只按年份排会被无关新片压到后面
+           ② 同档按 recencyYear 倒序：连载综艺用最新一期那一年的年份，不是首播年
+           ③ 再同按片名，保证同一关键词两次结果顺序一致 */
         val sorted = out.sortedWith(
-            compareByDescending<JSONObject> { it.optInt("recencyYear", it.optString("year").toIntOrNull() ?: 0) }
+            compareBy<JSONObject> { Freshness.titleRank(it.optString("name"), wd) }
+                .thenByDescending { it.optInt("recencyYear", it.optString("year").toIntOrNull() ?: 0) }
                 .thenByDescending { it.optString("latestDate") }
                 .thenByDescending { it.optString("remarks").contains("更新") }
+                .thenBy { it.optString("name") }
         )
         val root = JSONObject()
         val arr = JSONArray()

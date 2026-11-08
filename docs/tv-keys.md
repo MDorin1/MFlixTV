@@ -63,7 +63,7 @@
 
 1. **判定逻辑** —— 什么算完结、什么算「最新一集」、什么算归档源、日期从哪个字段取
 2. **显示文案** —— `2016起`、`最新一集 2025-10-20 · 源 12 个月前更新`、`上架时间 …`、`全34集 / 更新至N集`
-3. **排序规则** —— 按 `recencyYear` 排，不是按 `vod_year`；同日期的再看最新一期
+3. **排序规则** —— 按 `recencyYear` 排，不是按 `vod_year`；同日期的再看最新一期。**搜索结果**是三段：标题精确度（归一后完全相等 > 前缀 > 包含 > 其他）→ `recencyYear` 降序 → 原始标题，见下图「搜索排序」那一行
 4. **阈值常量** —— 归档 90 天、琥珀色门槛 30 天
 
 **对照表（同一条规则的两个落点）**
@@ -73,6 +73,7 @@
 | 备注归一（全N集/更新至N集/更新至日期/已完结） | `app/src/lib/remarks.ts` `formatRemarks()` | `Freshness.kt` `formatRemarks()` |
 | 从备注取最新一期日期 | `remarks.ts` `latestEpisodeDate()` | `Freshness.kt` `latestEpisodeDate()` |
 | 排序年份（跨年节目以最新一期为准） | `remarks.ts` `recencyYear()` | `Freshness.kt` `recencyYear()` |
+| **搜索排序**（标题精确度 → 年份 → 片名） | `search-sort.ts` `titleRank()` / `sortSearchResults()`（`/api/search` 调） | `Freshness.kt` `titleRank()` / `Sources.search()` |
 | 一条源的最新内容日期 + `dateSource` | `source-freshness.ts` `latestInRaw()` | `Freshness.kt` `latestInRaw()` |
 | 归档判定（**只认 remarks**） | `source-freshness.ts` `isArchivedSource()` | `Freshness.kt` `isArchived()` |
 | 体检那格文案 | `source-freshness.ts` `freshnessLabel()` | `Freshness.kt` `freshnessLabel()` |

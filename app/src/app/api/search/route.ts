@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { guardRequest } from '@/lib/api-guard';
-import { cmsRequestHeaders, filterAdultResults, filterRelevantResults, normalizeTitle, parseSearchList } from '@/lib/cms-parser';
+import { cmsRequestHeaders, filterAdultResults, filterRelevantResults, parseSearchList } from '@/lib/cms-parser';
 import { fetchUpstream, getCache, setCache } from '@/lib/fetch-utils';
+import { sortSearchResults } from '@/lib/search-sort';
 import { checkUpstreamAllowed } from '@/lib/ssrf';
 import type { SearchResponse, SearchStreamEvent, SourceConfig, SourceSearchOutcome } from '@/lib/types';
 
@@ -164,16 +165,12 @@ function aggregateOutcomes(outcomes: SourceSearchOutcome[], wd: string, filterAd
   // 部分源站做分词/OR 模糊搜索（搜「摔跤吧！爸爸」返回一堆「爸爸XXX」），按关键词过滤
   list = filterRelevantResults(list, wd);
 
-  // 精确命中（忽略标点差异）排在最前，其余按名称（与旧版一致），名称相同按源名
-  const exact = normalizeTitle(wd);
-  list.sort((a, b) => {
-    const aExact = normalizeTitle(a.name || '') === exact ? 0 : 1;
-    const bExact = normalizeTitle(b.name || '') === exact ? 0 : 1;
-    if (aExact !== bExact) return aExact - bExact;
-    const nameCompare = (a.name || '').localeCompare(b.name || '', 'zh-Hans-CN');
-    if (nameCompare !== 0) return nameCompare;
-    return (a.sourceName || '').localeCompare(b.sourceName || '', 'zh-Hans-CN');
-  });
+  // 三段排序（双端统一，见 docs/dual-impl.md 第 2 项）：
+  // 1) 标题精确度：归一后完全相等 > 前缀匹配 > 包含匹配 > 其他；
+  //    老片（「小明星大跟班」vod_year=2016）靠这一档不会被一堆无关新片压到后面
+  // 2) 同档按 recencyYear 降序：连载综艺用最新一期的年份，不是首播年
+  // 3) 再同按原始标题、源名，保证同一输入两次结果一致
+  sortSearchResults(list, wd);
 
   const failures = outcomes
     .filter((o) => !o.ok)
