@@ -1,4 +1,4 @@
-﻿<#
+<#
     MFlixTV 热更新工具
     ------------------------------------------------------------------
     用法：
@@ -383,18 +383,39 @@ function Invoke-SourceUpdate {
         $OutputEncoding = [Text.Encoding]::UTF8
         $sw = [Diagnostics.Stopwatch]::StartNew()
         $probe = $u + $(if ($u.Contains('?')) { '&' } else { '?' }) + 'ac=videolist&wd=' + [uri]::EscapeDataString('庆余年')
+        # 第二道闸：探活只决定「能不能用」，还要看它最新采到哪一天。
+        # 只探活会把「接口还活着、内容停在半年前」的源当好源排在最前面。
+        $latestProbe = $u + $(if ($u.Contains('?')) { '&' } else { '?' }) + 'ac=videolist&pg=1'
         try {
           $txt = (curl.exe -s -m 12 -A $ua $probe) -join ''
           $sw.Stop()
-          if (-not $txt) { return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = 0; Ok = $false } }
+          if (-not $txt) { return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = 0; Ok = $false; Latest = '' } }
           $obj = $txt | ConvertFrom-Json
-          if ($null -eq $obj.list) { return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = 0; Ok = $false } }
+          if ($null -eq $obj.list) { return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = 0; Ok = $false; Latest = '' } }
           # 只认"名字里真含关键词"的条目：有的站忽略 wd 返回固定内容
           $hits = @($obj.list | Where-Object { $_.vod_name -and ([string]$_.vod_name).Contains('庆余年') }).Count
-          return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = $hits; Ok = $true }
+          # 最新内容日期：只认能落到合法日历的 8 位数字，取最晚的一个
+          $latest = ''
+          try {
+            $txt2 = (curl.exe -s -m 12 -A $ua $latestProbe) -join ''
+            if ($txt2) {
+              $obj2 = $txt2 | ConvertFrom-Json
+              foreach ($it in @($obj2.list)) {
+                if (-not $it) { continue }
+                $m = [regex]::Match([string]$it.vod_remarks, '(20\d{2})[-./]?(\d{1,2})[-./]?(\d{1,2})')
+                if (-not $m.Success) { continue }
+                $mo = [int]$m.Groups[2].Value
+                $dd = [int]$m.Groups[3].Value
+                if ($mo -lt 1 -or $mo -gt 12 -or $dd -lt 1 -or $dd -gt 31) { continue }
+                $iso = '{0}-{1:00}-{2:00}' -f $m.Groups[1].Value, $mo, $dd
+                if ($iso -gt $latest) { $latest = $iso }
+              }
+            }
+          } catch { }
+          return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = $hits; Ok = $true; Latest = $latest }
         } catch {
           $sw.Stop()
-          return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = 0; Ok = $false }
+          return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = 0; Ok = $false; Latest = '' }
         }
       } -ArgumentList $item.u, $item.n
     }
@@ -407,19 +428,34 @@ function Invoke-SourceUpdate {
   }
 
   $alive = $results | Where-Object { $_.Ok } | ForEach-Object {
-    [pscustomobject]@{
-      Name  = $_.Name
-      Url   = $_.Url
-      Ms    = $_.Ms
-      Count = $_.Count
-      Prio  = (Get-SourcePrio $_.Url)
+    # 归档源：探活通，但最新一期早于 90 天（或压根没有日期可比）→ 排到最后
+    $stale = $true
+    if ($_.Latest) {
+      $t = [datetime]::MinValue
+      if ([datetime]::TryParseExact($_.Latest, 'yyyy-MM-dd', $null, 'None', [ref]$t)) {
+        $stale = ((Get-Date) - $t).TotalDays -gt 90
+      }
     }
-  } | Sort-Object Prio, @{ Expression = { if ($_.Count -gt 0) { 0 } else { 1 } } }, Ms
+    [pscustomobject]@{
+      Name     = $_.Name
+      Url      = $_.Url
+      Ms       = $_.Ms
+      Count    = $_.Count
+      Latest   = [string]$_.Latest
+      Archived = $stale
+      Prio     = (Get-SourcePrio $_.Url)
+    }
+  } | Sort-Object @{ Expression = { if ($_.Archived) { 1 } else { 0 } } }, Prio, @{ Expression = { if ($_.Count -gt 0) { 0 } else { 1 } } }, Ms
 
   $fastCount = @($alive | Where-Object { $_.Prio -eq 0 }).Count
-  Log ("可用 {0} / {1} 个源（已知快源 {2} 个）" -f @($alive).Count, @($results).Count, $fastCount)
+  $archivedCount = @($alive | Where-Object { $_.Archived }).Count
+  Log ("可用 {0} / {1} 个源（已知快源 {2} 个，归档源 {3} 个）" -f @($alive).Count, @($results).Count, $fastCount, $archivedCount)
   foreach ($a in $alive) {
-    Log ("  {0,-14} {1,5}ms  命中 {2,2}  {3}{4}" -f $a.Name, $a.Ms, $a.Count, $(if ($a.Prio -eq 0) { '[快] ' } else { '' }), $a.Url)
+    $tag = ''
+    if ($a.Archived) { $tag = '[归档] ' }
+    elseif ($a.Prio -eq 0) { $tag = '[快] ' }
+    $latestTxt = if ($a.Latest) { $a.Latest } else { '无日期' }
+    Log ("  {0,-14} {1,5}ms  命中 {2,2}  最新 {3}  {4}{5}" -f $a.Name, $a.Ms, $a.Count, $latestTxt, $tag, $a.Url)
   }
 
   if (@($alive).Count -lt 3) {

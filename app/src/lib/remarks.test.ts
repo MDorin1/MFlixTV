@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compactRemarks, formatRemarks, inferGroupRemarks, latestEpisodeDate, recencyYear } from './remarks';
+import { compactRemarks, episodeFreshness, formatRemarks, inferGroupRemarks, latestEpisodeDate, recencyYear } from './remarks';
 
 describe('compactRemarks', () => {
   it('集数进度压成「N 集」：选源行里前缀没有信息量', () => {
@@ -179,5 +179,33 @@ describe('inferGroupRemarks', () => {
   it('什么都没给时返回 undefined', () => {
     expect(inferGroupRemarks([undefined, '', '  '])).toBeUndefined();
     expect(inferGroupRemarks([])).toBeUndefined();
+  });
+});
+
+describe('episodeFreshness', () => {
+  // 固定「现在」，否则测试会随时间漂移
+  const NOW = Date.parse('2025-11-08T00:00:00');
+
+  it('在更的节目只报日期，不加「几个月前」', () => {
+    expect(episodeFreshness('更新至20251102期', NOW)?.label).toBe('最新一集 2025-11-02');
+    expect(episodeFreshness('更新至20251102期', NOW)?.days).toBe(6);
+  });
+
+  it('停更的节目报出「源 N 个月前更新」，让人知道是数据旧不是没内容', () => {
+    // 2016 是首播年，真正最新一期在这里：2025-10-20
+    const f = episodeFreshness('更新至20251020期', Date.parse('2026-11-08T00:00:00'));
+    expect(f?.date).toBe('2025-10-20');
+    expect(f?.label).toBe('最新一集 2025-10-20 · 源 12 个月前更新');
+  });
+
+  it('没有能落到日历的日期时不编一行', () => {
+    expect(episodeFreshness('HD国语', NOW)).toBeUndefined();
+    expect(episodeFreshness('2016', NOW)).toBeUndefined();
+    expect(episodeFreshness('第12集', NOW)).toBeUndefined();
+    expect(episodeFreshness(undefined, NOW)).toBeUndefined();
+  });
+
+  it('日期区间取最晚的那个', () => {
+    expect(episodeFreshness('20240101-20251020', NOW)?.date).toBe('2025-10-20');
   });
 });

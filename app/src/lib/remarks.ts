@@ -83,6 +83,28 @@ export function formatRemarks(raw?: string): string | undefined {
 }
 
 /**
+ * 数据时间提示：告诉用户「内容是旧的」还是「源不更新了」。
+ *
+ * 详情页只写 `2016` 会让人以为这部没新内容直接退出，实际是上游断采。
+ * 这里给出 `最新一集 2025-10-20 · 源 13 个月前更新`：
+ * - 距今 < 30 天：只报日期（在更的节目不用加这句话）；
+ * - ≥ 30 天：加上「源 N 个月前更新」，一眼看出是数据旧，不是内容没有。
+ */
+export function episodeFreshness(
+  raw?: string,
+  now: number = Date.now()
+): { date: string; days: number; label: string } | undefined {
+  const date = latestEpisodeDate(raw);
+  if (!date) return undefined;
+  const t = Date.parse(`${date}T00:00:00`);
+  if (!Number.isFinite(t)) return undefined;
+  const days = Math.max(0, Math.round((now - t) / 86400000));
+  const months = Math.floor(days / 30);
+  const aged = months >= 1 ? ` · 源 ${months} 个月前更新` : '';
+  return { date, days, label: `最新一集 ${date}${aged}` };
+}
+
+/**
  * 搜索结果排序用的「新旧年份」。
  *
  * 一般影片取 vod_year；连载综艺/新闻的 vod_year 是首播年（「小明星大跟班」永远 2016），

@@ -171,11 +171,12 @@ export function AggregatedCard({
       : undefined;
 
   // 连载综艺的 vod_year 是首播年（小明星大跟班永远是 2016），只写年份会把人骗走：
-  // 标成「2016」的片其实是今天还在更的节目。最新一期跨到别的年份时写「2016起」。
+  // 标成「2016」的片其实是今天还在更的节目。跨年时分两个数写：「2016起 · 最新2025-10」。
   const latestYear = group.latestDate?.slice(0, 4);
-  const yearLabel =
-    group.year && latestYear && latestYear !== group.year ? `${group.year}起` : group.year;
-  const metaLine = [yearLabel, group.typeName].filter(Boolean).join(' · ');
+  const crossedYear = Boolean(group.year && latestYear && latestYear !== group.year);
+  const yearLabel = crossedYear ? `${group.year}起` : group.year;
+  const latestLabel = crossedYear ? `最新${group.latestDate!.slice(0, 7)}` : undefined;
+  const metaLine = [yearLabel, latestLabel, group.typeName].filter(Boolean).join(' · ');
 
   return (
     <div ref={inViewRef} className="group/poster relative select-none">

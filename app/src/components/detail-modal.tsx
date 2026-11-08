@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/client-api';
 import type { SearchResultItem, VideoDetail } from '@/lib/types';
 import { buildWatchUrl } from '@/lib/utils';
-import { formatRemarks } from '@/lib/remarks';
+import { episodeFreshness, formatRemarks } from '@/lib/remarks';
 import { SmartImage } from './smart-image';
 import { useAppStore, resolveSource } from '@/lib/store';
 import { useToast } from './toast';
@@ -116,13 +116,17 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
 
   // 备注与卡片同源，同样归一化，避免同一部剧在两处显示不同文案
   const remarks = formatRemarks(info?.remarks);
+  // 连载节目只看年份会误判成「没新内容」，单独报一行数据时间
+  const fresh = episodeFreshness(info?.remarks);
   const metaRows = [
     info?.typeName && ['类型', info.typeName],
-    info?.year && ['年份', info.year],
+    info?.year &&
+      (fresh && fresh.date.slice(0, 4) !== info.year ? ['年份', `${info.year} 起`] : ['年份', info.year]),
     info?.area && ['地区', info.area],
     info?.director && ['导演', info.director],
     info?.actor && ['主演', info.actor],
     remarks && ['备注', remarks],
+    fresh && ['数据时间', fresh.label],
   ].filter(Boolean) as [string, string][];
 
   return (

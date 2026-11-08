@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/client-api';
 import { useAppStore, resolveSource } from '@/lib/store';
-import { formatRemarks } from '@/lib/remarks';
-import { stripHtml } from '@/lib/utils';
+import { episodeFreshness, formatRemarks } from '@/lib/remarks';
+import { cn, stripHtml } from '@/lib/utils';
 import type { VideoDetail } from '@/lib/types';
 import { Icon } from '@/components/icon';
 import { SourcePlayPanel, type PlaySource } from '@/components/source-play-panel';
@@ -73,12 +73,20 @@ function DetailContent() {
   const info = detail?.videoInfo;
   const title = info?.title || qName || '未命名影片';
   const cover = info?.cover || qPic;
+  // vod_year 是首播年：连载综艺永远写着 2016，光看它会以为没新内容。
+  // 最新一期跨了年就写「2016 起」，下面再单独报一行数据时间。
+  const fresh = useMemo(() => episodeFreshness(info?.remarks), [info?.remarks]);
+  const yearLabel = useMemo(() => {
+    if (!info?.year) return undefined;
+    const latestYear = fresh?.date.slice(0, 4);
+    return latestYear && latestYear !== info.year ? `${info.year} 起` : info.year;
+  }, [info?.year, fresh?.date]);
   const meta = useMemo(
     () =>
-      [info?.year, info?.area, info?.typeName, formatRemarks(info?.remarks)]
+      [yearLabel, info?.area, info?.typeName, formatRemarks(info?.remarks)]
         .filter(Boolean)
         .join('  ·  '),
-    [info?.year, info?.area, info?.typeName, info?.remarks]
+    [yearLabel, info?.area, info?.typeName, info?.remarks]
   );
   /** 采集源的导演/主演是一整串，拆成名字后每个都能点：点名字 = 用这个名字再搜一次 */
   const directorNames = useMemo(() => splitNames(info?.director), [info?.director]);
@@ -142,6 +150,17 @@ function DetailContent() {
           <div className="min-w-0 flex-1 text-center sm:text-left">
             <h1 className="text-2xl font-bold leading-tight sm:text-3xl md:text-4xl">{title}</h1>
             {meta && <p className="mt-2 text-sm text-white/60">{meta}</p>}
+            {fresh && (
+              <p
+                className={cn(
+                  'mt-1.5 text-[13px]',
+                  fresh.days >= 30 ? 'text-amber-300/85' : 'text-white/45'
+                )}
+                title="这一集的日期来自源站备注；日期很旧说明上游没有再采到新的一期"
+              >
+                {fresh.label}
+              </p>
+            )}
             {(directorNames.length > 0 || actorNames.length > 0) && (
               <dl className="mt-3 space-y-1.5 text-[13px] leading-relaxed text-white/70">
                 {directorNames.length > 0 && (
