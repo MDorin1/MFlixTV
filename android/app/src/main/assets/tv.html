@@ -1287,22 +1287,63 @@
   function ensureVisible(f) {
     if (restoringHome) return;   // 从详情返回正在还原位置，别再滚一次
     var strip = f.closest ? f.closest('.strip, .epstrip') : null;
-    if (strip) {
-      var fr = f.getBoundingClientRect(), sr = strip.getBoundingClientRect();
-      var pad = Math.min(110, sr.width * 0.12);
-      if (fr.left < sr.left + pad) strip.scrollLeft -= (sr.left + pad - fr.left);
-      else if (fr.right > sr.right - pad) strip.scrollLeft += (fr.right - (sr.right - pad));
+    var vh = window.innerHeight, vw = window.innerWidth;
+    /* .strip 的 CSS 是 scroll-behavior:smooth：写 scrollLeft 会「慢慢滚」，
+       而遥控器连按时每次都在动画中途读坐标 → 每次只敢加一点点，焦点越按越出屏
+       （一行 22 张卡实测跑到屏幕外 1300px）。所以调整期间临时改成 auto，
+       滚完再还原，鼠标滚轮的顺滑手感照旧。 */
+    var prevStripB = strip ? strip.style.scrollBehavior : '';
+    var rootStyle = document.documentElement.style;
+    var prevRootB = rootStyle.scrollBehavior;
+    if (strip) strip.style.scrollBehavior = 'auto';
+    rootStyle.scrollBehavior = 'auto';
+    /* 一次算完的增量在长横条上根本不够：改成「按 40% 屏宽的步进迭代，最多 3 次，
+       最后再硬对齐一次」——不管焦点原来差多远，按一下就一定把它拉回可见范围。 */
+    for (var pass = 0; pass < 3; pass++) {
+      var r = f.getBoundingClientRect();
+      var moved = false;
+      if (strip) {
+        var sr = strip.getBoundingClientRect();
+        var pad = Math.min(110, sr.width * 0.12);
+        var stepX = Math.max(160, sr.width * 0.4);
+        if (r.left < sr.left + pad) {
+          strip.scrollLeft -= Math.min(stepX, sr.left + pad - r.left);
+          moved = true;
+        } else if (r.right > sr.right - pad) {
+          strip.scrollLeft += Math.min(stepX, r.right - (sr.right - pad));
+          moved = true;
+        }
+        if (moved) r = f.getBoundingClientRect();
+      }
+      var stepY = Math.max(140, vh * 0.4);
+      if (r.top < 110) {
+        window.scrollBy(0, -Math.min(stepY, 110 - r.top + 150));
+        moved = true;
+      } else if (r.bottom > vh - 36) {
+        window.scrollBy(0, Math.min(stepY, r.bottom - vh + 90));
+        moved = true;
+      }
+      var chk = f.getBoundingClientRect();
+      if (chk.left >= 0 && chk.right <= vw && chk.top >= 0 && chk.bottom <= vh) break;
+      if (!moved) break;
     }
-    var r = f.getBoundingClientRect(), vh = window.innerHeight;
-    /* 老内核（斐讯 N1 的 WebView 52）的 scrollBy 只认两个数字，传配置对象会抛
-       "2 arguments required"，焦点滚出屏幕就拉不回来。按能力选写法，别用裸 if。
-       另外这里**不用平滑滚动**：遥控器连按时平滑动画会让下一格的坐标还在变，
-       几何导航算出来会跳过一格（按两次右键窜到第四张卡）。 */
-    if (r.top < 110) {
-      window.scrollBy(0, r.top - 150);
-    } else if (r.bottom > vh - 36) {
-      window.scrollBy(0, r.bottom - vh + 90);
+    /* 兜底硬对齐：按上面那三轮还没进屏（老内核 scrollBy 被限速、或一次跳得特别远），
+       直接把滚动条对到「焦点离左/上边 120px」的位置，宁可跳一下也不能让焦点在屏幕外 */
+    var fin = f.getBoundingClientRect();
+    if (fin.left < 0 || fin.right > vw) {
+      if (strip) {
+        var sr2 = strip.getBoundingClientRect();
+        strip.scrollLeft += (fin.left - sr2.left) - 120;
+      } else {
+        window.scrollBy(fin.left - 120, 0);
+      }
     }
+    fin = f.getBoundingClientRect();
+    if (fin.top < 0 || fin.bottom > vh) {
+      window.scrollBy(0, fin.top - 150);
+    }
+    if (strip) strip.style.scrollBehavior = prevStripB;
+    rootStyle.scrollBehavior = prevRootB;
     // 焦点进顶栏时把顶部渐变压深一点
     var inNav = f.closest && f.closest('#nav');
     $('nav').classList.toggle('up', !!inNav);
@@ -1360,32 +1401,91 @@
     }
     return document.body;
   }
+  /** 焦点所在的「排」：卡片条（.strip）/ 剧集格（.epstrip）/ 面板里的父行 */
+  function stripOf(el) {
+    if (!el || !el.closest) return el ? el.parentElement : null;
+    return el.closest('.strip, .epstrip') || el.parentElement;
+  }
+  /** 焦点在这一排里是第几张（只数真正能停的 .fx） */
+  function stripCol(el, strip) {
+    if (!strip) return -1;
+    var n = 0, kids = strip.children;
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (!k.classList || !k.classList.contains('fx')) continue;
+      if (k === el) return n;
+      n++;
+    }
+    return -1;
+  }
   function pick(dir, list, cur) {
     if (!cur) return list.length ? list[0] : null;
     var horiz = dir === 'left' || dir === 'right';
     var a = cur.getBoundingClientRect();
-    var homeRow = horiz ? fxRow(cur, list) : null;
-    var best = null, bestTier = 9, bestScore = 1e9;
-    for (var i = 0; i < list.length; i++) {
-      var e = list[i];
-      if (e === cur) continue;
-      var b = e.getBoundingClientRect();
-      var ev = fxEval(a, b, dir);
-      if (!ev) continue;
-      var tier = ev.tier;
-      /* 左右只在同一排里走；不同排、垂直方向又差得很远（从左上角甩到页面中间那种）宁可不动 */
-      if (horiz && fxRow(e, list) !== homeRow) {
-        if (fxGap(a.top, a.bottom, b.top, b.bottom) > Math.max(24, a.height * 0.6)) continue;
-        tier += 3;
+
+    /* 左右**只在这一排里**走。以前不同排的候选只是加罚分，行末按右键会跨到
+       另一排的卡上（落点甚至比原来更靠右，还在屏幕外），连按几下就窜到第三排；
+       行末的正确反应是不动。 */
+    if (horiz) {
+      var homeRow = fxRow(cur, list);
+      var hBest = null, hTier = 9, hScore = 1e9;
+      for (var i = 0; i < list.length; i++) {
+        var e = list[i];
+        if (e === cur) continue;
+        if (fxRow(e, list) !== homeRow) continue;
+        var b = e.getBoundingClientRect();
+        var ev = fxEval(a, b, dir);
+        if (!ev) continue;
+        var sc = ev.score + fxOff(b);
+        if (ev.tier < hTier || (ev.tier === hTier && sc < hScore)) { hTier = ev.tier; hScore = sc; hBest = e; }
       }
-      var score = ev.score + fxOff(b);
-      if (tier < bestTier || (tier === bestTier && score < bestScore)) {
-        bestTier = tier; bestScore = score; best = e;
+      return hBest;
+    }
+
+    /* 上下按**列号对齐**：焦点在这条 strip 里是第几张，就落到目标排的第几张（超了取末尾）。
+       以前用绝对坐标，第一排横条被甩到中间时按「下」会落到毫不相干的卡上；
+       从第二排按「上」也会落到「正上方那张」而不是自己刚待过的那一列。 */
+    var curStrip = stripOf(cur);
+    if (curStrip) {
+      var col = stripCol(cur, curStrip);
+      if (col >= 0) {
+        var curRect = cur.getBoundingClientRect();
+        var bestStrip = null, bestGap = 1e9, strips = [];
+        for (var j = 0; j < list.length; j++) {
+          var st = stripOf(list[j]);
+          if (!st || st === curStrip) continue;
+          if (strips.indexOf(st) < 0) strips.push(st);
+        }
+        for (var s = 0; s < strips.length; s++) {
+          var sr = strips[s].getBoundingClientRect();
+          if (dir === 'down' && sr.top < curRect.bottom - 8) continue;
+          if (dir === 'up' && sr.bottom > curRect.top + 8) continue;
+          var gap = dir === 'down' ? sr.top - curRect.bottom : curRect.top - sr.bottom;
+          if (gap < bestGap) { bestGap = gap; bestStrip = strips[s]; }
+        }
+        if (bestStrip) {
+          var fxKids = [];
+          for (var k = 0; k < bestStrip.children.length; k++) {
+            var kid = bestStrip.children[k];
+            if (kid.classList && kid.classList.contains('fx') && list.indexOf(kid) >= 0) fxKids.push(kid);
+          }
+          if (fxKids.length) return fxKids[Math.min(col, fxKids.length - 1)];
+        }
       }
     }
-    if (best) return best;
-    /* 这个方向上确实没有东西：保持不动才是遥控器该有的反应 */
-    return null;
+
+    /* 兜底：没有分排结构（顶栏、播放器按钮条、各种面板）时仍按几何走 */
+    var best = null, bestTier = 9, bestScore = 1e9;
+    for (var m = 0; m < list.length; m++) {
+      var el2 = list[m];
+      if (el2 === cur) continue;
+      var b2 = el2.getBoundingClientRect();
+      var ev2 = fxEval(a, b2, dir);
+      if (!ev2) continue;
+      var score2 = ev2.score + fxOff(b2);
+      if (ev2.tier < bestTier || (ev2.tier === bestTier && score2 < bestScore)) { bestTier = ev2.tier; bestScore = score2; best = el2; }
+    }
+    return best;
   }
   function move(dir) {
     var list = pool();    if (!list.length) return;
@@ -3407,10 +3507,25 @@
     }
     if (a === 'left') { seekByDirection(-1); return true; }
     if (a === 'right') { seekByDirection(1); return true; }
-    /* 播放中上下不再切集：拿着遥控器往沙发上一靠，上下最容易误触，
-       一跳就断剧情。切集只留两条明路——暂停后进按钮条选「上一集 / 下一集」，
-       或者手机遥控页上的切集键。这两个键在播放中一律吞掉，不做任何事。 */
-    if (a === 'up' || a === 'down') { return true; }
+    /* 播放中上下：以前整对键被吞掉，屏幕上什么都不发生，用户第一反应是遥控器坏了。
+       现在短按有反馈——上=报片名/集数/线路，下=亮出进度条；切集改成「长按」，
+       误触只会看到一行提示，不会一按就断剧情。 */
+    if (a === 'up') {
+      bars(true);
+      var ep = (S.eps || [])[S.ep] || {};
+      var g = (S.groups || [])[S.group];
+      toast((S.title || '') +
+        (ep.label ? ' · ' + ep.label : '') +
+        (g ? ' · ' + grpLabel(g, S.group) : ''));
+      try {
+        if (!localStorage.getItem('mfl:udhint')) {
+          localStorage.setItem('mfl:udhint', '1');
+          setTimeout(function () { toast('长按 ↑ / ↓ 切上一集 / 下一集'); }, 1400);
+        }
+      } catch (e) {}
+      return true;
+    }
+    if (a === 'down') { bars(true); return true; }
     if (a === 'back') { closePlayer(); return true; }
     if (a === 'menu') { enterBar(); return true; }
     return true;
@@ -3620,8 +3735,13 @@
     }
     if (a.indexOf('digit') === 0) return digitKey(a.slice(5));
     if (inPlayer()) {
-      /* 播放页里长按左右仍然只是「再快进一格」，不整屏跳——跳一屏等于跳过几分钟剧情 */
-      if (fastN && (a === 'left' || a === 'right')) { seekByDirection(a === 'left' ? -1 : 1); return true; }
+      /* 播放页里长按左右 = 一步跳 3 倍步长（原生侧第 6 个重复之后改发 fastX）；
+         长按上下 = 上一集 / 下一集——短按不动、长按才切，误触不会断剧情。 */
+      if (fastN && (a === 'left' || a === 'right')) {
+        seekBy((a === 'left' ? -1 : 1) * seekStepCfg() * 3);
+        return true;
+      }
+      if (fastN && (a === 'up' || a === 'down')) { stepEp(a === 'up' ? -1 : 1); return true; }
       if (fastN) return true;
       return handlePlayer(a);
     }
