@@ -206,14 +206,22 @@
   .dt-desc{font-size:1.35rem;line-height:1.62;color:#bdbdbd;margin:0 0 1.2rem;max-width:52rem;
     display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   .dt-btns{display:flex;gap:.7rem;margin-bottom:2rem}
+  /* 「更多」展开出来的那行：默认收起，收着时整行不占位、也不进焦点（审核单第 5 条：
+     外部播放器在电视上是死胡同，不该和「播放」同权重） */
+  .dt-btns[hidden]{display:none}
+  .dt-more-flag{opacity:.75}
   .dt-sec{margin:0 0 1.6rem;position:relative;z-index:2}
   .dt-h{display:flex;align-items:baseline;gap:.7rem;margin-bottom:.8rem;padding:0}
   .dt-h .t{font-size:1.65rem;font-weight:800}
   .dt-h .s{font-size:1.11rem;color:var(--dim2)}
   .chips{display:flex;gap:.5rem;flex-wrap:wrap;max-width:60rem}
-  .chip{font-size:1.245rem;font-weight:700;padding:.4rem .9rem;border-radius:.35rem;
-    background:rgba(255,255,255,.1);color:#ddd}
+  /* 线路 chip：1080p 下 1rem = 20px。原来 1.245rem 字（≈25px）+ 上下 .4rem  Padding ≈ 46px，
+     3 米外读不清；审核单要求 56px 高 / 32px 字，并且选中态要有勾，不能只靠白底。 */
+  .chip{font-size:1.6rem;font-weight:700;padding:.5rem 1.1rem;border-radius:.35rem;
+    background:rgba(255,255,255,.1);color:#ddd;min-height:2.8rem;
+    display:inline-flex;align-items:center;line-height:1.15}
   .chip.on{background:#fff;color:#111}
+  .chip.on::before{content:'✓';font-weight:900;margin-right:.4rem;color:var(--accent,#e50914)}
   .chip.fx.on{transform:scale(1.05);box-shadow:0 0 0 .1rem #fff}
   /* 剧集卡：16:9 缩略 + 大集号（Netflix 剧集页的感觉） */
   .epstrip{display:flex;flex-wrap:wrap;gap:.8rem;padding:.55rem 0 1rem;scroll-behavior:smooth}
@@ -232,6 +240,14 @@
   .epc.on{transform:scale(1.08);z-index:6;box-shadow:0 0 0 .11rem #fff,0 0 1.5rem rgba(229,9,20,.45)}
   .epstrip.focusing .epc{opacity:.55}
   .epstrip.focusing .epc.on{opacity:1}
+  /* 底部渐隐提示：剧集多到一屏放不下时，屏幕底边浮一行「还有 N 集 · 按 ↓」。
+     审核单第 4 条：1080p 首屏最后一排卡的名字被视口切掉一半，不按「下」根本不知道下面还有。 */
+  .dt-epmore{position:fixed;left:0;right:0;bottom:1.1rem;z-index:40;text-align:center;
+    font-size:1.2rem;font-weight:700;color:#eee;pointer-events:none;
+    padding:2.6rem 0 .8rem;
+    background:linear-gradient(to top,rgba(0,0,0,.92),rgba(0,0,0,.55) 55%,rgba(0,0,0,0));}
+  .dt-epmore[hidden]{display:none}
+  .dt-epmore b{color:#fff;font-size:1.35rem}
 
   /* ---------- 播放器 ---------- */
   #player{position:fixed;top:0;right:0;bottom:0;left:0;z-index:90;background:#000;display:none}
@@ -1003,6 +1019,9 @@
     <div class="dt-btns">
       <button class="btn primary fx" id="dtPlay">▶ 播放</button>
       <button class="btn fx" id="dtFirst">从第一集开始</button>
+      <button class="btn fx dt-more-flag" id="dtMore" aria-expanded="false" aria-controls="dtMoreBox">更多 ▾</button>
+    </div>
+    <div class="dt-btns" id="dtMoreBox" hidden>
       <button class="btn fx" id="dtExt">外部播放器</button>
       <button class="btn fx" id="dtFav">+ 我的列表</button>
     </div>
@@ -1013,6 +1032,7 @@
     <div class="dt-sec">
       <div class="dt-h"><span class="t">剧集</span><span class="s" id="dtEpCnt"></span></div>
       <div class="epstrip" id="dtEps"></div>
+      <div class="dt-epmore" id="dtEpsMore" hidden>还有 <b id="dtEpsMoreN">0</b> 集 · 按 ↓</div>
     </div>
   </div>
 </section>
@@ -1416,6 +1436,50 @@
   window.addEventListener('scroll', function () {
     $('nav').classList.toggle('solid', window.scrollY > 24);
   }, { passive: true });
+
+  /* ================= 详情页：主行拆主次 + 底部「还有 N 集」提示 =================
+     审核单第 4、5 条：
+     5) 电视上「外部播放器」基本是死胡同，不该和「播放」同等权重 → 主行只留
+        播放 / 从第一集开始 / 更多，外部播放器与「我的列表」收进「更多」。
+     4) 剧集多到一屏放不下时，最后一排卡的名字会被视口切掉一半，用户不知道下面还有 →
+        屏幕底边浮一行「还有 N 集 · 按 ↓」，随滚动 / 换线路实时更新。 */
+
+  function setDtMore(open) {
+    var box = $('dtMoreBox'), btn = $('dtMore');
+    if (!box) return;
+    box.hidden = !open;
+    if (btn) {
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.textContent = open ? '更多 ▴' : '更多 ▾';
+    }
+    updateEpMore();
+  }
+
+  function updateEpMore() {
+    var box = $('dtEpsMore');
+    if (!box) return;
+    var det = $('detail');
+    if (!det || !det.classList.contains('on')) { if (!box.hidden) box.hidden = true; return; }
+    var cards = $('dtEps') ? $('dtEps').querySelectorAll('.epc') : [];
+    var h = window.innerHeight || 1080;
+    var n = 0;
+    for (var i = 0; i < cards.length; i++) {
+      if (cards[i].getBoundingClientRect().bottom > h + 4) n++;
+    }
+    if (!n) { if (!box.hidden) box.hidden = true; return; }
+    $('dtEpsMoreN').textContent = String(n);
+    if (box.hidden) box.hidden = false;
+  }
+
+  if ($('dtMore')) {
+    $('dtMore').addEventListener('click', function () { setDtMore($('dtMoreBox').hidden); });
+  }
+  if ($('dtMoreBox')) {
+    // 点完「更多」里的东西就收起来，别让第二行一直挂在页面上
+    $('dtMoreBox').addEventListener('click', function () { setTimeout(function () { setDtMore(false); }, 0); });
+  }
+  window.addEventListener('scroll', updateEpMore, { passive: true });
+  window.addEventListener('resize', updateEpMore);
 
   /* ================= 首页 ================= */
   var S = {
@@ -2145,6 +2209,12 @@
     };
     $('dtFav').onclick = function () { if (S.title) toggleList(); };
     try { paintFavBtn(); } catch (e) {}
+    // 换片换线路都要把「更多」收回去，并重新算一次底部提示（剧集数量变了）
+    try { setDtMore(false); } catch (e) {}
+    try {
+      requestAnimationFrame(updateEpMore);
+      setTimeout(updateEpMore, 260);
+    } catch (e) {}
     /* 上次看的那集，横向滚到中间：一眼看见「我从这儿接着看」，不用几十集里找 */
     if (start > 0) {
       requestAnimationFrame(function () {
@@ -2944,6 +3014,9 @@
     if (stack[stack.length - 1] !== name) stack.push(name);
     paintFocus(null);
     $('peek').classList.remove('on');
+    // 底部「还有 N 集」跟着视图走：进详情页要算一次，回首页要收掉
+    try { updateEpMore(); } catch (e) {}
+    try { if (name !== 'detail') setDtMore(false); } catch (e) {}
   }
   function goHome() {
     showView('home');
