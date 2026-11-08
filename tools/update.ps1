@@ -402,7 +402,10 @@ function Invoke-SourceUpdate {
               $obj2 = $txt2 | ConvertFrom-Json
               foreach ($it in @($obj2.list)) {
                 if (-not $it) { continue }
-                $m = [regex]::Match([string]$it.vod_remarks, '(20\d{2})[-./]?(\d{1,2})[-./]?(\d{1,2})')
+                # vod_time 是采集站的上架/更新时间（几乎每条都有），vod_remarks 里是「更新至20251020期」这类；
+                # 只看 remarks 会漏掉电影和按集更新的剧（它们备注里根本没有日期）
+                $stamp = ([string]$it.vod_time) + ' ' + ([string]$it.vod_remarks)
+                $m = [regex]::Match($stamp, '(20\d{2})[-./]?(\d{1,2})[-./]?(\d{1,2})')
                 if (-not $m.Success) { continue }
                 $mo = [int]$m.Groups[2].Value
                 $dd = [int]$m.Groups[3].Value

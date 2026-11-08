@@ -3,6 +3,7 @@ import { guardRequest } from '@/lib/api-guard';
 import { checkUpstreamAllowed } from '@/lib/ssrf';
 import { fetchUpstream } from '@/lib/fetch-utils';
 import { parseSearchList } from '@/lib/cms-parser';
+import { latestEpisodeDate } from '@/lib/remarks';
 
 export const runtime = 'nodejs';
 
@@ -29,23 +30,36 @@ interface ProbeResult {
   archiveAfterDays?: number;
 }
 
-/** 备注里的日期：20251020 / 2025-10-20 / 2025.10.20 都认 */
-const EPISODE_DATE = /(20\d{2})[-./]?(\d{1,2})[-./]?(\d{1,2})/;
-
 /** 归档门槛（天）：最新一期比这还旧，说明上游早不采了，只是接口还活着 */
 const ARCHIVE_DAYS = 90;
 
-/** 这批条目里最新的一期日期（只有合法日历的 8 位数字才算） */
-function latestDateIn(list: Array<{ remarks?: string }>): string | undefined {
+/**
+ * 单个字段里最晚的合法日期。直接复用 remarks 那套（30 多条测试盯着）：
+ * `20251020` / `2025-10-20` / `2025.10.20` / `2025-10-20 12:00:00` 都认，
+ * `2026` 这种纯年份不算日期，免得把年份当成期号。
+ */
+function dateIn(value: unknown): string | undefined {
+  return latestEpisodeDate(String(value ?? ''));
+}
+
+/**
+ * 一条源「最新采到哪一天」。
+ *
+ * 只看 `vod_remarks` 会漏掉一大半：电影写 `HD国语`、连载剧写 `更新至1285集`，
+ * 里面根本没有日期，于是这些源永远拿不到档位、也就永远不会被判定为归档源。
+ * 采集站的 `vod_time`（上架/更新时间，形如 `2026-11-07 15:42:27`）几乎每一条都有，
+ * 两个字段一起看才是真的「最新内容日期」。
+ */
+function latestDateInRaw(list: unknown): string | undefined {
+  if (!Array.isArray(list)) return undefined;
   let best = '';
-  for (const it of list) {
-    const m = String(it?.remarks || '').match(EPISODE_DATE);
-    if (!m) continue;
-    const mo = Number(m[2]);
-    const d = Number(m[3]);
-    if (mo < 1 || mo > 12 || d < 1 || d > 31) continue;
-    const iso = `${m[1]}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    if (iso > best) best = iso;
+  for (const raw of list) {
+    if (!raw || typeof raw !== 'object') continue;
+    const it = raw as { vod_time?: unknown; vod_remarks?: unknown };
+    for (const field of [it.vod_time, it.vod_remarks]) {
+      const iso = dateIn(field);
+      if (iso && iso > best) best = iso;
+    }
   }
   return best || undefined;
 }
@@ -91,8 +105,7 @@ async function probeOne(item: ProbeItem): Promise<ProbeResult> {
       });
       if (latestRes.ok) {
         const latestData = await latestRes.json();
-        const latestList = parseSearchList(latestData, { key: item.key, name: item.name, url });
-        latestDate = latestDateIn(latestList as unknown as Array<{ remarks?: string }>);
+        latestDate = latestDateInRaw((latestData as { list?: unknown })?.list);
         ageDays = latestDate ? ageInDays(latestDate) : undefined;
         archived = ageDays !== undefined && ageDays > ARCHIVE_DAYS;
       }

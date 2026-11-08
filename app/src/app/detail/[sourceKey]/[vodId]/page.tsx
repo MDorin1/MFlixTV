@@ -51,13 +51,25 @@ function DetailContent() {
   const [err, setErr] = useState('');
   const [expanded, setExpanded] = useState(false);
 
+  // 源列表是客户端异步拉的（/api/status → store）：直接打开或刷新详情链接时，
+  // 第一帧 store 还是空的。以前这里只看一眼就判「源不存在」并且不再重试，
+  // 于是刷新详情页必然停在错误页；现在等源到位再判，源到了就自动重试。
+  const sourcesLoaded = customAPIs.length > 0 || envSources.length > 0;
+  const source = useMemo(
+    () =>
+      sourceKey
+        ? resolveSource({ customAPIs, envSources }, sourceKey, { url: qSourceUrl, name: qSourceName })
+        : undefined,
+    [customAPIs, envSources, sourceKey, qSourceUrl, qSourceName]
+  );
+
   useEffect(() => {
     if (!sourceKey || !vodId) return;
-    const source = resolveSource({ customAPIs, envSources }, sourceKey, { url: qSourceUrl, name: qSourceName });
     if (!source) {
-      setErr('这个点播源已不存在，请在设置里重新添加后再试');
+      if (sourcesLoaded) setErr('这个点播源已不存在，请在设置里重新添加后再试');
       return;
     }
+    setErr('');
     const controller = new AbortController();
     api
       .detail(vodId, source, controller.signal)
@@ -67,8 +79,7 @@ function DetailContent() {
         setErr(e instanceof Error ? e.message : '获取资料失败');
       });
     return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceKey, vodId]);
+  }, [sourceKey, vodId, source, sourcesLoaded]);
 
   const info = detail?.videoInfo;
   const title = info?.title || qName || '未命名影片';
