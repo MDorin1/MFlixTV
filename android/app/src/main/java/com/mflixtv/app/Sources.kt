@@ -453,20 +453,21 @@ object Sources {
         }
         workers.forEach { it.join(10000) }
 
-        /* 排序四键（双端统一，见 docs/dual-impl.md 第 2 项）：
-           ① 标题精确度：归一后与关键词完全相同置顶，其余一律平等（只有两档，
-              不是「前缀 > 包含」三档——差别在电视上看不出来，两端各写一遍更易走样）
-              老片「小明星大跟班」vod_year=2016，只按年份排会被无关新片压到后面
-           ② 同档按 recencyYear 倒序：连载综艺用最新一期那一年的年份，不是首播年
-           ③ 再同按最新一期日期倒序
-           ④ 再同按片名、源名，保证同一关键词两次结果顺序一致 */
+        /* 排序键必须与电脑端 search-sort.ts 的 sortSearchResults 逐键相同、顺序也一样：
+           多一个键或少一个键，同一关键词两端就会排出不同结果。
+             ① titleRank：归一后与关键词完全相同置顶，其余一律平等（只有两档）
+             ② recencyYear 倒序：连载综艺用最新一期那一年，不是首播年
+             ③ 片名：中文按 Collator(SIMPLIFIED_CHINESE)，对应 PC 的
+                localeCompare(name, 'zh-Hans-CN')
+             ④ 源名：同一个片名来自多个源时的最终稳定键（PC 是 sourceName）
+           不要再加「最新一期日期」或「备注含更新」这类键——PC 没有，
+           只会让两端在同一年份的结果里各走各的。 */
+        val nameCollator = java.text.Collator.getInstance(java.util.Locale.SIMPLIFIED_CHINESE)
         val sorted = out.sortedWith(
             compareBy<JSONObject> { Freshness.titleRank(it.optString("name"), wd) }
                 .thenByDescending { it.optInt("recencyYear", it.optString("year").toIntOrNull() ?: 0) }
-                .thenByDescending { it.optString("latestDate") }
-                .thenByDescending { it.optString("remarks").contains("更新") }
-                .thenBy { it.optString("name") }
-                .thenBy { it.optString("srcName") }
+                .thenBy(nameCollator) { it.optString("name") }
+                .thenBy(nameCollator) { it.optString("srcName") }
         )
         val root = JSONObject()
         val arr = JSONArray()
