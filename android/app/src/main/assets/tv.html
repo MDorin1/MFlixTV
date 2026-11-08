@@ -1008,7 +1008,7 @@
   <div class="right">
     <div class="sub-h" id="recH">最近搜索</div>
     <div class="hot" id="recent"></div>
-    <div class="sub-h" id="resH">热门搜索</div>
+    <div class="sub-h" id="resH">最近更新</div>
     <div class="hot" id="hot"></div>
     <div class="sres" id="sres"></div>
   </div>
@@ -2186,14 +2186,27 @@
       box.appendChild(b);
     });
   }
+  /* 第二块胶囊：数据来自本机已拉到的首页片单（前 3 排各取 4 条），
+     所以文案就叫「最近更新」——不写「热门搜索」。
+     这里的规矩是文案必须与数据来源一致：数据是首页片单就写最近更新，
+     真榜单（电脑端走 /api/hot-list）才写热搜。电视端没有那条路由，
+     也不为了一个搜索页热词去多接一个第三方接口和一套缓存。 */
+  var HOT_LABEL = '最近更新';
   function buildHot() {
-    var box = $('hot'); box.innerHTML = '';
+    var box = $('hot'), h = $('resH'); box.innerHTML = '';
     var picks = [];
     S.rows.slice(0, 3).forEach(function (r) {
       (r.items || []).slice(0, 4).forEach(function (it) { if (it.name) picks.push(it.name); });
     });
     picks = picks.filter(function (v, i) { return picks.indexOf(v) === i; }).slice(0, 10);
-    if (!picks.length) picks = ['电影', '电视剧', '综艺', '动漫'];
+    /* 片单还没回来就整块收起来：宁可少一块，也不拿分类词冒充「最近更新」 */
+    if (!picks.length) {
+      box.style.display = 'none';
+      if (h && h.textContent === HOT_LABEL) h.style.display = 'none';
+      return;
+    }
+    box.style.display = '';
+    if (h && h.textContent === HOT_LABEL) h.style.display = '';
     picks.forEach(function (name) {
       var b = el('button', 'chip fx'); b.textContent = name;
       b.addEventListener('click', function () { word = name; paintWord(); doSearch(); });
@@ -2201,7 +2214,7 @@
     });
   }
   /* 最近搜索（1.18）：电视上用遥控器一个字一个字挪，是搜索里最痛的一步。
-     先给「搜过的」和「热门的」两排，能少打一个字就少打一个字。
+     先给「搜过的」和「最近更新的」两排，能少打一个字就少打一个字。
      只存本机 localStorage（跟这台电视走，不联网），最多留 8 条，
      焦点停在上面按菜单键 / 长按确定可以删掉那一条 —— 遥控器上删东西不该逼人去打字。 */
   function recentWords() {
@@ -2277,7 +2290,7 @@
     });
   }
   $('scDel').addEventListener('click', function () { word = word.slice(0, -1); paintWord(); });
-  $('scClear').addEventListener('click', function () { word = ''; paintWord(); $('sres').innerHTML = ''; $('hot').classList.remove('off'); $('resH').textContent = '热门搜索'; });
+  $('scClear').addEventListener('click', function () { word = ''; paintWord(); $('sres').innerHTML = ''; $('hot').classList.remove('off'); $('resH').textContent = HOT_LABEL; });
   $('scGo').addEventListener('click', doSearch);
 
   /* 遥控器在手机上打好了字：和电视自己搜同一条路（rcSearch 会先收起播放器） */
@@ -3322,7 +3335,17 @@
     recallHome();
   }
   function navTo(key) {
-    if (key === 'search') { showView('search'); try { buildRecent(); } catch (e) {} focusFirst('#kbd .key'); return; }
+    if (key === 'search') {
+      showView('search');
+      try { buildRecent(); } catch (e) {}
+      /* 上次搜索结果还在就保持原样（从详情返回要看得到结果）；什么都没有时
+         把第二块标题还给「最近更新」，别让上次的「搜索结果 · N 部」留在空页面上 */
+      try {
+        var sr = $('sres');
+        if (!sr.children.length) { $('resH').textContent = HOT_LABEL; $('hot').classList.remove('off'); buildHot(); }
+      } catch (e2) {}
+      focusFirst('#kbd .key'); return;
+    }
     if (key === 'home') {
       if (document.querySelector('.view.on') !== $('home')) showView('home');
       try { refreshRecRows(); } catch (e) {}
