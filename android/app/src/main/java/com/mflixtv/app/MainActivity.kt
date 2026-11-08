@@ -150,8 +150,7 @@ class MainActivity : AppCompatActivity() {
                 val max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
                 if (max <= 0) return false
                 val step = Math.round(max * (pct.coerceIn(0, 100) / 100f))
-                // FLAG_SHOW_UI：让系统自己的音量条弹出来 —— 遥控器按音量键，用户看的就是这条
-                am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, step, android.media.AudioManager.FLAG_SHOW_UI)
+                am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, step, 0)
                 true
             } catch (e: Throwable) {
                 false
