@@ -437,9 +437,30 @@ class MainActivity : AppCompatActivity() {
      * 每个按住周期只发一次，松手（ACTION_UP）复位。
      */
     private var okLongFired = false
+    private var backLongFired = false
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (!tvMode) return super.dispatchKeyEvent(event)
+
+        /* 返回键：普通一下照旧交给 onBackPressed（页面能处理就先处理）。
+           按住不放时系统会连发 ACTION_DOWN，重复的先吞掉——否则按住返回会把
+           详情、首页一路退完直接退出 App；按住约 2 秒改发 home，一步退回首页。 */
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.action == KeyEvent.ACTION_UP) {
+                backLongFired = false
+                return true
+            }
+            if (event.repeatCount >= 10) {
+                if (!backLongFired) {
+                    backLongFired = true
+                    sendKey("home")
+                }
+                return true
+            }
+            if (event.repeatCount > 0) return true
+            return super.dispatchKeyEvent(event)
+        }
+
         val action = when (event.keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> "up"
             KeyEvent.KEYCODE_DPAD_DOWN -> "down"
@@ -448,7 +469,15 @@ class MainActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_BUTTON_A -> "ok"
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY -> "ok"
-            KeyEvent.KEYCODE_MENU -> "menu"
+            // 电视 / 机顶盒遥控器上的快进快退、上一集下一集键：以前一律落到 super，
+            // WebView 不认识就什么都不发生，等于一排废键。
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> "ff"
+            KeyEvent.KEYCODE_MEDIA_REWIND -> "rw"
+            KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_CHANNEL_UP -> "epnext"
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_CHANNEL_DOWN -> "epprev"
+            // MENU 之外，INFO / GUIDE 也是常见「更多」键
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO, KeyEvent.KEYCODE_GUIDE -> "menu"
+            in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> "digit" + (event.keyCode - KeyEvent.KEYCODE_0)
             else -> null
         }
         if (action == null) return super.dispatchKeyEvent(event)
@@ -468,7 +497,24 @@ class MainActivity : AppCompatActivity() {
             if (rc == 0) sendKey("ok")
             return true
         }
-        if (event.action == KeyEvent.ACTION_DOWN) sendKey(action)
+        if (event.action == KeyEvent.ACTION_UP) return true
+        // 方向键长按：前 5 下按格走，之后每 2 下走一屏（老人机顶盒一次一格按到手酸）
+        if (action == "up" || action == "down" || action == "left" || action == "right") {
+            val rc = event.repeatCount
+            if (rc >= 6) {
+                if (rc % 2 == 0) sendKey("fast" + action)
+                return true
+            }
+            sendKey(action)
+            return true
+        }
+        // 快进快退：重复也发，页面那边会链式加速；其余键只认第一下
+        if (action == "ff" || action == "rw") {
+            sendKey(action)
+            return true
+        }
+        if (event.repeatCount > 0) return true
+        sendKey(action)
         return true
     }
 

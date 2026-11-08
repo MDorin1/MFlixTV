@@ -3511,7 +3511,53 @@
     return true;
   }
 
+  /* ================= 原装遥控器上剩下的那些键 =================
+     机顶盒 / 电视自带遥控器除了十字键，还常有一整排键，以前按下去完全没反应：
+       ⏩ / ⏪（KEYCODE_MEDIA_FAST_FORWARD / REWIND）→ 播放页快进快退，列表页翻页
+       ⏭ / ⏮（MEDIA_NEXT / PREVIOUS）、CH+ / CH-              → 上一集 / 下一集
+       0-9                                                    → 播放页按号码直达第 N 集
+       INFO / GUIDE                                           → 等同于菜单键
+       按住返回                                               → 直接回首页
+       按住方向键                                             → 先按格走，之后整屏走
+     这一整块只在电视里生效（原生侧翻译成动作后注入），浏览器不受影响。 */
+  var digitBuf = '', digitT = null;
+  /** 数字键直达集数：按 1 再按 2 就是第 12 集，停 0.9 秒自己跳过去 */
+  function digitKey(s) {
+    if (!inPlayer()) return false;
+    var d = parseInt(s, 10);
+    if (isNaN(d)) return false;
+    digitBuf = (digitBuf + d).slice(-4);
+    clearTimeout(digitT);
+    toast('跳到第 ' + digitBuf + ' 集…');
+    digitT = setTimeout(function () {
+      var want = parseInt(digitBuf, 10);
+      digitBuf = '';
+      var n = (S.eps || []).length;
+      if (!n) return;
+      if (want < 1 || want > n) { toast('这部只有 ' + n + ' 集'); return; }
+      if (want - 1 === (S.ep | 0)) { toast('已经在第 ' + want + ' 集'); return; }
+      playEp(want - 1);
+    }, 900);
+    return true;
+  }
+
   function handle(a) {
+    /* 长按方向键：原生侧在第 6 个重复之后改发 fastX，到这里一次走一屏。
+       上下走 3 格（约一屏），左右走 4 张卡（一行）。 */
+    var fastN = 0;
+    if (a === 'fastup') { a = 'up'; fastN = 3; }
+    else if (a === 'fastdown') { a = 'down'; fastN = 3; }
+    else if (a === 'fastleft') { a = 'left'; fastN = 4; }
+    else if (a === 'fastright') { a = 'right'; fastN = 4; }
+
+    /* 长按返回键（原生侧识别）= 退到首页，不看在哪一层 */
+    if (a === 'home') {
+      if (inPlayer()) closePlayer();
+      try { if ($('extcard').classList.contains('on')) closeExtCard(); } catch (e) {}
+      goHome();
+      return true;
+    }
+
     /* 长按确定键（原生侧识别）：Shield 一类遥控器没有菜单键，这条是主入口 */
     if (a === 'menulong') {
       if (!inPlayer()) {
@@ -3560,7 +3606,26 @@
       if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
       return true;
     }
-    if (inPlayer()) return handlePlayer(a);
+    if (a === 'ff' || a === 'rw') {
+      /* ⏩ / ⏪：播放页快进快退（连按会加速，沿用原来的链式逻辑）。
+         不在播放页时这两个键用来翻页——遥控器上按下去什么都不发生最难受。 */
+      if (inPlayer()) { seekByDirection(a === 'ff' ? 1 : -1); return true; }
+      for (var fi = 0; fi < 3; fi++) move(a === 'ff' ? 'down' : 'up');
+      bars(true);
+      return true;
+    }
+    if (a === 'epnext' || a === 'epprev') {
+      if (inPlayer()) { stepEp(a === 'epnext' ? 1 : -1); return true; }
+      return true;
+    }
+    if (a.indexOf('digit') === 0) return digitKey(a.slice(5));
+    if (inPlayer()) {
+      /* 播放页里长按左右仍然只是「再快进一格」，不整屏跳——跳一屏等于跳过几分钟剧情 */
+      if (fastN && (a === 'left' || a === 'right')) { seekByDirection(a === 'left' ? -1 : 1); return true; }
+      if (fastN) return true;
+      return handlePlayer(a);
+    }
+    if (fastN) { for (var fk = 0; fk < fastN; fk++) move(a); bars(true); return true; }
     if (a === 'up' || a === 'down' || a === 'left' || a === 'right') { move(a); bars(true); return true; }
     if (a === 'ok') { if (focusEl && focusEl.click) focusEl.click(); return true; }
     if (a === 'menu') {
