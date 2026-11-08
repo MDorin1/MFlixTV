@@ -394,31 +394,37 @@ function Invoke-SourceUpdate {
           if ($null -eq $obj.list) { return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = 0; Ok = $false; Latest = '' } }
           # 只认"名字里真含关键词"的条目：有的站忽略 wd 返回固定内容
           $hits = @($obj.list | Where-Object { $_.vod_name -and ([string]$_.vod_name).Contains('庆余年') }).Count
-          # 最新内容日期：只认能落到合法日历的 8 位数字，取最晚的一个
+          # 两个日期分开算，性质不同不能混：
+          #   vod_remarks 里是「更新至20251020期」这类**内容日期**，只有真采到新一期才会变 -> 用来判归档；
+          #   vod_time 是采集站的**上架/更新时间**，旧内容被重抓一次就变成今天 -> 只在上架时间兜底显示。
           $latest = ''
+          $upload = ''
           try {
             $txt2 = (curl.exe -s -m 12 -A $ua $latestProbe) -join ''
             if ($txt2) {
               $obj2 = $txt2 | ConvertFrom-Json
               foreach ($it in @($obj2.list)) {
                 if (-not $it) { continue }
-                # vod_time 是采集站的上架/更新时间（几乎每条都有），vod_remarks 里是「更新至20251020期」这类；
-                # 只看 remarks 会漏掉电影和按集更新的剧（它们备注里根本没有日期）
-                $stamp = ([string]$it.vod_time) + ' ' + ([string]$it.vod_remarks)
-                $m = [regex]::Match($stamp, '(20\d{2})[-./]?(\d{1,2})[-./]?(\d{1,2})')
-                if (-not $m.Success) { continue }
-                $mo = [int]$m.Groups[2].Value
-                $dd = [int]$m.Groups[3].Value
-                if ($mo -lt 1 -or $mo -gt 12 -or $dd -lt 1 -or $dd -gt 31) { continue }
-                $iso = '{0}-{1:00}-{2:00}' -f $m.Groups[1].Value, $mo, $dd
-                if ($iso -gt $latest) { $latest = $iso }
+                foreach ($pair in @(
+                    @{ Field = [string]$it.vod_remarks; Kind = 'content' },
+                    @{ Field = [string]$it.vod_time; Kind = 'upload' }
+                  )) {
+                  $m = [regex]::Match($pair.Field, '(20\d{2})[-./]?(\d{1,2})[-./]?(\d{1,2})')
+                  if (-not $m.Success) { continue }
+                  $mo = [int]$m.Groups[2].Value
+                  $dd = [int]$m.Groups[3].Value
+                  if ($mo -lt 1 -or $mo -gt 12 -or $dd -lt 1 -or $dd -gt 31) { continue }
+                  $iso = '{0}-{1:00}-{2:00}' -f $m.Groups[1].Value, $mo, $dd
+                  if ($pair.Kind -eq 'content') { if ($iso -gt $latest) { $latest = $iso } }
+                  elseif ($iso -gt $upload) { $upload = $iso }
+                }
               }
             }
           } catch { }
-          return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = $hits; Ok = $true; Latest = $latest }
+          return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = $hits; Ok = $true; Latest = $latest; Upload = $upload }
         } catch {
           $sw.Stop()
-          return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = 0; Ok = $false; Latest = '' }
+          return [pscustomobject]@{ Name = $n; Url = $u; Ms = [int]$sw.ElapsedMilliseconds; Count = 0; Ok = $false; Latest = ''; Upload = '' }
         }
       } -ArgumentList $item.u, $item.n
     }
@@ -431,8 +437,9 @@ function Invoke-SourceUpdate {
   }
 
   $alive = $results | Where-Object { $_.Ok } | ForEach-Object {
-    # 归档源：探活通，但最新一期早于 90 天（或压根没有日期可比）→ 排到最后
-    $stale = $true
+    # 归档源：探活通，但**内容日期**早于 90 天 -> 排到最后。
+    # 没有内容日期的源不判归档（上架时间判不了这件事，旧内容重抓一次就变今天）。
+    $stale = $false
     if ($_.Latest) {
       $t = [datetime]::MinValue
       if ([datetime]::TryParseExact($_.Latest, 'yyyy-MM-dd', $null, 'None', [ref]$t)) {
@@ -445,6 +452,7 @@ function Invoke-SourceUpdate {
       Ms       = $_.Ms
       Count    = $_.Count
       Latest   = [string]$_.Latest
+      Upload   = [string]$_.Upload
       Archived = $stale
       Prio     = (Get-SourcePrio $_.Url)
     }
@@ -457,8 +465,8 @@ function Invoke-SourceUpdate {
     $tag = ''
     if ($a.Archived) { $tag = '[归档] ' }
     elseif ($a.Prio -eq 0) { $tag = '[快] ' }
-    $latestTxt = if ($a.Latest) { $a.Latest } else { '无日期' }
-    Log ("  {0,-14} {1,5}ms  命中 {2,2}  最新 {3}  {4}{5}" -f $a.Name, $a.Ms, $a.Count, $latestTxt, $tag, $a.Url)
+    $latestTxt = if ($a.Latest) { '内容 ' + $a.Latest } elseif ($a.Upload) { '上架 ' + $a.Upload + '（非内容日期）' } else { '无日期' }
+    Log ("  {0,-14} {1,5}ms  命中 {2,2}  {3}  {4}{5}" -f $a.Name, $a.Ms, $a.Count, $latestTxt, $tag, $a.Url)
   }
 
   if (@($alive).Count -lt 3) {

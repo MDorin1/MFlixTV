@@ -15,6 +15,12 @@ interface ProbeRow {
   ms: number;
   count: number;
   error?: string;
+  /** 最新内容日期（或上架时间兜底） */
+  latestDate?: string;
+  dateSource?: 'remarks' | 'vod_time';
+  /** 体检页直接显示的一行 */
+  freshness?: string;
+  archived?: boolean;
 }
 
 /**
@@ -135,13 +141,14 @@ export default function SourcesPage() {
               <tr>
                 <th className="px-3 py-2 text-left font-medium">源</th>
                 <th className="px-3 py-2 text-left font-medium">状态</th>
+                <th className="px-3 py-2 text-left font-medium">内容时间</th>
                 <th className="px-3 py-2 text-left font-medium">参与搜索</th>
               </tr>
             </thead>
             <tbody>
               {all.length === 0 && (
                 <tr>
-                  <td className="px-3 py-6 text-center text-muted" colSpan={3}>
+                  <td className="px-3 py-6 text-center text-muted" colSpan={4}>
                     还没有片源。回首页右上角「片源」里加一个，或者把别处的配置粘到下面导入。
                   </td>
                 </tr>
@@ -160,6 +167,24 @@ export default function SourcesPage() {
                     <td className={cn('px-3 py-2', r ? (r.ok ? 'text-success' : 'text-danger') : 'text-muted')}>
                       {state}
                       {disabled && <span className="ml-2 text-[11px] text-warning">体检自动停用中</span>}
+                    </td>
+                    <td className="px-3 py-2">
+                      {r?.ok && r.freshness ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span
+                            className={cn(
+                              'text-xs',
+                              // 上架时间只是兜底，颜色压低一档，别跟「最新一集」同等重要
+                              r.dateSource === 'vod_time' ? 'text-muted' : 'text-content'
+                            )}
+                          >
+                            {r.freshness}
+                          </span>
+                          {r.archived && <span className="text-[11px] text-warning">已归档：排在新片之后</span>}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted">{r?.ok ? '没有日期可判' : '—'}</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <button
