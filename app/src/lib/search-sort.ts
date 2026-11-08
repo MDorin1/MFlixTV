@@ -7,23 +7,21 @@ import type { SearchResultItem } from './types';
  *
  * 安卓端是 `Freshness.titleRank` + `Sources.search()`，改动要两边一起落。
  *
- * 三段：
- *  1. 标题精确度：归一化后完全相等 > 前缀匹配 > 包含匹配 > 其他
+ * 两档（2026-11-09 定案，不是三档）：
+ *  1. 归一化后**与关键词完全相同**的排最前，其余一律平等
  *     —— 老片（「小明星大跟班」vod_year=2016）靠这一档才不会被一堆 2024/2025
- *     的模糊命中压到后面；以前安卓端只按年份倒序，精确命中反而排最后。
+ *     的模糊命中压到后面；前缀与包含之间的先后在电视上分辨不出来，
+ *     两端各写一遍细分档位反而更容易走样，所以只留「正主置顶」这一条。
  *  2. 同档按 recencyYear 降序：连载综艺取最新一期的年份，不是首播年。
  *  3. 再同按原始标题、源名，保证同一关键词两次结果顺序一致（不依赖源站返回顺序）。
  */
 
-/** 0 完全相等 / 1 前缀 / 2 包含 / 3 其他 */
+/** 0 完全相同 / 1 其余（两档，别再细分前缀与包含） */
 export function titleRank(name: string | undefined, wd: string): number {
   const n = normalizeTitle(name || '');
   const w = normalizeTitle(wd);
-  if (!n || !w) return 3;
-  if (n === w) return 0;
-  if (n.startsWith(w)) return 1;
-  if (n.includes(w)) return 2;
-  return 3;
+  if (!n || !w) return 1;
+  return n === w ? 0 : 1;
 }
 
 /** 排序用的年份：有最新一期日期时以那一年的年份为准 */

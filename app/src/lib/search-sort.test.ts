@@ -9,12 +9,12 @@ function item(name: string, year?: string, remarks?: string, sourceName = 'A'): 
 
 const names = (list: SearchResultItem[]) => list.map((i) => i.name);
 
-describe('titleRank', () => {
-  it('完全相等 / 前缀 / 包含 / 其他 四级递增', () => {
+describe('titleRank（两档：完全相同置顶，其余一律平等）', () => {
+  it('完全相同 = 0，前缀/包含/无关都是 1', () => {
     expect(titleRank('小明星大跟班', '小明星大跟班')).toBe(0);
     expect(titleRank('小明星大跟班2024', '小明星大跟班')).toBe(1);
-    expect(titleRank('超级小明星大跟班', '小明星大跟班')).toBe(2);
-    expect(titleRank('极限挑战', '小明星大跟班')).toBe(3);
+    expect(titleRank('超级小明星大跟班', '小明星大跟班')).toBe(1);
+    expect(titleRank('极限挑战', '小明星大跟班')).toBe(1);
   });
 
   it('忽略标点、空白与大小写（源站存「摔跤吧!爸爸」也能精确命中）', () => {
@@ -22,10 +22,10 @@ describe('titleRank', () => {
     expect(titleRank('  The  Office ', 'the office')).toBe(0);
   });
 
-  it('空片名或空关键词落到最后一档，不抛错', () => {
-    expect(titleRank(undefined, '庆余年')).toBe(3);
-    expect(titleRank('', '庆余年')).toBe(3);
-    expect(titleRank('庆余年', '  ')).toBe(3);
+  it('空片名或空关键词落到非置顶档，不抛错', () => {
+    expect(titleRank(undefined, '庆余年')).toBe(1);
+    expect(titleRank('', '庆余年')).toBe(1);
+    expect(titleRank('庆余年', '  ')).toBe(1);
   });
 });
 
@@ -68,9 +68,10 @@ describe('sortSearchResults', () => {
     ]);
   });
 
-  it('前缀优先于包含，即使包含的那条年份更新', () => {
+  it('同档内按最新一期年份倒序，前缀/包含不再细分档', () => {
     const list = [item('超长版锻刀大赛', '2026'), item('锻刀大赛 第10季', '2024')];
-    expect(names(sortSearchResults(list, '锻刀大赛'))).toEqual(['锻刀大赛 第10季', '超长版锻刀大赛']);
+    // 两档规则下「前缀」不占优，谁的最新一期年份新谁在前
+    expect(names(sortSearchResults(list, '锻刀大赛'))).toEqual(['超长版锻刀大赛', '锻刀大赛 第10季']);
   });
 
   it('全部相同字段时按源名定序，同一输入两次结果一致', () => {

@@ -109,22 +109,18 @@ object Freshness {
         (s ?: "").lowercase().filter { it.isLetterOrDigit() }
 
     /**
-     * 搜索结果的「标题精确度」分级，越小越靠前（口径同电脑端 `/api/search`）：
-     * 0 归一后完全相等 / 1 前缀匹配 / 2 包含匹配 / 3 其他。
+     * 搜索结果的「标题档位」，越小越靠前（口径同电脑端 `search-sort.ts` 的 `titleRank`）：
+     * 0 归一后与关键词完全相同 / 1 其余。
      *
-     * 老片「小明星大跟班」（vod_year=2016）靠这一档才不会被一堆无关新片压到后面
-     * —— 以前只按年份倒序，精确命中也排在 2024/2025 的模糊结果之后。
+     * **只有两档**（2026-11-09 定案）：正主置顶就够了，前缀与包含之间的先后
+     * 在电视上分辨不出来，两端各写一遍细分档位反而容易走样。
+     * 老片「小明星大跟班」（vod_year=2016）靠这一档才不会被一堆无关新片压到后面。
      */
     fun titleRank(name: String?, wd: String): Int {
         val n = normalizeTitle(name)
         val w = normalizeTitle(wd)
-        if (n.isEmpty() || w.isEmpty()) return 3
-        return when {
-            n == w -> 0
-            n.startsWith(w) -> 1
-            n.contains(w) -> 2
-            else -> 3
-        }
+        if (n.isEmpty() || w.isEmpty()) return 1
+        return if (n == w) 0 else 1
     }
 
     /** 一条源「最新内容日期」：备注里的最晚日期优先，一条都没有才退回上架时间 */

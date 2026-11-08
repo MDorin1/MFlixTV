@@ -12,8 +12,8 @@ android {
         // 0.13锛氬線涓嬪吋瀹瑰埌 Android 7.0锛圓PI 24锛夈€備箣鍓嶆槸 26锛孉ndroid 7.x 鐨勮€佹満鍨嬬洿鎺ヨ涓嶄笂銆?
         minSdk = 24
         targetSdk = 34
-        versionCode = 133
-        versionName = "1.22"
+        versionCode = 134
+        versionName = "1.23"
         // 杩欓噷鍘熸潵鍐欑潃 abiFilters += listOf("arm64-v8a")锛屽啀鍔犱竴浠界敤涓嶅埌鐨?jniLibs/arm64-v8a/libnode.so
         // 锛?2 MB 鐨?nodejs-mobile 娈嬬暀锛夈€傜粨鏋?API 閲屽０鏄庝簡 native-code: arm64-v8a锛?
         // 32 浣嶆満鍨嬨€侀儴鍒嗗钩鏉?鐩掑瓙鍜?x86 璁惧涓嶆槸瑁呬笉涓婂氨鏄捣鏉ュ氨宕┿€?

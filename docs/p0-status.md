@@ -1,4 +1,4 @@
-# P0 四项 · 落地状态表（谁说、哪版、哪一行）
+﻿# P0 四项 · 落地状态表（谁说、哪版、哪一行）
 
 这张表只回答一个问题：**某一项到底有没有进包、进的是哪一版、代码在第几行。**
 每次再被问“这项做了没有”，先看这里，再跑 `tools\verify-p0.ps1`（它会打印当版实测数字），不要拿旧版本的包或旧 commit 下结论。
@@ -12,7 +12,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\verify-p0.ps1
 
 | # | 事项 | 进了哪版 | commit | 代码位置 |
 | --- | --- | --- | --- | --- |
-| 1 | 两端搜索排序：标题精确度 → `recencyYear` → 片名/源名 | **1.21** | `657e244` | PC：`app/src/lib/search-sort.ts:19 titleRank()` / `:30 sortYear()` / `:35 sortSearchResults()`，由 `app/src/app/api/search/route.ts:173` 调用；安卓：`Sources.kt:461-463`，`Freshness.kt:118 titleRank()` |
+| 1 | 两端搜索排序：标题完全相同置顶（两档）→ `recencyYear` → 片名/源名 | **1.21** | `657e244` | PC：`app/src/lib/search-sort.ts:19 titleRank()` / `:30 sortYear()` / `:35 sortSearchResults()`，由 `app/src/app/api/search/route.ts:173` 调用；安卓：`Sources.kt:461-463`，`Freshness.kt:118 titleRank()` |
 | 2 | 安卓搜索页「最近搜索」（`localStorage`） | **1.18** | `f4f7efe` 起 | `tv.html:2222 recentWords()`、`:2231` 写入、`:2236` 删单条；键名 `mfl:recent`，最多 8 条 |
 | 3 | 安卓第二块改名「最近更新」（取 `/api/home` 前 10 条片名） | **1.22** | `738767b` | `tv.html:2194 var HOT_LABEL = '最近更新'`；片单为空时 `:2205` 标题与胶囊整块 `display:none` |
 | 4 | 安卓补新鲜度 / 连载综艺年份 / 归档 | **1.20** | `9623664` | `Freshness.kt:47 latestEpisodeDate()`、`:88 recencyYear()`、`:155 isArchived()`（`ARCHIVE_DAYS=90`，只认 remarks）、`:137 latestInRaw()`；显示层 `SourceDetail.kt:41/49`、`SourceHealth.kt:178-179/198-202`；路由 `WebServer.kt:248` |
