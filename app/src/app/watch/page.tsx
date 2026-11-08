@@ -442,6 +442,8 @@ function WatchContent() {
                   onSelectEpisode={(i) => goEpisode(i)}
                   panel={panel}
                   onPanelChange={setPanel}
+                  danmakuTitle={videoTitle}
+                  danmakuEpisode={currentIndex + 1}
                   sourcePanel={
                     <SwitchSourceModal
                       currentTitle={videoTitle}

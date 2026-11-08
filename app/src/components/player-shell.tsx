@@ -6,6 +6,10 @@ import { createPortal } from 'react-dom';
 import Artplayer from 'artplayer';
 import Hls, { type HlsConfig } from 'hls.js';
 
+import { DanmakuLayer } from './danmaku-layer';
+import { DanmakuPanel } from './danmaku-panel';
+import { useDanmaku } from './use-danmaku';
+
 import { PlaybackRecovery, describeHlsError } from '@/lib/playback-recovery';
 import { createHlsLoader } from '@/lib/hls-loader';
 import {
@@ -126,10 +130,17 @@ interface PlayerShellProps {
   onPanelChange?: (panel: PlayerPanel) => void;
   /** 换源面板节点：由父级渲染后塞进播放器内部，这样全屏下也看得见 */
   sourcePanel?: ReactNode;
+  /**
+   * 弹幕片名与集数：给了就按 B 站自动匹配弹幕（片名 + 第几集 + 时长）。
+   * 不传 = 这个页面不提供弹幕（比如直播）。
+   */
+  danmakuTitle?: string;
+  /** 1 起；0/不传 = 电影或整季合集，只按片名匹配 */
+  danmakuEpisode?: number;
 }
 
-/** 播放器内部浮层：选集 / 换源。两者都渲染在播放器 DOM 里，全屏时不会被裁掉 */
-export type PlayerPanel = 'none' | 'episodes' | 'source';
+/** 播放器内部浮层：选集 / 换源 / 弹幕。都渲染在播放器 DOM 里，全屏时不会被裁掉 */
+export type PlayerPanel = 'none' | 'episodes' | 'source' | 'danmaku';
 
 export function PlayerShell({
   url,
@@ -161,6 +172,8 @@ export function PlayerShell({
   panel = 'none',
   onPanelChange,
   sourcePanel,
+  danmakuTitle,
+  danmakuEpisode = 0,
 }: PlayerShellProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,6 +239,28 @@ export function PlayerShell({
 
   /** 挂载 ArtPlayer 之后拿到的浮层容器（portal 目标），全屏时依然在播放器内部 */
   const [layerEl, setLayerEl] = useState<HTMLElement | null>(null);
+  /** 弹幕画布宿主：单独一层，z-index 低于控制条、高于画面 */
+  const [danmakuEl, setDanmakuEl] = useState<HTMLElement | null>(null);
+
+  /**
+   * 弹幕：起播后再取（别和首屏/起播抢带宽），片名与集数变了自动重取。
+   * `enabled` 里带上 branding：品牌动画还在时先不发请求。
+   */
+  const danmaku = useDanmaku({
+    title: danmakuTitle,
+    episode: danmakuEpisode,
+    enabled: !branding && !error,
+  });
+  const danmakuOn = danmaku.prefs.mode !== 'off';
+  // 快捷键要读最新值，走 ref（键盘监听只在挂载时建一次）
+  const danmakuRef = useRef({ enabled: danmakuOn, toggle: danmaku.toggle, open: () => {} });
+  danmakuRef.current.enabled = danmakuOn;
+  danmakuRef.current.toggle = danmaku.toggle;
+
+  /** 弹幕层每帧读一次 video：ArtPlayer 换源不重建实例，用稳定函数取最稳 */
+  const videoGetterRef = useRef<() => HTMLVideoElement | null>(
+    () => (artRef.current?.video as HTMLVideoElement | undefined) ?? null
+  );
 
   const togglePanel = (next: PlayerPanel) => {
     const cur = propsRef.current.panel ?? 'none';
@@ -718,6 +753,15 @@ export function PlayerShell({
           tooltip: '切换资源',
           click: () => togglePanel('source'),
         },
+        {
+          // 弹幕：一条消息气泡，点开是弹幕设置（开关/选源/观感）
+          name: 'danmaku-picker',
+          index: 15,
+          position: 'left',
+          html: '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"><path fill="currentColor" d="M20 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4l4 4 4-4h4a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-3 9H7V9h10v2zm0-4H7V5h10v2z"/></svg>',
+          tooltip: '弹幕 (D)',
+          click: () => togglePanel('danmaku'),
+        },
       ],
       // 播放器内浮层容器：选集/换源的 React 面板 portal 到这里，
       // 全屏时它仍在播放器 DOM 内部，所以不会被全屏元素裁掉。
@@ -752,6 +796,14 @@ export function PlayerShell({
       host.style.cssText = 'position:absolute;inset:0;z-index:105;pointer-events:none;';
       playerEl.appendChild(host);
       lcsLayer = host;
+
+      // 弹幕层：单独一个空壳，画布由 <DanmakuLayer> 自己建。
+      // z-index 20 = 压在画面之上、控制条(60)/遮罩(50)之下，也不吃点击。
+      const dmHost = document.createElement('div');
+      dmHost.setAttribute('data-lcs-danmaku-host', '');
+      dmHost.style.cssText = 'position:absolute;inset:0;z-index:20;pointer-events:none;overflow:hidden;';
+      playerEl.appendChild(dmHost);
+      setDanmakuEl(dmHost);
     }
     setLayerEl(lcsLayer);
 
@@ -1357,6 +1409,12 @@ export function PlayerShell({
           showHint(current.muted ? '已静音' : '已取消静音');
           e.preventDefault();
           break;
+        case 'd': case 'D':
+          // 弹幕开关：一键关掉画面上的字（不看弹幕的人按一下就清静，再按回来）
+          danmakuRef.current.toggle();
+          showHint(danmakuRef.current.enabled ? '弹幕已关闭' : '弹幕已开启');
+          e.preventDefault();
+          break;
         case 'j': case 'J':
           seekBySeconds(-10); e.preventDefault();
           break;
@@ -1726,6 +1784,7 @@ export function PlayerShell({
                 ['← / →', '快退 / 快进 5 秒'],
                 ['↑ / ↓', '音量'],
                 ['M', '静音'],
+                ['D', '弹幕开 / 关'],
                 ['0 – 9', '跳到 0% – 90%'],
                 [', / .', '倍速 - / +'],
                 ['F', '全屏'],
@@ -1911,6 +1970,47 @@ export function PlayerShell({
           </div>,
           layerEl
         )}
+
+      {layerEl &&
+        panel === 'danmaku' &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[120] flex items-end justify-center bg-black/90 backdrop-blur-md sm:items-center sm:p-6"
+            style={{ pointerEvents: 'auto' }}
+            onClick={(e) => {
+              stopPlayerGesture(e);
+              onPanelChange?.('none');
+            }}
+            onKeyDown={stopPlayerGesture}
+            role="dialog"
+            aria-label="弹幕设置"
+          >
+            <DanmakuPanel
+              prefs={danmaku.prefs}
+              setPrefs={danmaku.setPrefs}
+              status={danmaku.status}
+              error={danmaku.error}
+              matched={danmaku.matched}
+              candidates={danmaku.candidates}
+              pickedBvid={danmaku.pickedBvid}
+              pick={danmaku.pick}
+              reload={danmaku.reload}
+              onClose={() => onPanelChange?.('none')}
+            />
+          </div>,
+          layerEl
+        )}
+
+      {/* 弹幕画布：宿主在播放器内部，这里只负责把条目喂给它 */}
+      {danmakuEl && (
+        <DanmakuLayer
+          host={danmakuEl}
+          getVideo={videoGetterRef.current}
+          items={danmaku.items}
+          prefs={danmaku.prefs}
+          active={danmakuOn}
+        />
+      )}
     </div>
   );
 }

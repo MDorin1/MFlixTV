@@ -2,6 +2,7 @@
 
 import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload, QualityProbeItem, QualityProbeResult, PersonSearchHit, TitleSearchHit } from './types';
 import type { CalendarPayload } from './calendar';
+import type { DanmakuPayload } from './danmaku';
 
 /** /api/calendar 请求体：与 /api/search 同一套「客户端提交源列表」约定 */
 export interface CalendarQuery {
@@ -160,6 +161,31 @@ export const api = {
   detail: (id: string, source: SourceConfig, signal?: AbortSignal) => {
     const sp = new URLSearchParams({ id, source: JSON.stringify(source) });
     return request<VideoDetail>(`/api/detail?${sp.toString()}`, { signal });
+  },
+
+  /**
+   * 弹幕：按「片名 + 第几集」自动匹配，或指定 bvid 用手动选定的那条。
+   * `list=1` 只要候选列表（手动选源面板用），不打弹幕本体。
+   * 弹幕是增强功能，服务端失败也返回 200 + ok:false，这里不做异常分支。
+   */
+  danmaku: (
+    params: {
+      title: string;
+      episode?: number;
+      duration?: number;
+      bvid?: string;
+      list?: boolean;
+      refresh?: boolean;
+    },
+    signal?: AbortSignal
+  ): Promise<DanmakuPayload> => {
+    const sp = new URLSearchParams({ title: params.title });
+    if (params.episode) sp.set('episode', String(params.episode));
+    if (params.duration) sp.set('duration', String(Math.round(params.duration)));
+    if (params.bvid) sp.set('bvid', params.bvid);
+    if (params.list) sp.set('list', '1');
+    if (params.refresh) sp.set('refresh', '1');
+    return request<DanmakuPayload>(`/api/danmaku?${sp.toString()}`, { signal });
   },
 
   /**
