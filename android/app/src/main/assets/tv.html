@@ -1003,6 +1003,8 @@
     <div class="hintline">片名、演员都能搜。搜到之后按回车直接进详情。</div>
   </div>
   <div class="right">
+    <div class="sub-h" id="recH">最近搜索</div>
+    <div class="hot" id="recent"></div>
     <div class="sub-h" id="resH">热门搜索</div>
     <div class="hot" id="hot"></div>
     <div class="sres" id="sres"></div>
@@ -2112,6 +2114,49 @@
       box.appendChild(b);
     });
   }
+  /* 最近搜索（1.18）：电视上用遥控器一个字一个字挪，是搜索里最痛的一步。
+     先给「搜过的」和「热门的」两排，能少打一个字就少打一个字。
+     只存本机 localStorage（跟这台电视走，不联网），最多留 8 条，
+     焦点停在上面按菜单键 / 长按确定可以删掉那一条 —— 遥控器上删东西不该逼人去打字。 */
+  function recentWords() {
+    try {
+      var a = JSON.parse(localStorage.getItem('mfl:recent') || '[]');
+      return Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string' && x; }).slice(0, 8) : [];
+    } catch (e) { return []; }
+  }
+  function pushRecent(w) {
+    w = (w || '').trim();
+    if (!w || w.length > 24) return;
+    var a = recentWords().filter(function (x) { return x !== w; });
+    a.unshift(w);
+    try { localStorage.setItem('mfl:recent', JSON.stringify(a.slice(0, 8))); } catch (e) {}
+    buildRecent();
+  }
+  function dropRecent(w) {
+    var a = recentWords().filter(function (x) { return x !== w; });
+    try { localStorage.setItem('mfl:recent', JSON.stringify(a)); } catch (e) {}
+    var was = focusEl;
+    buildRecent();
+    if (was && was.dataset && was.dataset.recent === w) {
+      var box = $('recent');
+      paintFocus((box && box.querySelector('.chip')) || $('kbd').querySelector('.key'));
+    }
+  }
+  function buildRecent() {
+    var box = $('recent'), h = $('recH');
+    if (!box) return;
+    var list = recentWords();
+    box.innerHTML = '';
+    if (!list.length) { box.style.display = 'none'; if (h) h.style.display = 'none'; return; }
+    box.style.display = '';
+    if (h) h.style.display = '';
+    list.forEach(function (name) {
+      var b = el('button', 'chip fx'); b.textContent = name;
+      b.dataset.recent = name;
+      b.addEventListener('click', function () { word = name; paintWord(); doSearch(); });
+      box.appendChild(b);
+    });
+  }
   function doSearch() {
     var wd = word.trim();
     if (!wd) { toast('先输入片名或演员名'); return; }
@@ -2122,6 +2167,7 @@
       $('sres').innerHTML = '';
       if (!list.length) { $('hot').classList.remove('off'); $('resH').textContent = '没找到「' + wd + '」，换个词'; return; }
       $('resH').textContent = '搜索结果 · ' + list.length + ' 部';
+      pushRecent(wd);
       list.forEach(function (it) { $('sres').appendChild(cardNode(it)); });
       $('hot').classList.add('off');
       var first = $('sres').querySelector('.card');
@@ -2597,6 +2643,8 @@
     var eps = g.episodes || [];
     var e = eps[i];
     if (!e) return;
+    /* 第一次进播放器时记下当前焦点，退出时还给它（换集不算，焦点本来就在播放器里） */
+    if (!$('player').classList.contains('on')) backFocus = focusEl;
     S.ep = i;
     S.nxTag = '';
     // 点选集/连播换集都先预热这一集，和 attach 的真实请求在服务端合并成一次上游拉取
@@ -2696,7 +2744,16 @@
     if (document.querySelector('.view.on') === $('detail')) {
       for (var i = 0; i < items.length; i++) items[i].classList.toggle('on', i === S.ep);
       paintFocus(items[S.ep] || items[0] || $('dtPlay'));
-    } else paintFocus(null);
+      backFocus = null;
+    } else {
+      /* 没走详情页就开播的（继续观看卡、遥控搜索直投、首页 hero）：焦点还给进来时那一格。
+         还给失败（那一格已经不在 / 被隐藏）才清空，绝不让焦点凭空消失。 */
+      var bf = backFocus;
+      backFocus = null;
+      if (bf && bf.isConnected && bf.offsetParent !== null) {
+        try { paintFocus(bf); ensureVisible(bf); } catch (e) { paintFocus(null); }
+      } else paintFocus(null);
+    }
     /* 首页那一行立刻反映「刚才看到哪」，不用重开 App */
     try { refreshRecRows(); } catch (e) {}
   }
@@ -2803,6 +2860,33 @@
     window.addEventListener('touchend', up, false);
     window.addEventListener('touchcancel', up, false);
   })();
+  /* 遥控器 ↑↓ 调音量（1.18）。
+     电视上「按音量」指的就是这台机器的媒体音量，不是网页里 <video>.volume ——
+     只改 video.volume 的话电视自己的音量条一动不动，用户看不出任何反馈。
+     所以优先走原生桥 MFlixNative.vol / volGet（AudioManager 媒体流，改完全机都跟着变）；
+     电脑浏览器里试电视版时没有这个桥，退回 <video>.volume，提示文案也改成「播放音量」。
+     每按一下 5%，屏幕给一条百分比：声音变了但屏幕没反应，和按了没反应一样让人怀疑遥控器。 */
+  var volPct = -1;
+  function volStep(d) {
+    var cur = -1;
+    try { if (window.MFlixNative && MFlixNative.volGet) cur = MFlixNative.volGet(); } catch (e) {}
+    if (cur < 0) cur = volPct >= 0 ? volPct : Math.round((v.volume == null ? 1 : v.volume) * 100);
+    var next = Math.max(0, Math.min(100, cur + d * 5));
+    var sys = false;
+    try { if (window.MFlixNative && MFlixNative.vol) sys = !!MFlixNative.vol(next); } catch (e) {}
+    if (!sys) {
+      try { v.volume = next / 100; } catch (e) {}
+      /* 自己调 video 音量时静音标记要跟着放掉，不然按了没声音 */
+      try { if (next > 0 && v.muted) { v.muted = false; localStorage.setItem('mfl:mute', '0'); paintMute(); } } catch (e) {}
+    }
+    volPct = next;
+    bars(true);
+    toast((sys ? '音量 ' : '播放音量 ') + next + '%');
+    return true;
+  }
+  /* 「从哪进来的」：继续观看卡、遥控搜索直投这类不经详情页的路径，
+     退出播放后焦点要还给当初那一格，不能清空（清空以后用户按方向键不知道从哪开始）。 */
+  var backFocus = null;
   function stepEp(d) {
     var g = S.groups[S.group] || {}, n = (g.episodes || []).length;
     var i = S.ep + d;
@@ -3125,7 +3209,7 @@
     recallHome();
   }
   function navTo(key) {
-    if (key === 'search') { showView('search'); focusFirst('#kbd .key'); return; }
+    if (key === 'search') { showView('search'); try { buildRecent(); } catch (e) {} focusFirst('#kbd .key'); return; }
     if (key === 'home') {
       if (document.querySelector('.view.on') !== $('home')) showView('home');
       try { refreshRecRows(); } catch (e) {}
@@ -3507,25 +3591,11 @@
     }
     if (a === 'left') { seekByDirection(-1); return true; }
     if (a === 'right') { seekByDirection(1); return true; }
-    /* 播放中上下：以前整对键被吞掉，屏幕上什么都不发生，用户第一反应是遥控器坏了。
-       现在短按有反馈——上=报片名/集数/线路，下=亮出进度条；切集改成「长按」，
-       误触只会看到一行提示，不会一按就断剧情。 */
-    if (a === 'up') {
-      bars(true);
-      var ep = (S.eps || [])[S.ep] || {};
-      var g = (S.groups || [])[S.group];
-      toast((S.title || '') +
-        (ep.label ? ' · ' + ep.label : '') +
-        (g ? ' · ' + grpLabel(g, S.group) : ''));
-      try {
-        if (!localStorage.getItem('mfl:udhint')) {
-          localStorage.setItem('mfl:udhint', '1');
-          setTimeout(function () { toast('长按 ↑ / ↓ 切上一集 / 下一集'); }, 1400);
-        }
-      } catch (e) {}
-      return true;
-    }
-    if (a === 'down') { bars(true); return true; }
+    /* 播放中上下（1.18）：以前整对键被吞掉，屏幕上什么都不发生，用户第一反应是遥控器坏了。
+       现在短按 = 调这台电视的音量（原生 AudioManager，系统自己的音量条会跟着弹），
+       长按（原生侧连发改发 fastup / fastdown，见 handle()）才是上一集 / 下一集 ——
+       调音量可逆、切集不可逆，误触最多把声音调小一点，不会一按就断剧情。 */
+    if (a === 'up' || a === 'down') { return volStep(a === 'up' ? 1 : -1); }
     if (a === 'back') { closePlayer(); return true; }
     if (a === 'menu') { enterBar(); return true; }
     return true;
@@ -3673,6 +3743,12 @@
       return true;
     }
 
+    /* 「最近搜索」那一排：菜单键 / 长按确定 = 删掉这一条（焦点自动交给下一个词） */
+    if ((a === 'menu' || a === 'menulong') && focusEl && focusEl.dataset && focusEl.dataset.recent) {
+      dropRecent(focusEl.dataset.recent);
+      return true;
+    }
+
     /* 长按确定键（原生侧识别）：Shield 一类遥控器没有菜单键，这条是主入口 */
     if (a === 'menulong') {
       if (!inPlayer()) {
@@ -3812,6 +3888,7 @@
     }
     word = t;
     showView('search');
+    try { buildRecent(); } catch (e7) {}
     paintWord();
     doSearch();
     /* 结果回来要能看见：把搜索页拉到顶，别停在上一次的滚动位置 */

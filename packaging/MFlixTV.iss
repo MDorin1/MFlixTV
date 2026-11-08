@@ -1,5 +1,5 @@
-﻿#define MyAppName "MFlixTV"
-#define MyAppVersion "1.17"
+#define MyAppName "MFlixTV"
+#define MyAppVersion "1.18"
 #define MyAppExeName "MFlixTV.exe"
 
 [Setup]
