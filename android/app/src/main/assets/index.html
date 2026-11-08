@@ -3607,7 +3607,7 @@
     on: true, items: [], cur: 0, act: [], raf: 0, rafOn: false, lastT: -1, tok: 0,
     recent: {}, sec: -1, secN: 0, src: '', key: '',
     size: 1, op: 60, area: 'all', laneFree: [], topFree: [], botFree: [], fixAt: undefined,
-    dirty: true, fitTick: 0
+    dirty: true, fitTick: 0, tipTitle: ''
   };
   (function () {
     var s = ls('mfl:dm'); DM.on = s === null ? true : s === '1';
@@ -3680,13 +3680,23 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (tok !== DM.tok) return;
-        if (!d || !d.ok) { DM.key = ''; toast(d && d.msg ? d.msg : '这一集没有弹幕'); return; }
+        /* 提示只在「换了一部片」时说一次：手机上每集弹一条 toast 太吵 */
+        var firstOfTitle = DM.tipTitle !== title;
+        if (!d || !d.ok) {
+          DM.key = '';
+          if (firstOfTitle) { DM.tipTitle = title; toast(d && d.msg ? d.msg : '这一集没有弹幕'); }
+          return;
+        }
         DM.items = d.items || []; DM.src = d.source || '';
         DM.act = []; DM.lastT = -1;
         dmSeek(v.currentTime || 0);
-        toast('弹幕 ' + DM.items.length + ' 条 · ' + DM.src);
+        if (firstOfTitle) { DM.tipTitle = title; toast('弹幕 ' + DM.items.length + ' 条 · ' + DM.src); }
       })
-      .catch(function () { if (tok === DM.tok) { DM.key = ''; toast('弹幕取不到（检查网络或代理）'); } });
+      .catch(function () {
+        if (tok !== DM.tok) return;
+        DM.key = '';
+        if (DM.tipTitle !== title) { DM.tipTitle = title; toast('弹幕取不到（检查网络或代理）'); }
+      });
   }
 
   function dmToggle() {
@@ -3695,6 +3705,7 @@
     dmPaint();
     if (!DM.on) { DM.tok++; DM.items = []; DM.act = []; dmClear(); dmStop(); return; }
     DM.key = '';
+    DM.tipTitle = '';   /* 手动打开就再报一次条数，让人知道真的连上了 */
     dmLoad(state.title, (state.ep | 0) + 1);
     dmStart();
   }
