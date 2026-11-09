@@ -473,6 +473,7 @@ jobs:
               --title "MFlix Music ${VER}（macOS）" --notes "$NOTE"
           fi
           gh release upload "$TAG" "$RUNNER_TEMP/MFlixMusic-macOS-${VER}.dmg" --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$TAG" "$RUNNER_TEMP/MFlixMusic-macOS-Server.dmg" --clobber --repo "$GITHUB_REPOSITORY"
           gh release upload "$TAG" "$RUNNER_TEMP/SUMS.txt" --clobber --repo "$GITHUB_REPOSITORY"
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
             -q '.assets[] | "\(.name)  \(.size)"'
