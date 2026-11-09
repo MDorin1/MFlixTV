@@ -1,51 +1,104 @@
 #!/bin/bash
 # ============================================================
-#  MFlixTV.app 的入口（由 Finder 双击调用）
-#  真正的服务启动逻辑在 Resources/payload/启动MFlixTV.command 里，
-#  这里只负责：去掉隔离标记、确认载荷目录可写、在终端里把它跑起来。
+#  MFlixTV.app 入口（Finder 双击调用）
+#  真正的服务启动逻辑在 Resources/payload/启动MFlixTV.command 里。
+#  这里负责：清隔离标记 → 确认载荷可写 → 后台把服务跑起来 →
+#  开浏览器 → 常驻前台（进程一退 Dock 图标就消失）。
+#  不再弹终端窗口。
 # ============================================================
+set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RES="$HERE/../Resources"
 PAYLOAD="$RES/payload"
 
-LOG="$HOME/Library/Logs/MFlixTV-launcher.log"
-mkdir -p "$(dirname "$LOG")" 2>/dev/null
-exec >>"$LOG" 2>&1
-echo "=== $(date '+%Y-%m-%d %H:%M:%S') launch ==="
-echo "app=$HERE payload=$PAYLOAD"
+LOGD="$HOME/Library/Logs"
+mkdir -p "$LOGD" 2>/dev/null
+LOG="$LOGD/MFlixTV.log"
 
-# 从网上下载的包带 com.apple.quarantine，先在自己这层清掉，
-# 免得终端里再弹一次「未验证的开发者」
-/usr/bin/xattr -dr com.apple.quarantine "$RES" 2>/dev/null
+port_open() { /usr/bin/nc -z 127.0.0.1 8080 >/dev/null 2>&1; }
 
-# 已经在跑就只开页面
-if /usr/bin/nc -z 127.0.0.1 8080 >/dev/null 2>&1; then
-  echo "already running, open page"
+notify() { # $1=title $2=message
+  /usr/bin/osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true
+}
+alert() {
+  /usr/bin/osascript -e "display alert \"MFlixTV\" message \"$1\"" >/dev/null 2>&1 || true
+}
+
+{
+  echo "=== $(date '+%Y-%m-%d %H:%M:%S') app launch ==="
+  echo "app=$HERE payload=$PAYLOAD"
+} >> "$LOG"
+
+# 从网上下载的包带 com.apple.quarantine，先在自己这层清掉
+/usr/bin/xattr -dr com.apple.quarantine "$RES" 2>/dev/null || true
+
+if [ ! -d "$PAYLOAD" ]; then
+  alert "安装不完整：找不到运行文件。请重新下载安装包，别只把 .app 单独拖出来。"
+  exit 1
+fi
+
+# 已经在跑就只开页面，然后常驻等它
+if port_open; then
+  echo "already running" >> "$LOG"
   /usr/bin/open "http://localhost:8080"
+  while port_open; do sleep 5; done
   exit 0
 fi
 
-# 载荷要写日志与缓存：装在只读位置（例如直接从 dmg 里跑）就复制一份到用户目录
+# 载荷要写日志与缓存：从只读位置（例如直接从 dmg 里跑）就复制到用户目录
 if ! ( : > "$PAYLOAD/.writetest" ) 2>/dev/null; then
-  echo "payload read-only, copying to user dir"
+  echo "payload read-only, copying to user dir" >> "$LOG"
   COPY="$HOME/Library/Application Support/MFlixTV/payload"
   if [ ! -x "$COPY/启动MFlixTV.command" ]; then
     /bin/mkdir -p "$(dirname "$COPY")"
-    /usr/bin/ditto "$PAYLOAD" "$COPY" || exit 1
+    /usr/bin/ditto "$PAYLOAD" "$COPY" || { alert "安装不完整：复制运行文件失败，请重新下载安装包。"; exit 1; }
   fi
   PAYLOAD="$COPY"
 else
   /bin/rm -f "$PAYLOAD/.writetest"
 fi
 
-/bin/chmod +x "$PAYLOAD/启动MFlixTV.command" 2>/dev/null
+/bin/chmod +x "$PAYLOAD/启动MFlixTV.command" "$PAYLOAD/runtime/node-arm64" "$PAYLOAD/runtime/node-x64" \
+  "$PAYLOAD/runtime/ffmpeg/ffmpeg-arm64" "$PAYLOAD/runtime/ffmpeg/ffmpeg-x64" 2>/dev/null
 
-# 开一个终端窗口跑启动脚本：日志看得见，关窗口就等于退出（和 Windows 版托盘一个思路）
-/usr/bin/open -a Terminal "$PAYLOAD/启动MFlixTV.command"
+echo "starting payload…" >> "$LOG"
+/bin/bash "$PAYLOAD/启动MFlixTV.command" >> "$LOG" 2>&1 &
+PID=$!
 
-# open 失败（没有终端？）就自己后台起，至少服务能跑起来
-sleep 1
-if ! /usr/bin/nc -z 127.0.0.1 8080 >/dev/null 2>&1; then
-  echo "open -a Terminal failed, fallback to background"
-  /bin/bash "$PAYLOAD/启动MFlixTV.command" > "$HOME/Library/Logs/MFlixTV.log" 2>&1 &
+cleanup() {
+  echo "$(date '+%H:%M:%S') stopping" >> "$LOG"
+  kill "$PID" 2>/dev/null
+  pkill -f "hongguo/server/src/main.js" 2>/dev/null
+  pkill -f "runtime/bin/ffmpeg" 2>/dev/null
+  exit 0
+}
+trap cleanup INT TERM HUP
+
+# 等主站起来（首启要解包，给足 90 秒）
+i=0
+while [ "$i" -lt 90 ]; do
+  port_open && break
+  sleep 1
+  i=$((i+1))
+done
+
+IP="$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || /usr/sbin/ipconfig getifaddr en1 2>/dev/null)"
+if port_open; then
+  /usr/bin/open "http://localhost:8080"
+  if [ -n "$IP" ]; then
+    printf 'http://%s:8080/' "$IP" | /usr/bin/pbcopy 2>/dev/null || true
+    echo "READY http://localhost:8080  LAN http://$IP:8080" >> "$LOG"
+    notify "MFlixTV 已启动" "电视/手机用 http://$IP:8080 （已复制到剪贴板）"
+  else
+    echo "READY http://localhost:8080  LAN unknown" >> "$LOG"
+    notify "MFlixTV 已启动" "本机 http://localhost:8080（没读到局域网 IP，检查 Wi-Fi）"
+  fi
+else
+  echo "start failed, tail log" >> "$LOG"
+  tail -n 20 "$LOG" >> "$LOG"
+  alert "服务没能起来，日志在 ~/Library/Logs/MFlixTV.log。首启较慢可再点一次图标。"
 fi
+
+# 常驻：Dock 图标保持，退出（Cmd-Q / 结束进程）时清理子进程
+wait "$PID"
+cleanup

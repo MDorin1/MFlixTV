@@ -103,7 +103,8 @@ jobs:
           </plist>
           PLIST
 
-          # 启动器：选架构 → 挑空闲端口 → 起 server.js → 等服务 200 → 开无地址栏窗口
+          # 启动器：自己起服务，不弹终端；起好后开无地址栏窗口并常驻前台
+          # （进程一退 Dock 图标就消失，所以最后要 wait）
           cat > "$APP/Contents/MacOS/MFlixMusic" <<'LAUNCH'
           #!/bin/bash
           set -u
@@ -113,23 +114,56 @@ jobs:
           mkdir -p "$LOGDIR"
           LOG="$LOGDIR/mflix-music.log"
 
+          notify() { /usr/bin/osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true; }
+          alert() { /usr/bin/osascript -e "display alert \"MFlix Music\" message \"$1\"" >/dev/null 2>&1 || true; }
+
+          {
+            echo "=== $(date '+%Y-%m-%d %H:%M:%S') app launch ==="
+            echo "app=$RES payload=$PAY"
+          } >> "$LOG"
+
+          /usr/bin/xattr -dr com.apple.quarantine "$RES" 2>/dev/null || true
+
           if [ "$(uname -m)" = "arm64" ]; then NODE="$RES/runtime/node-arm64"; else NODE="$RES/runtime/node-x64"; fi
           if [ ! -x "$NODE" ]; then
-            osascript -e 'display alert "MFlix Music" message "安装不完整：找不到内置的 Node 运行时，请重新下载安装包。"' || true
+            /bin/chmod +x "$RES/runtime/node-arm64" "$RES/runtime/node-x64" 2>/dev/null
+          fi
+          if [ ! -x "$NODE" ]; then
+            alert "安装不完整：找不到内置的 Node 运行时，请重新下载安装包。"
             exit 3
           fi
 
           PORT=8090
-          while [ "$PORT" -lt 8130 ] && nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1; do PORT=$((PORT+1)); done
+          while [ "$PORT" -lt 8130 ] && /usr/bin/nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1; do PORT=$((PORT+1)); done
           if [ "$PORT" -ge 8130 ]; then
-            osascript -e 'display alert "MFlix Music" message "8090 附近的端口都被占用了，先关掉占口的程序再启动。"' || true
+            alert "8090 附近的端口都被占用了，先关掉占口的程序再启动。"
             exit 4
           fi
+          URL="http://127.0.0.1:${PORT}/"
+
+          open_window() {
+            UD="$HOME/Library/Application Support/MFlixMusic/browser"
+            /bin/mkdir -p "$UD"
+            if [ -d "/Applications/Google Chrome.app" ]; then
+              /usr/bin/open -na "Google Chrome" --args --app="$URL" --user-data-dir="$UD" --window-size=1440,900
+            elif [ -d "/Applications/Microsoft Edge.app" ]; then
+              /usr/bin/open -na "Microsoft Edge" --args --app="$URL" --user-data-dir="$UD" --window-size=1440,900
+            else
+              /usr/bin/open "$URL"
+            fi
+          }
 
           cd "$PAY" || exit 5
-          PORT="$PORT" nohup "$NODE" server.js >> "$LOG" 2>&1 &
+          PORT="$PORT" "$NODE" server.js >> "$LOG" 2>&1 &
+          PID=$!
 
-          URL="http://127.0.0.1:${PORT}/"
+          cleanup() {
+            echo "$(date '+%H:%M:%S') stopping" >> "$LOG"
+            kill "$PID" 2>/dev/null
+            exit 0
+          }
+          trap cleanup INT TERM HUP
+
           ok=""
           i=0
           while [ "$i" -lt 60 ]; do
@@ -139,22 +173,26 @@ jobs:
             i=$((i+1))
           done
           if [ -z "$ok" ]; then
-            osascript -e 'display alert "MFlix Music" message "服务没能起来，日志在 ~/Library/Logs/MFlixMusic/mflix-music.log。"' || true
+            alert "服务没能起来，日志在 ~/Library/Logs/MFlixMusic/mflix-music.log。"
             exit 6
           fi
 
-          if [ "${MFLIX_NOBROWSER:-}" = "1" ]; then echo "READY $URL"; exit 0; fi
-
-          UD="$HOME/Library/Application Support/MFlixMusic/browser"
-          mkdir -p "$UD"
-          if [ -d "/Applications/Google Chrome.app" ]; then
-            open -na "Google Chrome" --args --app="$URL" --user-data-dir="$UD" --window-size=1440,900
-          elif [ -d "/Applications/Microsoft Edge.app" ]; then
-            open -na "Microsoft Edge" --args --app="$URL" --user-data-dir="$UD" --window-size=1440,900
+          IP="$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || /usr/sbin/ipconfig getifaddr en1 2>/dev/null)"
+          if [ "${MFLIX_NOBROWSER:-}" = "1" ]; then
+            echo "READY $URL LAN http://${IP:-unknown}:$PORT"
           else
-            open "$URL"
+            open_window
+            if [ -n "$IP" ]; then
+              printf 'http://%s:%s/' "$IP" "$PORT" | /usr/bin/pbcopy 2>/dev/null || true
+              echo "READY $URL LAN http://$IP:$PORT" >> "$LOG"
+              notify "MFlix Music 已启动" "手机/电视用 http://$IP:$PORT （已复制到剪贴板）"
+            else
+              notify "MFlix Music 已启动" "本机 $URL（没读到局域网 IP，检查 Wi-Fi）"
+            fi
           fi
-          exit 0
+
+          wait "$PID"
+          cleanup
           LAUNCH
           chmod +x "$APP/Contents/MacOS/MFlixMusic"
 
@@ -224,6 +262,31 @@ jobs:
           rm -rf "$STAGE"; mkdir -p "$STAGE"
           ditto "$APP" "$STAGE/MFlix Music.app"
           ln -s /Applications "$STAGE/应用程序"
+          cat > "$STAGE/使用说明.txt" <<'README'
+          MFlix Music · macOS 应用版使用说明
+          ==================================
+
+          一、怎么装
+            1. 双击 MFlixMusic-macOS-*.dmg，弹出磁盘窗口。
+            2. 把「MFlix Music.app」拖到左边的「应用程序」文件夹。
+            3. 推出磁盘映像。
+
+          二、第一次打开会被拦一次（没做 Apple 开发者签名，属正常）
+            · 提示「无法打开，因为 Apple 无法验证」：
+                在「MFlix Music.app」上右键 → 打开 → 再点「打开」。之后双击就正常。
+            · 提示「已损坏，无法打开」：
+                打开「终端」，执行
+                  xattr -dr com.apple.quarantine /Applications/MFlix\ Music.app
+
+          三、打开以后
+            · 会自动起服务（默认 8090，占用了会往后找），并打开一个无地址栏的音乐窗口。
+            · 右上角会弹通知：手机 / 电视用 http://<这台 Mac 的 IP>:8090 —— 地址已复制到剪贴板。
+            · 图标常驻 Dock，退出（Cmd-Q）即停止服务。
+            · 日志：~/Library/Logs/MFlixMusic/mflix-music.log
+
+          四、支持哪些 Mac
+            Apple 芯片与 Intel 都在同一个包里，启动时自动挑运行时。要求 macOS 11 及以上。
+          README
           hdiutil create -volname "MFlix Music ${VER}" -fs HFS+ -srcfolder "$STAGE" \
             -ov -format UDZO -imagekey zlib-level=9 \
             "$RUNNER_TEMP/MFlixMusic-macOS-${VER}.dmg"
@@ -236,6 +299,17 @@ jobs:
           test -x "$MNT/MFlix Music.app/Contents/Resources/runtime/node-arm64"
           test -f "$MNT/MFlix Music.app/Contents/Resources/payload/public/index.html"
           codesign --verify --strict "$MNT/MFlix Music.app"
+          echo "== .app 结构判据 =="
+          stat -f '%Sp %N' "$MNT/MFlix Music.app/Contents/MacOS/MFlixMusic"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$MNT/MFlix Music.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$MNT/MFlix Music.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$MNT/MFlix Music.app/Contents/Info.plist"
+          plutil -lint "$MNT/MFlix Music.app/Contents/Info.plist"
+          test -f "$MNT/MFlix Music.app/Contents/Resources/app.icns"
+          echo "== 载荷与源码逐文件哈希 =="
+          diff -r -q "$RUNNER_TEMP/work/MFlixMusic/public" "$MNT/MFlix Music.app/Contents/Resources/payload/public" && echo "public 与源码 0 差异"
+          shasum -a 256 "$MNT/MFlix Music.app/Contents/Resources/payload/public/index.html" "$RUNNER_TEMP/work/MFlixMusic/public/index.html"
+          echo "== 载荷文件数 =="; find "$MNT/MFlix Music.app/Contents/Resources/payload" -type f ! -name '._*' | wc -l | tr -d ' '
           du -sh "$MNT/MFlix Music.app"
           hdiutil detach "$MNT"
 

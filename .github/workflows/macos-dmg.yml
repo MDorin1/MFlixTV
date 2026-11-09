@@ -157,6 +157,29 @@ jobs:
           test -x "$APP/Contents/Resources/payload/runtime/node-arm64"
           test -f "$APP/Contents/Resources/app.icns"
 
+      - name: 冒烟测试（.app 本体，不经终端）
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/MFlixTV.app"
+          rm -f "$HOME/Library/Logs/MFlixTV.log"
+          MFLIX_NOBROWSER=1 "$APP/Contents/MacOS/MFlixTV" > "$RUNNER_TEMP/applaunch.log" 2>&1 &
+          LPID=$!
+          ok=""
+          for i in $(seq 1 90); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8080/ || true)
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            sleep 1
+          done
+          echo "--- 启动器还在跑吗 ---"; kill -0 "$LPID" 2>/dev/null && echo "launcher alive pid=$LPID" || echo "launcher EXITED"
+          echo "--- 首页标题 ---"; curl -s --max-time 5 http://127.0.0.1:8080/ | grep -o '<title>[^<]*</title>' | head -1 || true
+          echo "--- 应用日志 ---"; tail -n 12 "$HOME/Library/Logs/MFlixTV.log" || true
+          kill "$LPID" 2>/dev/null || true
+          pkill -f 'next start' 2>/dev/null || true
+          pkill -f 'hongguo/server/src/main.js' 2>/dev/null || true
+          pkill -f 'runtime/bin/ffmpeg' 2>/dev/null || true
+          sleep 2
+          test -n "$ok"
+
       - name: 打 DMG
         run: |
           set -euo pipefail
@@ -181,6 +204,20 @@ jobs:
           test -x "$MNT/MFlixTV.app/Contents/Resources/payload/runtime/node-arm64"
           test -f "$MNT/MFlixTV.app/Contents/Resources/payload/app/.next/BUILD_ID"
           codesign --verify --strict "$MNT/MFlixTV.app"
+          echo "== .app 结构判据 =="
+          stat -f '%Sp %N' "$MNT/MFlixTV.app/Contents/MacOS/MFlixTV"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$MNT/MFlixTV.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$MNT/MFlixTV.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$MNT/MFlixTV.app/Contents/Info.plist"
+          printf '%s' "$(/usr/libexec/PlistBuddy -c 'Print :CFBundlePackageType' "$MNT/MFlixTV.app/Contents/Info.plist")"; echo
+          plutil -lint "$MNT/MFlixTV.app/Contents/Info.plist"
+          test -f "$MNT/MFlixTV.app/Contents/Resources/app.icns"
+          stat -f '%z bytes %N' "$MNT/MFlixTV.app/Contents/Resources/app.icns"
+          echo "== 载荷与源码逐文件哈希（全量 diff）=="
+          diff -r -q "app/public" "$MNT/MFlixTV.app/Contents/Resources/payload/app/public" && echo "app/public 与源码 0 差异"
+          shasum -a 256 "$MNT/MFlixTV.app/Contents/Resources/payload/app/public/index.html" "app/public/index.html"
+          echo "== PAYLOAD_FILE_COUNT =="
+          find "$MNT/MFlixTV.app/Contents/Resources/payload" -type f ! -name '._*' | wc -l | tr -d ' '
           echo "挂载后的总大小：$(du -sh "$MNT/MFlixTV.app" | cut -f1)"
           hdiutil detach "$MNT"
 

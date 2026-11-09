@@ -1,23 +1,20 @@
-MFlixTV · macOS 版使用说明
+MFlixTV · macOS 应用版使用说明
 =====================================
 
-一、装法（推荐 DMG）
+一、装法
   1. 双击下载下来的 MFlixTV-macOS.dmg，会弹出一个磁盘映像窗口。
-  2. 把窗口里的「MFlixTV」拖到旁边的「应用程序」，等它拷完（约 550MB，几十秒）。
+  2. 把窗口里的「MFlixTV.app」拖到左边的「应用程序」文件夹，等它拷完（约 550MB，几十秒）。
   3. 把磁盘映像推出（右键桌面上的 MFlixTV 卷 → 推出）。
   4. 打开「启动台」或「应用程序」，双击 MFlixTV。
 
-  不想装也可以：解压 MFlixTV-macOS.zip，直接双击文件夹里的
-  「启动MFlixTV.command」，一样能用，只是每次都得先进到那个文件夹。
+  不需要解压任何 zip，也不需要双击 .command 脚本。
 
 二、第一次打开会被拦一次（没做 Apple 开发者签名）
   · 提示「无法打开，因为 Apple 无法验证」：
-      在 MFlixTV 上右键 → 打开 → 再点「打开」。
+      在 MFlixTV.app 上右键 → 打开 → 再点「打开」。之后双击就正常。
   · 提示「已损坏，无法打开」：
-      终端执行  sudo xattr -dr com.apple.quarantine /Applications/MFlixTV.app
-      （只针对于这个 App，不动系统设置）
-  · 用 .command 启动的那份如需同样处理：
-      xattr -dr com.apple.quarantine ~/Downloads/MFlixTV-macOS
+      终端执行  xattr -dr com.apple.quarantine /Applications/MFlixTV.app
+      （只针对这个 App，不动系统设置）
 
 三、支持哪些 Mac
   · Apple 芯片（M1/M2/M3/M4）：跑 runtime/node-arm64 与 ffmpeg-arm64
@@ -26,30 +23,33 @@ MFlixTV · macOS 版使用说明
   系统要求：macOS 11 及以上（Big Sur 起）。
 
 四、它是怎么跑起来的
-  双击后它会开一个终端窗口，在里面起两个只监听本机的进程：
+  双击后不会再弹终端窗口，图标常驻 Dock，后台起两个进程：
     · 短剧内核     8000 端口
     · MFlixTV 主站 8080 端口（Next.js）
   就绪后自动打开浏览器 http://localhost:8080 ，默认密码 MFlixTV。
-  同一个 WiFi 里的手机、平板、电视访问 http://<这台 Mac 的 IP>:8080 也能用，
-  电视上直接就是 10 英尺界面（/tv）。
+  同时右上角弹一条通知：手机 / 电视用 http://<这台 Mac 的 IP>:8080
+  （这个地址已自动复制到剪贴板，电视上直接就是 10 英尺界面 /tv）。
+  首启要解包，慢一点是正常的；进程没起来会在通知里看到，日志在下面第五节。
 
 五、怎么停
-  · 关掉那个终端窗口，或按 Control-C：两个服务一起停，端口一起释放。
-  · 手动停（终端窗口丢了的情况）：
+  · 在 Dock 上点图标右键 → 退出，或按 Command-Q：两个服务一起停，端口一起释放。
+  · 终端里手动停（窗口关了但服务还在的情况）：
       pkill -f 'next start -p 8080'
       pkill -f 'hongguo/server/src/main.js'
+      pkill -f 'runtime/bin/ffmpeg'
 
 六、日志与数据
-  · 启动器日志：~/Library/Logs/MFlixTV-launcher.log
+  · 启动器与服务日志：~/Library/Logs/MFlixTV.log
   · 主站日志：App 内 Resources/payload/app/server.log
   · 短剧内核日志：Resources/payload/hongguo/hg.log
   · 片源列表在 Resources/payload/app/.env（改 PASSWORD 也在这里）
+  · 直接从 dmg 里运行时，会把载荷复制到 ~/Library/Application Support/MFlixTV/payload
   · 观看记录存在浏览器本地，换浏览器/换机器不会跟着走
 
 七、常见问题
-  · 双击没反应：看 ~/Library/Logs/MFlixTV-launcher.log 最后几行。
+  · 双击没反应：看 ~/Library/Logs/MFlixTV.log 最后几行。
   · 提示必须设置 PASSWORD：app/.env 丢了，重新装一份。
-  · 8080 被占用：先关掉占着它的程序，或它会直接打开已在运行的那一份。
+  · 8080 被占用：它会直接打开已经在跑的那一份，不再起第二个。
   · 播放卡：设置里先测速，换一条更快的线路。
   · 短剧首集要等十几秒：短剧是边取边转码，第一集过后走缓存就快了。
 
