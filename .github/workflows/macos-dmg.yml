@@ -140,6 +140,14 @@ jobs:
           echo "实体化软链 $n 个"
 
           ditto "$P" "$APP/Contents/Resources/payload"
+
+          # 用户不要「双击 .command 跑脚本」这种形态：把载荷里的 .command 改名成
+          # start-server.sh，只由 Contents/MacOS 的启动器内部调用，卷里不再有 .command。
+          mv "$APP/Contents/Resources/payload/启动MFlixTV.command" "$APP/Contents/Resources/payload/start-server.sh"
+          chmod +x "$APP/Contents/Resources/payload/start-server.sh"
+          echo "== 卷内 .command 文件数（应为 0）=="
+          find "$APP" -name '*.command' | wc -l | tr -d ' '
+          test -f "$APP/Contents/Resources/payload/app/.env"
           du -sh "$APP"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist"
 
@@ -199,9 +207,17 @@ jobs:
           echo "== 挂载回读，确认内容真的在里面 =="
           MNT="$RUNNER_TEMP/mnt"
           hdiutil attach "$RUNNER_TEMP/MFlixTV-macOS.dmg" -mountpoint "$MNT" -nobrowse -readonly
-          ls -la "$MNT"
+          ls -l "$MNT"
           test -x "$MNT/MFlixTV.app/Contents/MacOS/MFlixTV"
           test -x "$MNT/MFlixTV.app/Contents/Resources/payload/runtime/node-arm64"
+          test -x "$MNT/MFlixTV.app/Contents/Resources/payload/runtime/node-x64"
+          echo "== 卷内 .command 文件数（应为 0）=="
+          find "$MNT" -name '*.command' | wc -l | tr -d ' '
+          echo "== .env 是否在 app 里 =="
+          test -f "$MNT/MFlixTV.app/Contents/Resources/payload/app/.env"
+          stat -f '%z bytes %N' "$MNT/MFlixTV.app/Contents/Resources/payload/app/.env"
+          test -f "$MNT/MFlixTV.app/Contents/Resources/payload/start-server.sh"
+          test -x "$MNT/MFlixTV.app/Contents/Resources/payload/start-server.sh"
           test -f "$MNT/MFlixTV.app/Contents/Resources/payload/app/.next/BUILD_ID"
           codesign --verify --strict "$MNT/MFlixTV.app"
           echo "== .app 结构判据 =="
