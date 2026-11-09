@@ -883,10 +883,10 @@
     '#rcqC .rcc-code{background:#fff;margin:0 auto}',
     '#rcqC .rcc-code svg,#rcqC .rcc-code img{display:block;width:100%;height:100%}',
     '#rcqC .rcc-code .wait{display:-webkit-flex;display:flex;align-items:center;',
-    'justify-content:center;height:100%;font-size:clamp(14px,1.05vw,26px);color:#666;line-height:1.3;',
+    'justify-content:center;height:100%;font-size:clamp(16px,1.05vw,26px);color:#666;line-height:1.3;',
     'padding:0 4px;text-align:center}',
     '#rcqC .rcc-tip{color:rgba(255,255,255,.72);font-weight:700;letter-spacing:.05em;',
-    'font-size:clamp(13px,1vw,24px);',
+    'font-size:clamp(15px,1vw,24px);',
     'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '#rcqC .rcc-tip b{color:#34d399;font-weight:800}'
   ].join('');
