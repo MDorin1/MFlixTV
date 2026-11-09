@@ -203,18 +203,21 @@ jobs:
           xattr -cr "$P" || true
           ditto "$P" "$APP/Contents/Resources/payload"
 
-          ICON_SRC="$P/public/icon-512.png"
-          if [ -f "$ICON_SRC" ]; then
-            rm -rf "$RUNNER_TEMP/icon.iconset"; mkdir -p "$RUNNER_TEMP/icon.iconset"
-            for s in 16 32 64 128 256 512; do
-              sips -z $s $s "$ICON_SRC" --out "$RUNNER_TEMP/icon.iconset/icon_${s}x${s}.png" >/dev/null
-            done
-            sips -z 1024 1024 "$ICON_SRC" --out "$RUNNER_TEMP/icon.iconset/icon_512x512@2x.png" >/dev/null
-            iconutil -c icns "$RUNNER_TEMP/icon.iconset" -o "$APP/Contents/Resources/app.icns"
-            echo "图标已生成"
-          else
-            echo "载荷里没有 icon-512.png，跳过 icns"
-          fi
+          ICON_SRC=""
+          for c in "$P/public/icon-512.png" "$P/public/icons/icon-512.png" "$P/public/icon-192.png" \
+                   packaging/macos/MFlixMusic-icon.png; do
+            if [ -f "$c" ]; then ICON_SRC="$c"; break; fi
+          done
+          if [ -z "$ICON_SRC" ]; then echo "没有任何图标源，无法生成 icns"; exit 7; fi
+          echo "图标源：$ICON_SRC"
+          rm -rf "$RUNNER_TEMP/icon.iconset"; mkdir -p "$RUNNER_TEMP/icon.iconset"
+          for s in 16 32 64 128 256 512; do
+            sips -z $s $s "$ICON_SRC" --out "$RUNNER_TEMP/icon.iconset/icon_${s}x${s}.png" >/dev/null
+          done
+          sips -z 1024 1024 "$ICON_SRC" --out "$RUNNER_TEMP/icon.iconset/icon_512x512@2x.png" >/dev/null
+          iconutil -c icns "$RUNNER_TEMP/icon.iconset" -o "$APP/Contents/Resources/app.icns"
+          test -f "$APP/Contents/Resources/app.icns"
+          echo "图标已生成：$(stat -f '%z' "$APP/Contents/Resources/app.icns") bytes"
           du -sh "$APP"
 
       - name: ad-hoc 签名 + 校验
