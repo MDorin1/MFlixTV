@@ -239,15 +239,207 @@ jobs:
           du -sh "$MNT/MFlix Music.app"
           hdiutil detach "$MNT"
 
+      # 用户要的是「装到 Mac 上当服务器跑」的那套：目录 + 启动.command，
+      # 启动后打印局域网地址，电视/手机连过来。
+      - name: 额外出服务端形态 DMG（目录 + 启动.command）
+        env:
+          VER: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/work/MFlixMusic"
+          STAGE="$RUNNER_TEMP/serverstage"
+          OUT="$STAGE/MFlixMusic-macOS"
+          rm -rf "$STAGE"; mkdir -p "$OUT/runtime"
+          xattr -cr "$P" || true
+          cp -R "$P/server.js" "$P/package.json" "$P/src" "$P/public" "$P/node_modules" "$OUT/"
+          cp "$RUNNER_TEMP/nodedl/node-arm64" "$RUNNER_TEMP/nodedl/node-x64" "$OUT/runtime/"
+          chmod 755 "$OUT/runtime/node-arm64" "$OUT/runtime/node-x64"
+
+          cat > "$OUT/启动MFlixMusic.command" <<'LAUNCH'
+          #!/bin/bash
+          # MFlix Music 服务端启动器（macOS，Intel / Apple 芯片通用）
+          # 双击运行：在本机起音乐服务（默认 8090），并打印局域网地址给手机/电视用。
+          # 关掉这个终端窗口＝停止服务。
+          cd "$(dirname "$0")" || exit 1
+          ROOT="$PWD"
+          VERSION="__VER__"
+
+          ARCH="$(uname -m)"
+          if [ "$ARCH" = "arm64" ]; then
+            NODE="$ROOT/runtime/node-arm64"
+            ARCHNAME="Apple 芯片（arm64）"
+          else
+            NODE="$ROOT/runtime/node-x64"
+            ARCHNAME="Intel（x86_64）"
+          fi
+
+          chmod +x "$NODE" "$ROOT/启动MFlixMusic.command" 2>/dev/null
+          if [ ! -x "$NODE" ]; then
+            echo "找不到 Node 运行时：$NODE"
+            echo "请重新下载完整安装包，别把文件单独拖出来。"
+            read -r -p "按回车退出…" _
+            exit 1
+          fi
+          # arm64 上未签名的二进制会被系统直接杀掉，先补一次 ad-hoc 签名
+          if ! "$NODE" -v >/dev/null 2>&1; then
+            command -v codesign >/dev/null 2>&1 && codesign --force --sign - "$NODE" >/dev/null 2>&1
+          fi
+
+          port_open() { /usr/bin/nc -z 127.0.0.1 "$1" >/dev/null 2>&1; }
+          PORT=8090
+          while port_open "$PORT" && [ "$PORT" -lt 8130 ]; do PORT=$((PORT+1)); done
+          if [ "$PORT" -ge 8130 ]; then
+            echo "8090 附近端口都被占了，先关掉占口的程序。"
+            read -r -p "按回车退出…" _
+            exit 1
+          fi
+
+          LANIP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)"
+          mkdir -p "$HOME/Library/Logs/MFlixMusic"
+          LOG="$HOME/Library/Logs/MFlixMusic/mflix-music.log"
+
+          echo "MFlix Music $VERSION · $ARCHNAME"
+          echo "目录：$ROOT"
+          echo "启动中，端口 $PORT，日志：$LOG"
+
+          PORT="$PORT" "$NODE" server.js >> "$LOG" 2>&1 &
+          PID=$!
+          cleanup() {
+            echo
+            echo "正在停止…"
+            kill "$PID" 2>/dev/null
+            exit 0
+          }
+          trap cleanup INT TERM
+
+          ok=""
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://127.0.0.1:$PORT/" 2>/dev/null || true)
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            sleep 1
+          done
+
+          if [ -z "$ok" ]; then
+            echo "服务没起来，日志最后 20 行："
+            tail -n 20 "$LOG" 2>/dev/null
+            read -r -p "按回车退出…" _
+            cleanup
+          fi
+
+          echo
+          echo "────────────────────────────────────────────"
+          echo " 本机：      http://127.0.0.1:$PORT/"
+          if [ -n "$LANIP" ]; then
+            echo " 局域网：    http://$LANIP:$PORT/"
+            echo "            （同一 WiFi 的手机 / 平板 / 电视打开这个地址）"
+          else
+            echo " 局域网：    没读到本机 IP（Wi-Fi 没连上？），可在「系统设置 → 网络」里看。"
+          fi
+          echo " 停止：      关掉这个窗口，或按 Control-C"
+          echo "────────────────────────────────────────────"
+
+          open "http://127.0.0.1:$PORT/" >/dev/null 2>&1 || true
+          wait "$PID"
+          LAUNCH
+          sed -i '' "s/__VER__/${VER}/" "$OUT/启动MFlixMusic.command"
+          chmod 755 "$OUT/启动MFlixMusic.command"
+
+          cat > "$OUT/使用说明.txt" <<'README'
+          MFlix Music · macOS 服务端版使用说明
+          =====================================
+
+          一、这是什么
+            这是「服务端」包：装在 Mac 上跑起来当服务器，手机 / 平板 / 电视用浏览器
+            连过来听歌。不是 Mac 客户端 App，Mac 自己也是用浏览器打开。
+
+          二、怎么装
+            1. 双击 MFlixMusic-macOS-Server.dmg，会弹出一个磁盘窗口。
+            2. 把里面的「MFlixMusic-macOS」文件夹拖到「应用程序」或任意位置（约 120MB）。
+            3. 推出磁盘映像（右键桌面上的卷 → 推出）。
+            4. 进那个文件夹，双击「启动MFlixMusic.command」。
+
+          三、第一次打开会被拦一次（没做 Apple 开发者签名，属正常）
+            · 提示「无法打开，因为 Apple 无法验证」：
+                在「启动MFlixMusic.command」上右键 → 打开 → 再点「打开」。
+            · 提示「已损坏，无法打开」：
+                打开「终端」，执行
+                  xattr -dr com.apple.quarantine /Applications/MFlixMusic-macOS
+                （只针对这个文件夹，不改系统设置）
+
+          四、启动后你会看到
+            窗口里会打印：
+              · 本机：    http://127.0.0.1:8090/
+              · 局域网：  http://<这台 Mac 的 IP>:8090/   ← 电视/手机用这个
+            同时会自动用默认浏览器打开本机地址。回到这个窗口按 Control-C 即停止服务。
+            服务跑起来后，同一 WiFi 下的电视浏览器直接打开局域网地址就能听。
+
+          五、端口与日志
+            · 默认 8090；被占用会自动往后找（最多到 8130），窗口里会显示实际端口。
+            · 日志：~/Library/Logs/MFlixMusic/mflix-music.log
+            · 服务监听 0.0.0.0，所以局域网能连；Mac 防火墙弹窗请选「允许」。
+
+          六、支持哪些 Mac
+            · Apple 芯片（M1/M2/M3/M4）：走 runtime/node-arm64
+            · Intel 芯片：走 runtime/node-x64
+            同一个包里两套都在，启动时用 uname -m 自动挑。
+            要求 macOS 11 及以上。
+
+          七、常见问题
+            · 双击没反应：在终端里手动跑 ./启动MFlixMusic.command，看报错。
+            · 手机连不上：确认在同一个 WiFi；确认防火墙允许；确认用的是窗口里打印的局域网地址。
+            · 想换端口：终端里执行 PORT=9000 ./启动MFlixMusic.command（脚本会优先用它）。
+          README
+
+          hdiutil create -volname "MFlix Music" -fs HFS+ -srcfolder "$STAGE" \
+            -ov -format UDZO -imagekey zlib-level=9 \
+            "$RUNNER_TEMP/MFlixMusic-macOS-Server.dmg"
+          hdiutil verify "$RUNNER_TEMP/MFlixMusic-macOS-Server.dmg"
+
+          echo "== 挂回读：权限位与结构 =="
+          MNT="$RUNNER_TEMP/mnt2"
+          hdiutil attach "$RUNNER_TEMP/MFlixMusic-macOS-Server.dmg" -mountpoint "$MNT" -nobrowse -readonly
+          ls -l "$MNT/MFlixMusic-macOS"
+          stat -f '%Sp %N' "$MNT/MFlixMusic-macOS/启动MFlixMusic.command"
+          test -x "$MNT/MFlixMusic-macOS/启动MFlixMusic.command"
+          test -x "$MNT/MFlixMusic-macOS/runtime/node-arm64"
+          test -x "$MNT/MFlixMusic-macOS/runtime/node-x64"
+          test -f "$MNT/MFlixMusic-macOS/public/index.html"
+          test -d "$MNT/MFlixMusic-macOS/node_modules/pinyin-pro"
+          bash -n "$MNT/MFlixMusic-macOS/启动MFlixMusic.command"
+          echo "DMG 内文件数：$(find "$MNT" -type f ! -name '._*' | wc -l | tr -d ' ')"
+          hdiutil detach "$MNT"
+          ls -l "$RUNNER_TEMP/MFlixMusic-macOS-Server.dmg"
+
+          echo "== 服务端形态冒烟：直接用 DMG 里的目录跑一次 =="
+          SMOKE="$RUNNER_TEMP/smokecopy"
+          rm -rf "$SMOKE"; mkdir -p "$SMOKE"
+          cp -R "$OUT" "$SMOKE/"
+          cd "$SMOKE/MFlixMusic-macOS"
+          PORT=8091 "$PWD/runtime/node-x64" server.js > "$RUNNER_TEMP/smoke.log" 2>&1 &
+          SPID=$!
+          ok=""
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://127.0.0.1:8091/" || true)
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            sleep 1
+          done
+          curl -s --max-time 5 "http://127.0.0.1:8091/" | grep -o '<title>[^<]*</title>' | head -1 || true
+          curl -s -o /dev/null -w "library=%{http_code}\n" --max-time 10 "http://127.0.0.1:8091/api/library" || true
+          kill "$SPID" 2>/dev/null || true
+          cat "$RUNNER_TEMP/smoke.log" | tail -n 10 || true
+          test -n "$ok"
+
       - name: 汇总校验值
         env:
           VER: ${{ inputs.version }}
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP"
-          F="MFlixMusic-macOS-${VER}.dmg"
-          printf '%-28s %12d  bytes  MD5 %s\n' "$F" "$(stat -f%z "$F")" "$(md5 -q "$F")" | tee SUMS.txt
-          shasum -a 256 "$F" | tee -a SUMS.txt
+          for F in "MFlixMusic-macOS-${VER}.dmg" "MFlixMusic-macOS-Server.dmg"; do
+            printf '%-32s %12d  bytes  MD5 %s\n' "$F" "$(stat -f%z "$F")" "$(md5 -q "$F")" >> SUMS.txt
+            shasum -a 256 "$F" >> SUMS.txt
+          done
+          cat SUMS.txt
           { echo '```'; cat SUMS.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
@@ -255,6 +447,7 @@ jobs:
           name: MFlixMusic-macOS
           path: |
             ${{ runner.temp }}/MFlixMusic-macOS-*.dmg
+            ${{ runner.temp }}/MFlixMusic-macOS-Server.dmg
             ${{ runner.temp }}/SUMS.txt
           retention-days: 7
 

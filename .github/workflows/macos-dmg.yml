@@ -184,6 +184,39 @@ jobs:
           echo "挂载后的总大小：$(du -sh "$MNT/MFlixTV.app" | cut -f1)"
           hdiutil detach "$MNT"
 
+      - name: 额外出服务端形态 DMG（目录 + 启动.command，给“当服务器用”的人）
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/work/MFlixTV-macOS"
+          STAGE="$RUNNER_TEMP/dmgserver"
+          rm -rf "$STAGE"; mkdir -p "$STAGE"
+          xattr -cr "$P" || true
+          chmod 755 "$P/启动MFlixTV.command"
+          chmod 755 "$P/runtime/node-arm64" "$P/runtime/node-x64" \
+                    "$P/runtime/ffmpeg/ffmpeg-arm64" "$P/runtime/ffmpeg/ffmpeg-x64"
+          ditto "$P" "$STAGE/MFlixTV-macOS"
+          chmod 755 "$STAGE/MFlixTV-macOS/启动MFlixTV.command"
+          hdiutil create -volname "MFlixTV" -fs HFS+ -srcfolder "$STAGE" \
+            -ov -format UDZO -imagekey zlib-level=9 \
+            "$RUNNER_TEMP/MFlixTV-macOS-Server.dmg"
+          hdiutil verify "$RUNNER_TEMP/MFlixTV-macOS-Server.dmg"
+          echo "== 挂回读：权限位与文件数 =="
+          MNT="$RUNNER_TEMP/mnt2"
+          hdiutil attach "$RUNNER_TEMP/MFlixTV-macOS-Server.dmg" -mountpoint "$MNT" -nobrowse -readonly
+          ls -l "$MNT"
+          stat -f '%Sp %N' "$MNT/MFlixTV-macOS/启动MFlixTV.command"
+          test -x "$MNT/MFlixTV-macOS/启动MFlixTV.command"
+          test -x "$MNT/MFlixTV-macOS/runtime/node-arm64"
+          test -x "$MNT/MFlixTV-macOS/runtime/node-x64"
+          test -x "$MNT/MFlixTV-macOS/runtime/ffmpeg/ffmpeg-arm64"
+          test -x "$MNT/MFlixTV-macOS/runtime/ffmpeg/ffmpeg-x64"
+          n_img=$(find "$MNT" -type f ! -name '._*' | wc -l | tr -d ' ')
+          n_zip=$(unzip -l "$RUNNER_TEMP/dl/payload.zip" | tail -1 | awk '{print $2}')
+          echo "DMG 内文件数（不含 ._ 资源叉）：$n_img"
+          echo "zip 载荷条目数：$n_zip"
+          hdiutil detach "$MNT"
+          ls -l "$RUNNER_TEMP/MFlixTV-macOS-Server.dmg"
+
       - name: 同时刷一份 ZIP（给不想装 App 的人）
         run: |
           set -euo pipefail
@@ -198,8 +231,8 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP"
-          { for f in MFlixTV-macOS.dmg MFlixTV-macOS.zip; do
-              printf '%-24s %12d  MD5 %s\n' "$f" "$(stat -f%z "$f")" "$(md5 -q "$f")"
+          { for f in MFlixTV-macOS.dmg MFlixTV-macOS-Server.dmg MFlixTV-macOS.zip; do
+              printf '%-28s %12d  MD5 %s\n' "$f" "$(stat -f%z "$f")" "$(md5 -q "$f")"
             done; } | tee SUMS.txt
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           cat SUMS.txt >> "$GITHUB_STEP_SUMMARY"
@@ -210,6 +243,7 @@ jobs:
           name: MFlixTV-macOS
           path: |
             ${{ runner.temp }}/MFlixTV-macOS.dmg
+            ${{ runner.temp }}/MFlixTV-macOS-Server.dmg
             ${{ runner.temp }}/MFlixTV-macOS.zip
             ${{ runner.temp }}/SUMS.txt
           retention-days: 7
@@ -222,6 +256,7 @@ jobs:
         run: |
           set -euo pipefail
           gh release upload "$TAG" "$RUNNER_TEMP/MFlixTV-macOS.dmg" --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$TAG" "$RUNNER_TEMP/MFlixTV-macOS-Server.dmg" --clobber --repo "$GITHUB_REPOSITORY"
           gh release upload "$TAG" "$RUNNER_TEMP/MFlixTV-macOS.zip" --clobber --repo "$GITHUB_REPOSITORY"
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
              -q '.assets[] | "\(.name)  \(.size)"'
