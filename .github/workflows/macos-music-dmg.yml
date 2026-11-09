@@ -1,0 +1,259 @@
+name: 出 MFlixMusic macOS 包（DMG）
+
+# 为什么必须在 macOS runner 上做：
+#   · hdiutil 只有 macOS 自带，Windows 上没有能把文件夹做成可挂载 HFS+ 镜像的工具；
+#   · macOS 上未签名的 arm64 可执行文件会被系统直接杀掉，codesign 也只有 Mac 上有。
+#
+# 载荷从 Release 资产取（MFlixMusic 不走 git 仓库，只有影视这个仓库有 Actions）：
+#   资产名 MFlixMusic-macOS-payload.zip，里面是 MFlixMusic/ 目录：
+#   server.js / package.json / src/ / public/ / node_modules/（已剔除构建期依赖）
+#   Node 运行时在这里现下（darwin-arm64 + darwin-x64），不塞进载荷。
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（写进 Info.plist 与 dmg 名）'
+        required: false
+        default: '3.16'
+      node_version:
+        description: 'Node 版本（darwin 二进制）'
+        required: false
+        default: '22.20.0'
+      payload_tag:
+        description: '载荷所在 Release 标签'
+        required: false
+        default: 'music-payload'
+      payload_asset:
+        description: '载荷资产名'
+        required: false
+        default: 'MFlixMusic-macOS-payload.zip'
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  build:
+    name: 组装 .app + 签名 + 冒烟测试 + 出 DMG
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: 取载荷
+        env:
+          TAG: ${{ inputs.payload_tag }}
+          ASSET: ${{ inputs.payload_asset }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dl"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}"
+          echo "下载 $URL"
+          curl -fL --retry 3 -o "$RUNNER_TEMP/dl/payload.zip" "$URL"
+          unzip -q "$RUNNER_TEMP/dl/payload.zip" -d "$RUNNER_TEMP/work"
+          test -f "$RUNNER_TEMP/work/MFlixMusic/server.js"
+          test -f "$RUNNER_TEMP/work/MFlixMusic/public/index.html"
+          test -d "$RUNNER_TEMP/work/MFlixMusic/node_modules/pinyin-pro"
+          test -d "$RUNNER_TEMP/work/MFlixMusic/node_modules/qrcode"
+          echo "uname -m: $(uname -m)"
+
+      - name: 取 Node 运行时（darwin-arm64 / darwin-x64）
+        env:
+          NV: ${{ inputs.node_version }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/nodedl"
+          for arch in arm64 x64; do
+            f="node-v${NV}-darwin-${arch}.tar.gz"
+            curl -fL --retry 3 -o "$RUNNER_TEMP/nodedl/$f" "https://nodejs.org/dist/v${NV}/${f}"
+            tar -xzf "$RUNNER_TEMP/nodedl/$f" -C "$RUNNER_TEMP/nodedl"
+            cp "$RUNNER_TEMP/nodedl/node-v${NV}-darwin-${arch}/bin/node" "$RUNNER_TEMP/nodedl/node-${arch}"
+            chmod +x "$RUNNER_TEMP/nodedl/node-${arch}"
+            printf '%-12s %s\n' "node-${arch}" "$(lipo -archs "$RUNNER_TEMP/nodedl/node-${arch}")"
+            "$RUNNER_TEMP/nodedl/node-${arch}" -v
+          done
+
+      - name: 组装 MFlixMusic.app
+        env:
+          VER: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/work/MFlixMusic"
+          APP="$RUNNER_TEMP/MFlixMusic.app"
+          rm -rf "$APP"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/runtime"
+          cat > "$APP/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>MFlix Music</string>
+            <key>CFBundleDisplayName</key><string>MFlix Music</string>
+            <key>CFBundleExecutable</key><string>MFlixMusic</string>
+            <key>CFBundleIdentifier</key><string>com.mflix.music</string>
+            <key>CFBundleVersion</key><string>${VER}</string>
+            <key>CFBundleShortVersionString</key><string>${VER}</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleIconFile</key><string>app.icns</string>
+            <key>LSMinimumSystemVersion</key><string>11.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+            <key>LSApplicationCategoryType</key><string>public.app-category.music</string>
+          </dict>
+          </plist>
+          PLIST
+
+          # 启动器：选架构 → 挑空闲端口 → 起 server.js → 等服务 200 → 开无地址栏窗口
+          cat > "$APP/Contents/MacOS/MFlixMusic" <<'LAUNCH'
+          #!/bin/bash
+          set -u
+          RES="$(cd "$(dirname "$0")/../Resources" && pwd)"
+          PAY="$RES/payload"
+          LOGDIR="$HOME/Library/Logs/MFlixMusic"
+          mkdir -p "$LOGDIR"
+          LOG="$LOGDIR/mflix-music.log"
+
+          if [ "$(uname -m)" = "arm64" ]; then NODE="$RES/runtime/node-arm64"; else NODE="$RES/runtime/node-x64"; fi
+          if [ ! -x "$NODE" ]; then
+            osascript -e 'display alert "MFlix Music" message "安装不完整：找不到内置的 Node 运行时，请重新下载安装包。"' || true
+            exit 3
+          fi
+
+          PORT=8090
+          while [ "$PORT" -lt 8130 ] && nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1; do PORT=$((PORT+1)); done
+          if [ "$PORT" -ge 8130 ]; then
+            osascript -e 'display alert "MFlix Music" message "8090 附近的端口都被占用了，先关掉占口的程序再启动。"' || true
+            exit 4
+          fi
+
+          cd "$PAY" || exit 5
+          PORT="$PORT" nohup "$NODE" server.js >> "$LOG" 2>&1 &
+
+          URL="http://127.0.0.1:${PORT}/"
+          ok=""
+          i=0
+          while [ "$i" -lt 60 ]; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "$URL" 2>/dev/null || true)
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            sleep 1
+            i=$((i+1))
+          done
+          if [ -z "$ok" ]; then
+            osascript -e 'display alert "MFlix Music" message "服务没能起来，日志在 ~/Library/Logs/MFlixMusic/mflix-music.log。"' || true
+            exit 6
+          fi
+
+          if [ "${MFLIX_NOBROWSER:-}" = "1" ]; then echo "READY $URL"; exit 0; fi
+
+          UD="$HOME/Library/Application Support/MFlixMusic/browser"
+          mkdir -p "$UD"
+          if [ -d "/Applications/Google Chrome.app" ]; then
+            open -na "Google Chrome" --args --app="$URL" --user-data-dir="$UD" --window-size=1440,900
+          elif [ -d "/Applications/Microsoft Edge.app" ]; then
+            open -na "Microsoft Edge" --args --app="$URL" --user-data-dir="$UD" --window-size=1440,900
+          else
+            open "$URL"
+          fi
+          exit 0
+          LAUNCH
+          chmod +x "$APP/Contents/MacOS/MFlixMusic"
+
+          cp "$RUNNER_TEMP/nodedl/node-arm64" "$APP/Contents/Resources/runtime/node-arm64"
+          cp "$RUNNER_TEMP/nodedl/node-x64" "$APP/Contents/Resources/runtime/node-x64"
+          chmod +x "$APP/Contents/Resources/runtime/node-arm64" "$APP/Contents/Resources/runtime/node-x64"
+
+          xattr -cr "$P" || true
+          ditto "$P" "$APP/Contents/Resources/payload"
+
+          ICON_SRC="$P/public/icon-512.png"
+          if [ -f "$ICON_SRC" ]; then
+            rm -rf "$RUNNER_TEMP/icon.iconset"; mkdir -p "$RUNNER_TEMP/icon.iconset"
+            for s in 16 32 64 128 256 512; do
+              sips -z $s $s "$ICON_SRC" --out "$RUNNER_TEMP/icon.iconset/icon_${s}x${s}.png" >/dev/null
+            done
+            sips -z 1024 1024 "$ICON_SRC" --out "$RUNNER_TEMP/icon.iconset/icon_512x512@2x.png" >/dev/null
+            iconutil -c icns "$RUNNER_TEMP/icon.iconset" -o "$APP/Contents/Resources/app.icns"
+            echo "图标已生成"
+          else
+            echo "载荷里没有 icon-512.png，跳过 icns"
+          fi
+          du -sh "$APP"
+
+      - name: ad-hoc 签名 + 校验
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/MFlixMusic.app"
+          for f in "$APP/Contents/Resources/runtime/node-arm64" "$APP/Contents/Resources/runtime/node-x64"; do
+            codesign --force --sign - --timestamp=none "$f"
+            printf '%-40s %s\n' "$(basename "$f")" "$(codesign -dv "$f" 2>&1 | grep -m1 'Signature')"
+          done
+          codesign --force --sign - --timestamp=none "$APP"
+          codesign --verify --strict --verbose=2 "$APP"
+          bash -n "$APP/Contents/MacOS/MFlixMusic"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist"
+
+      - name: 冒烟测试（真跑一次，等服务回 200）
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/MFlixMusic.app"
+          MFLIX_NOBROWSER=1 "$APP/Contents/MacOS/MFlixMusic" > "$RUNNER_TEMP/launch.log" 2>&1 &
+          LAUNCHER=$!
+          ok=""
+          for i in $(seq 1 60); do
+            for p in $(seq 8090 8130); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://127.0.0.1:${p}/" || true)
+              if [ "$code" = "200" ]; then ok="port=$p"; PORT="$p"; break 2; fi
+            done
+            sleep 1
+          done
+          echo "--- launch.log ---"; cat "$RUNNER_TEMP/launch.log" || true
+          echo "--- app log ---"; tail -n 30 "$HOME/Library/Logs/MFlixMusic/mflix-music.log" || true
+          echo "--- 首页标题 ---"; curl -s --max-time 5 "http://127.0.0.1:${PORT}/" | grep -o '<title>[^<]*</title>' | head -1 || true
+          echo "--- 接口 ---"; curl -s -o /dev/null -w "library=%{http_code}\n" --max-time 10 "http://127.0.0.1:${PORT}/api/library" || true
+          pkill -f 'runtime/node-' || true
+          pkill -f 'server.js' || true
+          test -n "$ok"
+
+      - name: 打 DMG
+        env:
+          VER: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/MFlixMusic.app"
+          STAGE="$RUNNER_TEMP/dmg"
+          rm -rf "$STAGE"; mkdir -p "$STAGE"
+          ditto "$APP" "$STAGE/MFlix Music.app"
+          ln -s /Applications "$STAGE/应用程序"
+          hdiutil create -volname "MFlix Music ${VER}" -fs HFS+ -srcfolder "$STAGE" \
+            -ov -format UDZO -imagekey zlib-level=9 \
+            "$RUNNER_TEMP/MFlixMusic-macOS-${VER}.dmg"
+          hdiutil verify "$RUNNER_TEMP/MFlixMusic-macOS-${VER}.dmg"
+          echo "== 挂载回读 =="
+          MNT="$RUNNER_TEMP/mnt"
+          hdiutil attach "$RUNNER_TEMP/MFlixMusic-macOS-${VER}.dmg" -mountpoint "$MNT" -nobrowse -readonly
+          ls -la "$MNT"
+          test -x "$MNT/MFlix Music.app/Contents/MacOS/MFlixMusic"
+          test -x "$MNT/MFlix Music.app/Contents/Resources/runtime/node-arm64"
+          test -f "$MNT/MFlix Music.app/Contents/Resources/payload/public/index.html"
+          codesign --verify --strict "$MNT/MFlix Music.app"
+          du -sh "$MNT/MFlix Music.app"
+          hdiutil detach "$MNT"
+
+      - name: 汇总校验值
+        env:
+          VER: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          F="MFlixMusic-macOS-${VER}.dmg"
+          printf '%-28s %12d  bytes  MD5 %s\n' "$F" "$(stat -f%z "$F")" "$(md5 -q "$F")" | tee SUMS.txt
+          shasum -a 256 "$F" | tee -a SUMS.txt
+          { echo '```'; cat SUMS.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MFlixMusic-macOS
+          path: |
+            ${{ runner.temp }}/MFlixMusic-macOS-*.dmg
+            ${{ runner.temp }}/SUMS.txt
+          retention-days: 7
