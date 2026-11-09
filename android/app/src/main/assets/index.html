@@ -542,6 +542,8 @@
     #dActions > * + *{margin-left:10px}
     .sec-h > * + *{margin-left:8px}
     #groups .grp{margin:0 8px 8px 0}         /* 换行 */
+    /* 断点镜像：L264 在 min-width:760px 把 #groups 的 gap 改成 9px，兜底要跟着 */
+    @media (min-width:760px){ #groups .grp{margin:0 9px 9px 0} }
     #ptop > * + *{margin-left:10px}
     #pbtns > * + *{margin-left:10px}
     #pmini > *{margin:0 0 7px 7px}           /* 换行 + 右对齐，所以留左间距 */

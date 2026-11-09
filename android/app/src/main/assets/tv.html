@@ -577,12 +577,12 @@
     .btn > *{margin-right:.45rem}
     .hero-dots i{margin-right:.36rem}
     .rail-h > *{margin-right:.7rem}
-    .strip > *{margin-right:.75rem}
+    .strip > *{margin-right:.8rem}               /* 精修层 L498 把 gap 提到 .8rem */
     .dt-meta > *{margin:0 .8rem .8rem 0}         /* 换行容器：右+下双向，缺下间距行与行会贴住 */
     .dt-btns > *{margin-right:.7rem}
     .dt-h > *{margin-right:.7rem}
     .chips > *{margin:0 .5rem .5rem 0}
-    .epstrip > *{margin:0 .8rem .8rem 0}
+    .epstrip > *{margin:0 .85rem .85rem 0}       /* 精修层 L511 把 gap 提到 .85rem */
     .hot .chip{margin:0 .55rem .55rem 0}
     .sc-acts > *{margin-right:.6rem}
     #search .right{margin-left:3rem}
@@ -601,7 +601,18 @@
     #extcard .ec-btns > *{margin:0 .7rem .7rem 0}
     #pbL > * + *{margin-left:.95rem}
     #pbR > *:not(:last-child){margin-top:.44rem}   /* 反向轴：`* + *` 会把间距加到容器顶边，改用排除末项 */
-    .pb > * + *{margin-left:.4rem}
+    /* 2026-11-09 复核修正：`.pb > * + *{margin-left:.4rem}` 这条兜底是错的，已删除。
+       `.pb` 的第二个“流内”子元素只有两类，真值 gap 对它们都不产生间距：
+         ① 互斥图标：`#pbPlay` 的 `.i-play`/`.i-pause`、`#pbMute` 的 `.i-vol`/`.i-mute`
+            同一时刻 display:none 掉一个，flex gap 在只剩一个可见项时不出间距；
+         ② `.lb`（L706）是 position:absolute，绝对定位子项不参与 flex gap。
+       原来那条会给 ① 里的第二个图标塞 6.4px：playing 态 `.i-play` 隐藏、`.i-pause`
+       仍带 margin-left → 播放/暂停图标右偏；`#pbMute.on` 态 `.i-mute` 同理。
+       现在不给 margin，等价于真值 0。 */
+    /* 断点镜像：desk 上 #pbL/#pbR 的 gap 被改成 12px / 6px（L851/L852 全是 px），
+       这里也直接用 px —— tv.html 的根字号是 13px 不是 16px，写 rem 会差一截 */
+    html.desk #pbL > * + *{margin-left:12px}
+    html.desk #pbR > *:not(:last-child){margin-top:6px}
     #eps-sheet .hd > * + *,#spd-sheet .hd > * + *,#line-sheet .hd > * + *{margin-left:1rem}
     #line-sheet .ln > * + *{margin-left:.4rem}
   }

@@ -1,5 +1,28 @@
 # 更新日志
 
+## 1.31 — 审计扩到运行态容器，并修掉审计自己的两个盲区
+
+**一、14 个「静态 DOM 里不存在」的容器不再是盲区**
+
+手机版 `.row-h`、`#groups .grp`、`#psheetB.set .chips`、`#psheetB.set .row`、`#psheetB.list .it`、`.src-item`；电视版 `.rail-h`、`.strip`、`.hot .chip`、`#pbtns`、`#line-sheet .ln`、`.hero-dots i`。这些容器靠 JS 填子元素，1.30 只能把它们列成「未量」。现在 `tools/compat-gap-audit.mjs` 会按选择器补一条最小骨架，再读 computed gap 造 A/B fixture。结果：手机版 31 个容器全部量到、电视版 34 个全部量到，**未验证 0**。其中 `#groups .grp`、`.hero-dots i`、`.hot .chip` 真值 gap 是 0，本来就不需要兜底，单独归类。
+
+**二、审计自己会骗过自己的三处，都修了**
+
+1. **没有 id 的容器**（`.hstrip`、`.strip`、`.btn-play`……）以前 A 和 B 共用同一个选择器，B 的 `gap:0` 把 A 的 gap 也覆盖了 —— A 变成「gap+margin」、结论却是通过。现在改用 `data-fx` 区分。
+2. **`#groups .grp`、`#search .right` 这类「给某个子元素加 margin」的规则**，以前整条被当成容器，只量到那个子元素自己的 gap=0，静默跳过。现在会拆成「容器 + 子元素」，fixture 照真实 DOM 把 class 补到同一批子元素上，标签选择器（`.hero-dots i`）则把子元素换成对应标签。
+3. **换行容器跨行比横向间距**：换行后 x 跳回行首，差值全是假的。现在同行比间距、新行比行首缩进和行距。
+
+**三、修掉四个真缺陷**
+
+- `.pb > * + *{margin-left:.4rem}` 这条兜底本身就是错的：`#pbPlay` 的两个图标、`#pbMute` 的两个图标互斥显示，同一时刻只有一个可见，flex gap 不出间距；`#pbMute` 的 `.lb` 是绝对定位、也不参与 gap。原来会给第二个图标塞 6.4px —— playing 态下 `.i-play` 隐藏、`.i-pause` 带 margin，**播放/暂停图标右偏**。已删除。
+- `#groups` 在 `min-width:760px` 把 gap 改成 9px，兜底还是 8px —— 补断点镜像。
+- `.strip` 兜底 `.75rem`、真值精修层 `.8rem`；`.epstrip` 兜底 `.8rem`、真值 `.85rem` —— 值对齐。
+- `#pbL`/`#pbR` 在 `html.desk` 下 gap 是 12px / 6px，兜底完全没镜像 —— 补 desk 断点，用 px（tv.html 根字号是 13px，写 rem 会差一截）。
+
+**四、留档的已知风险**
+
+`> * + *` 这种写法只在「首个子元素被 `display:none`」时露馅（行首多一个间距）。现在 39 个容器在「首项隐藏」场景下仍有偏差，静态页面里 0 个容器首项是隐藏的，所以记成 `latent`；`--strict` 才升级为失败。真实会切换首项可见性的（`#pbPlay`、`#pbMute`）已按上面第一条修掉。
+
 ## 1.11 — 遥控器两个「按了像没按」的地方
 
 这一版只修两件小事，但都是电视机上天天会撞到的：一件是刚打开就按确认没反应，一件是同一颗方向键有时跳进度、有时挪按钮。
