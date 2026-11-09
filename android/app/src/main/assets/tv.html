@@ -592,6 +592,18 @@
     .st-rows > *{margin-bottom:.5rem}
     .st-btns > *{margin-right:.7rem}
     #boot > *{margin-bottom:1rem}
+    /* 2026-11-09 补齐：以下十二处漏在兜底之外（`.hero-dots i` 与 `.hot .chip`
+       已经有子元素规则，不重复写）。竖排 #pbR 要用 margin-top，横排用 margin-left */
+    #lanip > * + *{margin-left:.32rem}
+    .pin-dots > * + *{margin-left:.7rem}
+    #spd-sheet .grid > *{margin:0 .5rem .5rem 0}
+    #line-sheet .grid > *{margin:0 .5rem .5rem 0}
+    #extcard .ec-btns > *{margin:0 .7rem .7rem 0}
+    #pbL > * + *{margin-left:.95rem}
+    #pbR > * + *{margin-top:.44rem}
+    .pb > * + *{margin-left:.4rem}
+    #eps-sheet .hd > * + *,#spd-sheet .hd > * + *,#line-sheet .hd > * + *{margin-left:1rem}
+    #line-sheet .ln > * + *{margin-left:.4rem}
   }
   /* 老 WebView 可能连 CSS Grid 都没有（Chrome 57 才有）：字母键盘 / 搜索结果退回 inline-block */
   @supports not (display: grid){

@@ -515,25 +515,54 @@
     padding:1px 7px;font-size:10px;font-weight:800;margin-left:6px}
 
   /* ---- 老 WebView 兼容（Android 8.x 上常见 Chrome 6x/7x 内核）----
-     aspect-ratio 与 flex gap 都不支持：用 padding 撑海报比例、margin 撑间距。 */
+     三件事分开兜：flex gap 要 84+、aspect-ratio 要 88+、env() 要 69+，
+     它们的可用版本互不相同，所以各自一个 @supports，不能挤在一起——
+     挤在一起时「支持 aspect-ratio 但不支持 gap」的内核（Chrome 80–83）会一条都不生效。 */
+
+  /* 1) flex gap 兜底：以下 30 个容器的间距逐个补。
+       横排补 margin-left，竖排（flex-direction:column）补 margin-top，
+       换行容器（flex-wrap:wrap）给子元素补右/下间距——竖排补错方向、换行漏掉行间距，
+       是老内核上最常见的两种塌法，所以这里一条条写，不用通配符一把盖。 */
+  @supports not (gap: 1px) {
+    #top > * + *{margin-left:12px}
+    #searchBar > * + *{margin-left:8px}
+    #heroBtns > * + *{margin-left:9px}
+    .hstrip > * + *{margin-left:10px}
+    .btn-play > * + *{margin-left:7px}
+    .btn-ghost > * + *{margin-left:7px}
+    .row-h > * + *{margin-left:8px}
+    .rcpad > * + *{margin-top:8px}          /* 竖排：遥控面板方向键 */
+    .rcmid > * + *{margin-left:8px}
+    .srcrow > * + *{margin-left:10px}
+    .strip > * + *{margin-left:9px}
+    #dCastList > *{margin:0 7px 7px 0}      /* 换行 */
+    #svHead > * + *{margin-left:10px}
+    #svBack > * + *{margin-left:6px}
+    #dTitleBox > * + *{margin-left:13px}
+    #dActions > * + *{margin-left:9px}
+    .sec-h > * + *{margin-left:8px}
+    #groups .grp{margin:0 8px 8px 0}         /* 换行 */
+    #ptop > * + *{margin-left:10px}
+    #pbtns > * + *{margin-left:10px}
+    #pmini > *{margin:0 0 7px 7px}           /* 换行 + 右对齐，所以留左间距 */
+    #pmini button > * + *{margin-left:5px}
+    #psheetB.set .chips > *{margin:0 8px 8px 0}   /* 换行 */
+    #psheetB.set .row > * + *{margin-left:12px}
+    #psheetH > * + *{margin-left:10px}
+    #psheetB.list .it > * + *{margin-left:10px}
+    #sHead > * + *{margin-left:10px}
+    .box-t > * + *{margin-left:8px}
+    .kv > * + *{margin-left:12px}
+    .src-item > * + *{margin-left:10px}
+    .row-btns > * + *{margin-left:9px}
+  }
+
+  /* 2) 海报比例：aspect-ratio 不支持时用 padding-top 撑 2:3 */
   @supports not (aspect-ratio: 1 / 1) {
     .card .ph{height:0;padding-bottom:150%}
     .hcard .hp{height:0;padding-bottom:150%}
     #dPoster{height:0;padding-bottom:150%}
     .card .ph img,.hcard .hp img,#dPoster img{position:absolute;top:0;left:0;width:100%;height:100%}
-    #top > * + *{margin-left:12px}
-    #searchBar > * + *{margin-left:8px}
-    .hstrip > * + *{margin-left:10px}
-    .row-h > * + *{margin-left:8px}
-    .strip > * + *{margin-left:9px}
-    .btn-play > * + *{margin-left:7px}
-    .btn-ghost > * + *{margin-left:7px}
-    #dTitleBox > * + *{margin-left:13px}
-    #dActions > * + *{margin-left:9px}
-    .sec-h > * + *{margin-left:8px}
-    #ptop > * + *{margin-left:10px}
-    #pbtns > * + *{margin-left:10px}
-    #groups .grp{margin:0 8px 8px 0}
     /* env() 要 Chrome 69+，老内核里整条 padding 会失效，这里给回普通值 */
     body{padding-bottom:0}
     #top{padding:12px 14px 10px}

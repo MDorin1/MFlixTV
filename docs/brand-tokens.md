@@ -30,7 +30,7 @@
 
 **已落地的实现优先于这份文档。** 两处按代码改文档，不改代码：
 
-- `--accent:#3ecf8e` / `--accent-2:#34d399`：初版把两个值写反了，音乐端已经按 `#3ecf8e` 当主色铺开（44 处 `var(--r-*)` 配套的那套），为了文档去改 44 处没有收益，改文档。
+- **`--accent` / `--accent-2` 的值已定案（ 2026-11-09 08:20 核）**：`style.css:19-21` = `--accent:#34d399` / `--accent-2:#3ecf8e` / `--accent-rgb: 52,211,153`。两个值这一天里被翻了两次（`#3ecf8e` 与 `#34d399` 互换），不再靠快照定事：今后谁改这三行，必须报「`style.css:19-21` 原文 + 文件 sha16」，只报“我见到的值”不算。
 - 图标线宽 1.8px（见 2.5）：不是 2px。
 
 改文档的另一种情况是本文档写错了口径。除此之外，**两边实现不一致时，先问哪边对，再统一，不要各改一半。**
@@ -98,7 +98,7 @@ box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 26%, transparent);
 
 | | MFlixTV | MFlixMusic |
 | --- | --- | --- |
-| 色相 | 红黑：`--accent:#e50914` / `--accent-2:#ff4d57` | 绿黑：`--accent:#3ecf8e` / `--accent-2:#34d399` |
+| 色相 | 红黑：`--accent:#e50914` / `--accent-2:#ff4d57` | 绿黑：`--accent:#34d399` / `--accent-2:#3ecf8e` |
 | 背景 | 纯黑 `#000`（影院感） | 近黑带蓝 `#08080b`（长时间听歌不刺眼） |
 | 主版式 | 横排海报墙，海报 2:3，一行一张卡（6–8 张） | Apple Music 式：大封面 + 列表行 + 常驻迷你条 |
 | 内容密度 | 高密度，首屏要塞 4–5 排 | 低密度，行高更大，留白更多 |
@@ -125,7 +125,7 @@ box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 26%, transparent);
 
 ### MFlixMusic（音乐软件）
 
-1. 主色换绿：`--accent:#3ecf8e`、`--accent-2:#34d399`，把 `var(--red)` 那 **15 处**（`style.css` 12、`artist.css` 1、**`app.js` 2**）全部改成 `var(--accent)`；同时把硬编码的 `#3ecf8e`（12 处）与 `#34d399`（3 处）收进变量；`--red`/`--red2` 从 `style.css` 删掉（`remote.html` 只删定义，它没有引用）
+1. 主色换绿：`--accent:#34d399`、`--accent-2:#3ecf8e`，把 `var(--red)` 那 **15 处**（`style.css` 12、`artist.css` 1、**`app.js` 2**）全部改成 `var(--accent)`；同时把硬编码的 `#3ecf8e`（12 处）与 `#34d399`（3 处）收进变量；`--red`/`--red2` 从 `style.css` 删掉（`remote.html` 只删定义，它没有引用）
    - **`app.js` 那 2 处不能漏**：定义一删，js 里的 `var(--red)` 取不到值，那两块颜色会掉成继承色
 2. `--ease` 换成 `cubic-bezier(0.22, 1, 0.36, 1)`，补 `--dur-fast/base/slow`
 3. 圆角收敛：`--r-sm/md/lg/full` 四档替换 `7/9/10/12/22px` 散值
