@@ -93,30 +93,51 @@ function render(list) {
   return parts.join('\n') + '\n';
 }
 
+/** 去掉旧的 `.nofg` 副本：连同前导缩进/换行和结尾换行一起删，
+ *  必须与 insertFresh() 插入的字节完全互为逆操作，否则每跑一次文件就长几字节。 */
+function removeOld(html) {
+  const b = html.indexOf(MARK_BEGIN);
+  if (b < 0) return html;
+  const e = html.indexOf(MARK_END);
+  if (e < b) return html;
+  let s = b;
+  while (s > 0 && (html[s - 1] === ' ' || html[s - 1] === '\t')) s--;
+  if (s > 0 && html[s - 1] === '\n') { s--; if (s > 0 && html[s - 1] === '\r') s--; }
+  let end = e + MARK_END.length;
+  if (html[end] === '\r') end++;
+  if (html[end] === '\n') end++;
+  return html.slice(0, s) + html.slice(end);
+}
+
+/** 在 `@supports` 块之后插入副本：一个换行 + 副本（副本自身以换行结尾） */
+function insertFresh(html, fresh) {
+  const at = html.indexOf('@supports not (gap');
+  if (at < 0) return html;
+  const blk = blockBody(html, at);
+  if (!blk) return html;
+  return html.slice(0, blk.start) + '\n' + fresh + html.slice(blk.start);
+}
+
 for (const file of FILES) {
   const p = path.join(ASSETS, file);
-  let html = fs.readFileSync(p, 'utf8');
+  const html = fs.readFileSync(p, 'utf8');
   const at = html.indexOf('@supports not (gap');
   if (at < 0) { console.log(`${file}: 没有 gap 兜底块，跳过`); continue; }
   const blk = blockBody(html, at);
   if (!blk) { console.log(`${file}: 兜底块解析失败`); continue; }
   const list = rules(blk.body.replace(/\/\*[\s\S]*?\*\//g, ''));
   const fresh = render(list);
+  const next = insertFresh(removeOld(html), fresh);
+  const same = next === html;
 
-  // 已有旧副本先删掉（幂等）
-  const b = html.indexOf(MARK_BEGIN);
-  if (b >= 0) {
-    const e = html.indexOf(MARK_END);
-    if (e > b) html = html.slice(0, b) + html.slice(e + MARK_END.length + 1);
+  if (check) {
+    console.log(`${file}: ${list.length} 条 .nofg 规则；与现有副本${same ? '逐字相同' : '有差异'}${same ? '' : '（--check 不写盘）'}`);
+    if (!same) process.exitCode = 1;
+    continue;
   }
-  // 重新定位插入点（删过之后索引会变）
-  const at2 = html.indexOf('@supports not (gap');
-  const blk2 = blockBody(html, at2);
-  const insertAt = blk2.start;
-  html = html.slice(0, insertAt) + '\n' + fresh + html.slice(insertAt);
-  fs.writeFileSync(p, html, 'utf8');
-
-  const again = fs.readFileSync(p, 'utf8');
-  const same = again.includes(fresh.trim());
-  console.log(`${file}: 生成 ${list.length} 条 .nofg 规则${same ? '（已写入）' : '（写盘校验失败）'}${check ? ' [check 模式也写了，注意]' : ''}`);
+  if (same) { console.log(`${file}: ${list.length} 条 .nofg 规则（已是最新，文件未改动）`); continue; }
+  fs.writeFileSync(p, next, 'utf8');
+  const delta = next.length - html.length;
+  console.log(`${file}: 生成 ${list.length} 条 .nofg 规则（已写入，${delta >= 0 ? '+' : ''}${delta} B）`);
 }
+
