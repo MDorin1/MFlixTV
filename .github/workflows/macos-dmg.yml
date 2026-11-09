@@ -160,7 +160,7 @@ jobs:
           codesign --force --sign - --timestamp=none "$APP"
           codesign --verify --strict --verbose=2 "$APP"
           codesign -dv "$APP" 2>&1 | grep -E 'Identifier|Signature'
-          bash -n "$APP/Contents/Resources/payload/启动MFlixTV.command"
+          bash -n "$APP/Contents/Resources/payload/start-server.sh"
           bash -n "$APP/Contents/MacOS/MFlixTV"
           test -x "$APP/Contents/Resources/payload/runtime/node-arm64"
           test -f "$APP/Contents/Resources/app.icns"
