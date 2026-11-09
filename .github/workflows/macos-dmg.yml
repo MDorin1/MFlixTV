@@ -215,7 +215,7 @@ jobs:
           stat -f '%z bytes %N' "$MNT/MFlixTV.app/Contents/Resources/app.icns"
           echo "== 载荷与源码逐文件哈希（全量 diff）=="
           diff -r -q "app/public" "$MNT/MFlixTV.app/Contents/Resources/payload/app/public" && echo "app/public 与源码 0 差异"
-          shasum -a 256 "$MNT/MFlixTV.app/Contents/Resources/payload/app/public/index.html" "app/public/index.html"
+          shasum -a 256 "$MNT/MFlixTV.app/Contents/Resources/payload/app/public/icons/icon-192.png" "app/public/icons/icon-192.png"
           echo "== PAYLOAD_FILE_COUNT =="
           find "$MNT/MFlixTV.app/Contents/Resources/payload" -type f ! -name '._*' | wc -l | tr -d ' '
           echo "挂载后的总大小：$(du -sh "$MNT/MFlixTV.app" | cut -f1)"
