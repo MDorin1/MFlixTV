@@ -2,6 +2,20 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
+<script>
+/* flex 的 gap 检测：`@supports (gap:1px)` 在 Chrome 57–83 会被 grid 的 gap 判成“支持”，
+   而 flex 的 gap 要到 84 才有 —— 用真实布局量一次，不生效才加 .nofg。
+   （放在样式表之前，首帧就带上 class，不会闪。） */
+(function(){try{
+  var d=document.createElement('div');
+  d.style.cssText='position:absolute;left:-9999px;top:0;display:flex;gap:2px';
+  for(var i=0;i<2;i++){var c=document.createElement('i');c.style.cssText='flex:0 0 1px;height:1px;display:block';d.appendChild(c)}
+  document.documentElement.appendChild(d);
+  var k=d.children, ok=(k[1].getBoundingClientRect().left-k[0].getBoundingClientRect().left)>=2;
+  d.parentNode.removeChild(d);
+  if(!ok)document.documentElement.className+=' nofg';
+}catch(e){document.documentElement.className+=' nofg'}})();
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#000000">
 <link rel="icon" href="data:,">
@@ -616,6 +630,45 @@
     #eps-sheet .hd > * + *,#spd-sheet .hd > * + *,#line-sheet .hd > * + *{margin-left:1rem}
     #line-sheet .ln > * + *{margin-left:.4rem}
   }
+  /* nofg-mirror:begin：Chrome 57–83 能解析 gap（grid）但 flex 的 gap 要 84，
+      @supports not (gap) 在这段内核上判不出来，所以这份副本由 JS 实测后加 .nofg 才生效 */
+    html.nofg #nav > *{margin-right:1.5rem}
+    html.nofg #navItems > *{margin-right:1.55rem}
+    html.nofg #navr > *{margin-right:1rem}
+    html.nofg .hero-meta > *{margin-right:.75rem}
+    html.nofg .hero-btns > *{margin-right:.8rem}
+    html.nofg .btn > *{margin-right:.45rem}
+    html.nofg .hero-dots i{margin-right:.36rem}
+    html.nofg .rail-h > *{margin-right:.7rem}
+    html.nofg .strip > *{margin-right:.8rem}
+    html.nofg .dt-meta > *{margin:0 .8rem .8rem 0}
+    html.nofg .dt-btns > *{margin-right:.7rem}
+    html.nofg .dt-h > *{margin-right:.7rem}
+    html.nofg .chips > *{margin:0 .5rem .5rem 0}
+    html.nofg .epstrip > *{margin:0 .85rem .85rem 0}
+    html.nofg .hot .chip{margin:0 .55rem .55rem 0}
+    html.nofg .sc-acts > *{margin-right:.6rem}
+    html.nofg #search .right{margin-left:3rem}
+    html.nofg #pbtns > *{margin:0 .55rem .55rem 0}
+    html.nofg #eps-sheet .grid > *{margin:0 .5rem .5rem 0}
+    html.nofg #nx .r > *{margin-right:.6rem}
+    html.nofg .st-rows > *{margin-bottom:.5rem}
+    html.nofg .st-btns > *{margin:0 .7rem .7rem 0}
+    html.nofg #boot > *{margin-bottom:1rem}
+    html.nofg #lanip > * + *{margin-left:.32rem}
+    html.nofg .pin-dots > * + *{margin-left:.7rem}
+    html.nofg #spd-sheet .grid > *{margin:0 .5rem .5rem 0}
+    html.nofg #line-sheet .grid > *{margin:0 .5rem .5rem 0}
+    html.nofg #extcard .ec-btns > *{margin:0 .7rem .7rem 0}
+    html.nofg #pbL > * + *{margin-left:.95rem}
+    html.nofg #pbR > *:not(:last-child){margin-top:.44rem}
+    html.nofg.desk #pbL > * + *{margin-left:12px}
+    html.nofg.desk #pbR > *:not(:last-child){margin-top:6px}
+    html.nofg #eps-sheet .hd > * + *,html.nofg #spd-sheet .hd > * + *,html.nofg #line-sheet .hd > * + *{margin-left:1rem}
+    html.nofg #line-sheet .ln > * + *{margin-left:.4rem}
+  /* nofg-mirror:end */
+
+  
   /* 老 WebView 可能连 CSS Grid 都没有（Chrome 57 才有）：字母键盘 / 搜索结果退回 inline-block */
   @supports not (display: grid){
     .kbd{display:block}

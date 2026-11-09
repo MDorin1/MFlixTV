@@ -454,8 +454,73 @@ for (const file of FILES) {
   results.push({
     file, cond: gapBlock.cond, containers: containers.length,
     unmeasured: uniq(unmeasured), injected: uniq(injected), zeroGap: uniq(zeroGap),
+    nofg: checkNofgMirror(html, fb),
     cases: measured,
   });
+}
+
+/* ---- 状态级检查：首项真会被 display:none 的那两个容器 ----
+   `#pbPlay` 播放时 .i-play 隐藏、`.i-pause` 成可见首项；`#pbMute` 静音时 .i-vol 隐藏。
+   `> * + *` 只看 DOM 顺序，会把间距塞给新的可见首项 —— 必须在两个状态上各量一次，
+   而且要在「现代内核」与「.nofg 旧内核」两种语境下都量，结论才算数。 */
+const STATE_CASES = [
+  { file: 'tv.html', container: '#pbPlay', addClass: 'playing', target: '.i-pause' },
+  { file: 'tv.html', container: '#pbMute', addClass: 'on', target: '.i-mute' },
+];
+const stateResults = [];
+for (const sc of STATE_CASES) {
+  const url = pathToFileURL(path.join(ASSETS, sc.file)).href;
+  const read = async (nofg) => {
+    await page.goto(url, { waitUntil: 'load' });
+    if (nofg) await page.evaluate(() => document.documentElement.classList.add('nofg'));
+    return page.evaluate(({ container, addClass, target }) => {
+      const host = document.querySelector(container);
+      if (!host) return null;
+      host.classList.add(addClass);
+      const el = host.querySelector(target);
+      if (!el) return null;
+      const s = getComputedStyle(el);
+      return {
+        ml: parseFloat(s.marginLeft) || 0, mt: parseFloat(s.marginTop) || 0,
+        hidden: s.display === 'none',
+      };
+    }, sc);
+  };
+  const modern = await read(false);
+  const legacy = await read(true);
+  stateResults.push({
+    ...sc, modern, legacy,
+    ok: !!modern && !!legacy && !modern.hidden &&
+        Math.abs(modern.ml) < TOL && Math.abs(legacy.ml) < TOL &&
+        Math.abs(modern.mt) < TOL && Math.abs(legacy.mt) < TOL,
+  });
+}
+
+/** `.nofg` 副本必须与 `@supports` 块逐条等价（选择器去掉前缀后比对） */
+function checkNofgMirror(html, fb) {
+  const b = html.indexOf('/* nofg-mirror:begin');
+  if (b < 0) return { present: false, mirrorRules: 0, sameSelectors: false };
+  const e = html.indexOf('/* nofg-mirror:end */');
+  // 从注释结尾开始切，不能从第一个 `}` 开始（那条是第一条规则的结尾）
+  const bodyStart = html.indexOf('*/', b) + 2;
+  const body = html.slice(bodyStart, e);
+  const mirror = [];
+  const re = /html\.nofg([^{}]*)\{([^{}]*)\}/g;
+  let m;
+  while ((m = re.exec(body))) {
+    // 用整段匹配取选择器串（含 `html.nofg` 前缀），逗号分组逐项展开
+    for (const part of m[0].split('{')[0].split(',')) if (part.trim()) mirror.push(part.trim());
+  }
+  const norm = (s) => s.replace(/\s+/g, ' ').trim();
+  // 镜像侧还原前缀：`html.nofg.desk X` → `html.desk X`，`html.nofg X` → `X`
+  const strip = (s) => norm(s).replace(/html\.nofg\./g, 'html.').replace(/html\.nofg\s+/g, '');
+  const want = fb.map((f) => norm(f.selector)).sort();
+  const got = mirror.map(strip).sort();
+  return {
+    present: true, mirrorRules: mirror.length, baseRules: want.length,
+    sameSelectors: want.length === got.length && want.every((w, i) => w === got[i]),
+    missing: want.filter((w) => !got.includes(w)).slice(0, 5),
+  };
 }
 
 await browser.close();
@@ -488,7 +553,26 @@ if (asJson) {
       for (const f of c.latent) console.log(`      潜在：${f}`);
     }
     if (!bad.length) console.log('   硬失败 0');
+    if (r.nofg && r.nofg.present) {
+      const n = r.nofg;
+      const same = n.sameSelectors && n.mirrorRules === n.baseRules;
+      if (!same) totalFail++;
+      console.log(`   .nofg 副本 ${n.mirrorRules} 条 / @supports 块 ${n.baseRules} 条 —— ${same ? '逐条等价' : '✗ 与 @supports 块不一致：缺 ' + (n.missing || []).join(' | ')}`);
+    } else {
+      totalFail++;
+      console.log('   ✗ 没有 .nofg 副本：Chrome 57–83 上 @supports not (gap) 判不出，兜底整块不生效');
+    }
   }
-  console.log(totalFail ? `\n合计失败 ${totalFail} 项` : `\n硬失败 0 项；潜在（首项被隐藏时才有差）${totalLatent} 项；未验证 ${totalUnmeasured} 项`);
+  // 状态级检查
+  const stateBad = stateResults.filter((s) => !s.ok);
+  totalFail += stateBad.length;
+  console.log('\n== 状态级：首项真会被隐藏的容器 ==');
+  for (const s of stateResults) {
+    const tag = s.ok ? '✓' : '✗';
+    const m = s.modern, l = s.legacy;
+    console.log(`  ${tag} ${s.container}.${s.addClass} → ${s.target}  margin-left  现代 ${m ? m.ml : '?'}px / .nofg ${l ? l.ml : '?'}px`);
+    if (!s.ok) totalFail += 0;
+  }
+  console.log(totalFail ? `\n合计失败 ${totalFail} 项` : `\n硬失败 0 项；潜在（首项被隐藏时才有差）${totalLatent} 项；未验证 ${totalUnmeasured} 项；状态级 ${stateResults.length} 项全通过`);
   process.exit(totalFail ? 1 : 0);
 }

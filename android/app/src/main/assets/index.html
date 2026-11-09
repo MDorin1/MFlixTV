@@ -2,6 +2,20 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
+<script>
+/* flex 的 gap 检测：`@supports (gap:1px)` 在 Chrome 57–83 会被 grid 的 gap 判成“支持”，
+   而 flex 的 gap 要到 84 才有 —— 用真实布局量一次，不生效才加 .nofg。
+   （放在样式表之前，首帧就带上 class，不会闪。） */
+(function(){try{
+  var d=document.createElement('div');
+  d.style.cssText='position:absolute;left:-9999px;top:0;display:flex;gap:2px';
+  for(var i=0;i<2;i++){var c=document.createElement('i');c.style.cssText='flex:0 0 1px;height:1px;display:block';d.appendChild(c)}
+  document.documentElement.appendChild(d);
+  var k=d.children, ok=(k[1].getBoundingClientRect().left-k[0].getBoundingClientRect().left)>=2;
+  d.parentNode.removeChild(d);
+  if(!ok)document.documentElement.className+=' nofg';
+}catch(e){document.documentElement.className+=' nofg'}})();
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="icon" href="data:,">
@@ -567,6 +581,51 @@
       #pbtns > * + *{margin-left:8px}
     }
   }
+  /* nofg-mirror:begin：Chrome 57–83 能解析 gap（grid）但 flex 的 gap 要 84，
+      @supports not (gap) 在这段内核上判不出来，所以这份副本由 JS 实测后加 .nofg 才生效 */
+    html.nofg #top > * + *{margin-left:12px}
+    html.nofg #searchBar > * + *{margin-left:8px}
+    html.nofg #heroBtns > * + *{margin-left:9px}
+    html.nofg .hstrip > * + *{margin-left:10px}
+    html.nofg .btn-play > * + *{margin-left:7px}
+    html.nofg .btn-ghost > * + *{margin-left:7px}
+    html.nofg .row-h > * + *{margin-left:8px}
+    html.nofg .rcpad > * + *{margin-top:8px}
+    html.nofg .rcmid > * + *{margin-left:8px}
+    html.nofg .srcrow > * + *{margin-left:10px}
+    html.nofg .strip > * + *{margin-left:9px}
+    html.nofg #dCastList > *{margin:0 7px 7px 0}
+    html.nofg #svHead > * + *{margin-left:10px}
+    html.nofg #svBack > * + *{margin-left:6px}
+    html.nofg #dTitleBox > * + *{margin-left:13px}
+    html.nofg #dActions > * + *{margin-left:10px}
+    html.nofg .sec-h > * + *{margin-left:8px}
+    html.nofg #groups .grp{margin:0 8px 8px 0}
+    html.nofg #ptop > * + *{margin-left:10px}
+    html.nofg #pbtns > * + *{margin-left:10px}
+    html.nofg #pmini > *{margin:0 0 7px 7px}
+    html.nofg #pmini button > * + *{margin-left:5px}
+    html.nofg #psheetB.set .chips > *{margin:0 8px 8px 0}
+    html.nofg #psheetB.set .row > * + *{margin-left:12px}
+    html.nofg #psheetH > * + *{margin-left:10px}
+    html.nofg #psheetB.list .it > * + *{margin-left:10px}
+    html.nofg #sHead > * + *{margin-left:10px}
+    html.nofg .box-t > * + *{margin-left:8px}
+    html.nofg .kv > * + *{margin-left:12px}
+    html.nofg .src-item > * + *{margin-left:10px}
+    html.nofg .row-btns > * + *{margin-left:9px}
+    @media (min-width:760px){
+      html.nofg #groups .grp{margin:0 9px 9px 0}
+      html.nofg #dTitleBox > * + *{margin-left:24px}
+      html.nofg #dActions > * + *{margin-left:12px}
+      html.nofg #dCastList > *{margin:0 8px 8px 0}
+    }
+    @media (max-width:420px){
+      html.nofg #pbtns > * + *{margin-left:8px}
+    }
+  /* nofg-mirror:end */
+
+  
 
   /* 2) 海报比例：aspect-ratio 不支持时用 padding-top 撑 2:3 */
   @supports not (aspect-ratio: 1 / 1) {
