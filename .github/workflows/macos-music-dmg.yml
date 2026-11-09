@@ -41,6 +41,8 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
+      - uses: actions/checkout@v4
+
       - name: 取载荷
         env:
           TAG: ${{ inputs.payload_tag }}
@@ -204,7 +206,10 @@ jobs:
           ditto "$P" "$APP/Contents/Resources/payload"
 
           ICON_SRC=""
+          echo "pwd=$(pwd) workspace=${GITHUB_WORKSPACE:-none}"
+          ls -l "$GITHUB_WORKSPACE/packaging/macos" || true
           for c in "$P/public/icon-512.png" "$P/public/icons/icon-512.png" "$P/public/icon-192.png" \
+                   "$GITHUB_WORKSPACE/packaging/macos/MFlixMusic-icon.png" \
                    packaging/macos/MFlixMusic-icon.png; do
             if [ -f "$c" ]; then ICON_SRC="$c"; break; fi
           done
