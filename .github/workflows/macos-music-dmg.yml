@@ -314,6 +314,12 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$MNT/MFlix Music.app/Contents/Info.plist"
           plutil -lint "$MNT/MFlix Music.app/Contents/Info.plist"
           test -f "$MNT/MFlix Music.app/Contents/Resources/app.icns"
+          stat -f '%z bytes %N' "$MNT/MFlix Music.app/Contents/Resources/app.icns"
+          ICON_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$MNT/MFlix Music.app/Contents/Info.plist")"
+          echo "CFBundleIconFile=$ICON_NAME"
+          stat -f '%z bytes  %Sp  %N' "$MNT/MFlix Music.app/Contents/Resources/$ICON_NAME"
+          test -s "$MNT/MFlix Music.app/Contents/Resources/$ICON_NAME"
+          ls -l "$MNT/MFlix Music.app/Contents/Resources" | head -5
           echo "== 载荷与源码逐文件哈希 =="
           diff -r -q "$RUNNER_TEMP/work/MFlixMusic/public" "$MNT/MFlix Music.app/Contents/Resources/payload/public" && echo "public 与源码 0 差异"
           shasum -a 256 "$MNT/MFlix Music.app/Contents/Resources/payload/public/index.html" "$RUNNER_TEMP/work/MFlixMusic/public/index.html"

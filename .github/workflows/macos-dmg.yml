@@ -213,6 +213,11 @@ jobs:
           plutil -lint "$MNT/MFlixTV.app/Contents/Info.plist"
           test -f "$MNT/MFlixTV.app/Contents/Resources/app.icns"
           stat -f '%z bytes %N' "$MNT/MFlixTV.app/Contents/Resources/app.icns"
+          ICON_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$MNT/MFlixTV.app/Contents/Info.plist")"
+          echo "CFBundleIconFile=$ICON_NAME"
+          stat -f '%z bytes  %Sp  %N' "$MNT/MFlixTV.app/Contents/Resources/$ICON_NAME"
+          test -s "$MNT/MFlixTV.app/Contents/Resources/$ICON_NAME"
+          ls -l "$MNT/MFlixTV.app/Contents/Resources" | head -5
           echo "== 载荷与源码逐文件哈希（全量 diff）=="
           diff -r -q "app/public" "$MNT/MFlixTV.app/Contents/Resources/payload/app/public" && echo "app/public 与源码 0 差异"
           shasum -a 256 "$MNT/MFlixTV.app/Contents/Resources/payload/app/public/icons/icon-192.png" "app/public/icons/icon-192.png"
