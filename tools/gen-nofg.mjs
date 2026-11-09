@@ -90,7 +90,10 @@ function render(list) {
     parts.push('    }');
   }
   parts.push(`  ${MARK_END}`);
-  return parts.join('\n') + '\n';
+  // 契约：render() 的返回值以单个 '\n' 开头（与 @supports 块之间隔一行）、
+  // 以单个 '\n' 结尾。插入方不再自行补换行，删除方按同一契约整体吃掉，
+  // 两边严格互逆 —— 每跑一遍不多一个字节。
+  return '\n' + parts.join('\n') + '\n';
 }
 
 /** 去掉旧的 `.nofg` 副本：连同前导缩进/换行和结尾换行一起删，
@@ -109,13 +112,13 @@ function removeOld(html) {
   return html.slice(0, s) + html.slice(end);
 }
 
-/** 在 `@supports` 块之后插入副本：一个换行 + 副本（副本自身以换行结尾） */
+/** 在 `@supports` 块之后插入副本：副本自带开头的那个换行，这里不再补 */
 function insertFresh(html, fresh) {
   const at = html.indexOf('@supports not (gap');
   if (at < 0) return html;
   const blk = blockBody(html, at);
   if (!blk) return html;
-  return html.slice(0, blk.start) + '\n' + fresh + html.slice(blk.start);
+  return html.slice(0, blk.start) + fresh + html.slice(blk.start);
 }
 
 for (const file of FILES) {
