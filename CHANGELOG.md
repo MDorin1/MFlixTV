@@ -22,9 +22,11 @@
 
 ## 1.31 — 审计扩到运行态容器，并修掉审计自己的两个盲区
 
-**一、14 个「静态 DOM 里不存在」的容器不再是盲区**
+**一、9 个「静态 DOM 里不存在」的容器不再是盲区**
 
-手机版 `.row-h`、`#groups .grp`、`#psheetB.set .chips`、`#psheetB.set .row`、`#psheetB.list .it`、`.src-item`；电视版 `.rail-h`、`.strip`、`.hot .chip`、`#pbtns`、`#line-sheet .ln`、`.hero-dots i`。这些容器靠 JS 填子元素，1.30 只能把它们列成「未量」。现在 `tools/compat-gap-audit.mjs` 会按选择器补一条最小骨架，再读 computed gap 造 A/B fixture。结果：手机版 31 个容器全部量到、电视版 34 个全部量到，**未验证 0**。其中 `#groups .grp`、`.hero-dots i`、`.hot .chip` 真值 gap 是 0，本来就不需要兜底，单独归类。
+这些容器靠 JS 填子元素，1.30 只能把它们列成「未量」。现在 `tools/compat-gap-audit.mjs` 会按选择器补一条最小骨架，再读 computed gap 造 A/B fixture。**真正补了骨架量到的是 9 个**：手机版 5 个 —— `.row-h`、`#psheetB.set .chips`、`#psheetB.set .row`、`#psheetB.list .it`、`.src-item`；电视版 4 个 —— `.rail-h`、`.strip`、`#pbtns`、`#line-sheet .ln`。
+
+另有 5 个（`#groups .grp`、`.hero-dots i`、`.hot .chip` 等）不是「量出来的」，而是**重新归类**成「真值 gap 为 0、本来就不需要兜底」，它们的兜底规则本来就不该存在。这两类不能并成一个数写，之前把「补骨架」写成 14 个是把这 5 个也算进去了，口径已更正为 9 个。结果：手机版 31 个容器全部量到、电视版 34 个全部量到，**未验证 0**。
 
 **二、审计自己会骗过自己的三处，都修了**
 
@@ -42,6 +44,8 @@
 **四、留档的已知风险**
 
 `> * + *` 这种写法只在「首个子元素被 `display:none`」时露馅（行首多一个间距）。现在 39 个容器在「首项隐藏」场景下仍有偏差，静态页面里 0 个容器首项是隐藏的，所以记成 `latent`；`--strict` 才升级为失败。真实会切换首项可见性的（`#pbPlay`、`#pbMute`）已按上面第一条修掉。
+
+这 39 项里有两种性质，报数时别并成一类：多数是「首项缩进 0 vs 兜底 gap」（隐藏首项后行首多一条缝）；但 `.btn-play`、`.btn-ghost`（还有电视版两处 `155.45 / 157.41 vs 160`）是 `justify-content:center`，首项隐藏后是**整体居中位移**，看到的是按钮内容偏几个像素，不是多一条缝。两者要修的方向也不一样。
 
 ## 1.11 — 遥控器两个「按了像没按」的地方
 
