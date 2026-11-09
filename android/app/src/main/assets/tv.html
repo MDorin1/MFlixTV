@@ -570,7 +570,7 @@
   }
   @supports not (gap: .5rem){
     #nav > *{margin-right:1.5rem}
-    #navItems > *{margin-right:.15rem}
+    #navItems > *{margin-right:1.55rem}          /* 顶栏精修层把 gap 提到 1.55rem，兜底跟着提 */
     #navr > *{margin-right:1rem}
     .hero-meta > *{margin-right:.75rem}
     .hero-btns > *{margin-right:.8rem}
@@ -578,7 +578,7 @@
     .hero-dots i{margin-right:.36rem}
     .rail-h > *{margin-right:.7rem}
     .strip > *{margin-right:.75rem}
-    .dt-meta > *{margin-right:.8rem}
+    .dt-meta > *{margin:0 .8rem .8rem 0}         /* 换行容器：右+下双向，缺下间距行与行会贴住 */
     .dt-btns > *{margin-right:.7rem}
     .dt-h > *{margin-right:.7rem}
     .chips > *{margin:0 .5rem .5rem 0}
@@ -586,11 +586,11 @@
     .hot .chip{margin:0 .55rem .55rem 0}
     .sc-acts > *{margin-right:.6rem}
     #search .right{margin-left:3rem}
-    #pbtns > *{margin-right:.55rem}
+    #pbtns > *{margin:0 .55rem .55rem 0}         /* 换行容器 */
     #eps-sheet .grid > *{margin:0 .5rem .5rem 0}
-    #nx .r > *{margin-right:.5rem}
+    #nx .r > *{margin-right:.6rem}
     .st-rows > *{margin-bottom:.5rem}
-    .st-btns > *{margin-right:.7rem}
+    .st-btns > *{margin:0 .7rem .7rem 0}         /* 换行容器 */
     #boot > *{margin-bottom:1rem}
     /* 2026-11-09 补齐：以下十二处漏在兜底之外（`.hero-dots i` 与 `.hot .chip`
        已经有子元素规则，不重复写）。竖排 #pbR 要用 margin-top，横排用 margin-left */
@@ -600,7 +600,7 @@
     #line-sheet .grid > *{margin:0 .5rem .5rem 0}
     #extcard .ec-btns > *{margin:0 .7rem .7rem 0}
     #pbL > * + *{margin-left:.95rem}
-    #pbR > * + *{margin-top:.44rem}
+    #pbR > *:not(:last-child){margin-top:.44rem}   /* 反向轴：`* + *` 会把间距加到容器顶边，改用排除末项 */
     .pb > * + *{margin-left:.4rem}
     #eps-sheet .hd > * + *,#spd-sheet .hd > * + *,#line-sheet .hd > * + *{margin-left:1rem}
     #line-sheet .ln > * + *{margin-left:.4rem}

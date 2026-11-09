@@ -539,7 +539,7 @@
     #svHead > * + *{margin-left:10px}
     #svBack > * + *{margin-left:6px}
     #dTitleBox > * + *{margin-left:13px}
-    #dActions > * + *{margin-left:9px}
+    #dActions > * + *{margin-left:10px}
     .sec-h > * + *{margin-left:8px}
     #groups .grp{margin:0 8px 8px 0}         /* 换行 */
     #ptop > * + *{margin-left:10px}
@@ -555,6 +555,15 @@
     .kv > * + *{margin-left:12px}
     .src-item > * + *{margin-left:10px}
     .row-btns > * + *{margin-left:9px}
+    /* 断点镜像：这两个断点会改 gap，兜底跟着改，否则宽屏上比真 gap 紧一档（24→13） */
+    @media (min-width:760px){
+      #dTitleBox > * + *{margin-left:24px}
+      #dActions > * + *{margin-left:12px}
+      #dCastList > *{margin:0 8px 8px 0}
+    }
+    @media (max-width:420px){
+      #pbtns > * + *{margin-left:8px}
+    }
   }
 
   /* 2) 海报比例：aspect-ratio 不支持时用 padding-top 撑 2:3 */
@@ -563,7 +572,11 @@
     .hcard .hp{height:0;padding-bottom:150%}
     #dPoster{height:0;padding-bottom:150%}
     .card .ph img,.hcard .hp img,#dPoster img{position:absolute;top:0;left:0;width:100%;height:100%}
-    /* env() 要 Chrome 69+，老内核里整条 padding 会失效，这里给回普通值 */
+  }
+  /* 2b) 安全区：env() 要 Chrome 69+。这一条必须独立成块——
+         Chrome 80–83 支持 env() 但不支持 aspect-ratio，混在上面的块里会生效，
+         把本来正确的刘海屏 padding 又改回硬值。 */
+  @supports not (padding: env(safe-area-inset-bottom)) {
     body{padding-bottom:0}
     #top{padding:12px 14px 10px}
     #searchBar{padding:12px 12px 10px}
@@ -575,6 +588,8 @@
     #sHead{padding:12px 14px 10px}
     #sBody{padding:14px 14px 40px}
   }
+  /* 2c) 断点镜像：上面 1) 里的间距是基础断点的值，两个断点会改 gap，
+         兜底必须跟着改，否则宽屏 / 窄屏上兜底比真 gap 紧一档或松一档。 */
   /* ---- 更老的 WebView（Android 7.x 自带 Chrome 51–55，没有 CSS Grid）----
      网格全部退回 flex 换行，手机上和网格的样子基本一致，不至于挤成一列。 */
   @supports not (display: grid) {
