@@ -105,97 +105,8 @@ jobs:
           </plist>
           PLIST
 
-          # 启动器：自己起服务，不弹终端；起好后开无地址栏窗口并常驻前台
-          # （进程一退 Dock 图标就消失，所以最后要 wait）
-          cat > "$APP/Contents/MacOS/MFlixMusic" <<'LAUNCH'
-          #!/bin/bash
-          set -u
-          RES="$(cd "$(dirname "$0")/../Resources" && pwd)"
-          PAY="$RES/payload"
-          LOGDIR="$HOME/Library/Logs/MFlixMusic"
-          mkdir -p "$LOGDIR"
-          LOG="$LOGDIR/mflix-music.log"
-
-          notify() { /usr/bin/osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true; }
-          alert() { /usr/bin/osascript -e "display alert \"MFlix Music\" message \"$1\"" >/dev/null 2>&1 || true; }
-
-          {
-            echo "=== $(date '+%Y-%m-%d %H:%M:%S') app launch ==="
-            echo "app=$RES payload=$PAY"
-          } >> "$LOG"
-
-          /usr/bin/xattr -dr com.apple.quarantine "$RES" 2>/dev/null || true
-
-          if [ "$(uname -m)" = "arm64" ]; then NODE="$RES/runtime/node-arm64"; else NODE="$RES/runtime/node-x64"; fi
-          if [ ! -x "$NODE" ]; then
-            /bin/chmod +x "$RES/runtime/node-arm64" "$RES/runtime/node-x64" 2>/dev/null
-          fi
-          if [ ! -x "$NODE" ]; then
-            alert "安装不完整：找不到内置的 Node 运行时，请重新下载安装包。"
-            exit 3
-          fi
-
-          PORT=8090
-          while [ "$PORT" -lt 8130 ] && /usr/bin/nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1; do PORT=$((PORT+1)); done
-          if [ "$PORT" -ge 8130 ]; then
-            alert "8090 附近的端口都被占用了，先关掉占口的程序再启动。"
-            exit 4
-          fi
-          URL="http://127.0.0.1:${PORT}/"
-
-          open_window() {
-            UD="$HOME/Library/Application Support/MFlixMusic/browser"
-            /bin/mkdir -p "$UD"
-            if [ -d "/Applications/Google Chrome.app" ]; then
-              /usr/bin/open -na "Google Chrome" --args --app="$URL" --user-data-dir="$UD" --window-size=1440,900
-            elif [ -d "/Applications/Microsoft Edge.app" ]; then
-              /usr/bin/open -na "Microsoft Edge" --args --app="$URL" --user-data-dir="$UD" --window-size=1440,900
-            else
-              /usr/bin/open "$URL"
-            fi
-          }
-
-          cd "$PAY" || exit 5
-          PORT="$PORT" "$NODE" server.js >> "$LOG" 2>&1 &
-          PID=$!
-
-          cleanup() {
-            echo "$(date '+%H:%M:%S') stopping" >> "$LOG"
-            kill "$PID" 2>/dev/null
-            exit 0
-          }
-          trap cleanup INT TERM HUP
-
-          ok=""
-          i=0
-          while [ "$i" -lt 60 ]; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "$URL" 2>/dev/null || true)
-            if [ "$code" = "200" ]; then ok=1; break; fi
-            sleep 1
-            i=$((i+1))
-          done
-          if [ -z "$ok" ]; then
-            alert "服务没能起来，日志在 ~/Library/Logs/MFlixMusic/mflix-music.log。"
-            exit 6
-          fi
-
-          IP="$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || /usr/sbin/ipconfig getifaddr en1 2>/dev/null)"
-          if [ "${MFLIX_NOBROWSER:-}" = "1" ]; then
-            echo "READY $URL LAN http://${IP:-unknown}:$PORT"
-          else
-            open_window
-            if [ -n "$IP" ]; then
-              printf 'http://%s:%s/' "$IP" "$PORT" | /usr/bin/pbcopy 2>/dev/null || true
-              echo "READY $URL LAN http://$IP:$PORT" >> "$LOG"
-              notify "MFlix Music 已启动" "手机/电视用 http://$IP:$PORT （已复制到剪贴板）"
-            else
-              notify "MFlix Music 已启动" "本机 $URL（没读到局域网 IP，检查 Wi-Fi）"
-            fi
-          fi
-
-          wait "$PID"
-          cleanup
-          LAUNCH
+          # 启动器：单实例复用 + 关窗即退（3.19 重写；脚本本体在 packaging/macos/MFlixMusic-launcher.sh）
+          install -m 755 packaging/macos/MFlixMusic-launcher.sh "$APP/Contents/MacOS/MFlixMusic"
           chmod +x "$APP/Contents/MacOS/MFlixMusic"
 
           cp "$RUNNER_TEMP/nodedl/node-arm64" "$APP/Contents/Resources/runtime/node-arm64"
@@ -238,27 +149,58 @@ jobs:
           bash -n "$APP/Contents/MacOS/MFlixMusic"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist"
 
-      - name: 冒烟测试（真跑一次，等服务回 200）
+      - name: 冒烟测试（真跑一次：/api/ping 自证 + 单实例复用 + /api/bye 自退）
         run: |
           set -euo pipefail
           APP="$RUNNER_TEMP/MFlixMusic.app"
-          MFLIX_NOBROWSER=1 "$APP/Contents/MacOS/MFlixMusic" > "$RUNNER_TEMP/launch.log" 2>&1 &
-          LAUNCHER=$!
-          ok=""
+          L="$APP/Contents/MacOS/MFlixMusic"
+          MFLIX_NOBROWSER=1 "$L" > "$RUNNER_TEMP/launch1.log" 2>&1 &
+          L1=$!
+          PORT=""
           for i in $(seq 1 60); do
+            if grep -q "^READY " "$RUNNER_TEMP/launch1.log" 2>/dev/null; then
+              PORT=$(sed -n "s#^READY http://127.0.0.1:\([0-9][0-9]*\).*#\1#p" "$RUNNER_TEMP/launch1.log" | head -1)
+              if [ -n "$PORT" ]; then break; fi
+            fi
             for p in $(seq 8090 8130); do
-              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://127.0.0.1:${p}/" || true)
-              if [ "$code" = "200" ]; then ok="port=$p"; PORT="$p"; break 2; fi
+              code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 2 "http://127.0.0.1:${p}/api/ping" || true)
+              if [ "$code" = "200" ]; then PORT="$p"; break 2; fi
             done
             sleep 1
           done
-          echo "--- launch.log ---"; cat "$RUNNER_TEMP/launch.log" || true
+          echo "--- launch1.log ---"; cat "$RUNNER_TEMP/launch1.log" || true
           echo "--- app log ---"; tail -n 30 "$HOME/Library/Logs/MFlixMusic/mflix-music.log" || true
-          echo "--- 首页标题 ---"; curl -s --max-time 5 "http://127.0.0.1:${PORT}/" | grep -o '<title>[^<]*</title>' | head -1 || true
+          test -n "$PORT"
+          echo "port=$PORT"
+          ping=$(curl -s --max-time 5 "http://127.0.0.1:${PORT}/api/ping")
+          echo "ping=$ping"
+          echo "$ping" | grep -q '"app":"mflix-music"'
+          echo "--- 首页标题 ---"; curl -s --max-time 5 "http://127.0.0.1:${PORT}/" | grep -o "<title>[^<]*</title>" | head -1 || true
           echo "--- 接口 ---"; curl -s -o /dev/null -w "library=%{http_code}\n" --max-time 10 "http://127.0.0.1:${PORT}/api/library" || true
-          pkill -f 'runtime/node-' || true
-          pkill -f 'server.js' || true
-          test -n "$ok"
+
+          # 第二次点图标必须复用同一个实例并立刻退出（3.19 之前会再起一个 node）
+          MFLIX_NOBROWSER=1 "$L" > "$RUNNER_TEMP/launch2.log" 2>&1 &
+          L2=$!
+          n=0
+          while kill -0 "$L2" 2>/dev/null && [ "$n" -lt 20 ]; do sleep 1; n=$((n+1)); done
+          if kill -0 "$L2" 2>/dev/null; then echo "second launcher still running after ${n}s"; kill "$L2" 2>/dev/null || true; exit 9; fi
+          echo "--- launch2.log (应复用同一端口并立即退出) ---"; cat "$RUNNER_TEMP/launch2.log" || true
+          grep -q "reuse existing server port=$PORT" "$HOME/Library/Logs/MFlixMusic/mflix-music.log"
+          nodes=$(pgrep -f "runtime/node-" | wc -l | tr -d " ")
+          echo "node processes after reuse=$nodes (expect 1)"
+          test "$nodes" = "1"
+
+          # 关窗 = 前端 sendBeacon /api/bye，服务端 10 秒内自退
+          curl -s -o /dev/null --max-time 5 "http://127.0.0.1:${PORT}/api/bye" || true
+          gone=""
+          for i in $(seq 1 20); do
+            if ! kill -0 "$L1" 2>/dev/null; then gone=1; break; fi
+            sleep 1
+          done
+          echo "--- app log tail ---"; tail -n 15 "$HOME/Library/Logs/MFlixMusic/mflix-music.log" || true
+          pkill -f "runtime/node-" || true
+          pkill -f "server.js" || true
+          test -n "$gone"
 
       - name: 打 DMG
         env:
